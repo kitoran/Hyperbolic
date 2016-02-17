@@ -1,10 +1,12 @@
 {-# Language MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
-module Space where
+module Hyperbolic where
 
 import Linear.Vector
 import Control.Applicative
 import GHC.Generics
-{- |
+{-|
+
+Этот модуль описывает гиперболическое пространство
 So i cant switch to russian so i'm going to try to write comments in english with mistakes
 
 There are three ways to code m-dimentional subspace of E^n: with m points it contains, 
@@ -31,21 +33,32 @@ Klein's approach for representing hyperbolic space is used.
 hyperbolic 3-space is area of projective 3-space inside an oval.
 projective 3-space is sheaf in 4-dimensional vector space.
 
-Also projective 2-space is used when showing hyperbolic space from inside
+Уровни абстракции расположены так:
+                4-мерное пространство
+                /                   \
+              |/                     \|
+               --                   --
+Пространство Минковского    Проективная плоскость
+               \                       /
+                \|                   |/
+               --                     -- 
+Пространство Лобачевского (с идеальными элементами)
 -}
 
 
 data Point a = Point a a a a deriving (Additive, Generic1)
 {- ^ for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map 
   is not nearly injective, that's sad. However, sometimes i use improper points -}
-instance Applicative Point where -- This instance is needed of Additive instance
+instance Applicative Point where -- This instance is needed for Additive instance
 -- it's wrong and should not be exported
     pure a = Point a a a a
     (Point a b c d) <*> (Point e f g h) = Point (a e) (b f) (c g) (d h)
 
 
 
-form :: Num a => Point a -> Point a -> a -- fundamental minkowski form
+form :: Num a => Point a -> Point a -> a {- fundamental minkowski form, она зависит от координатного
+представления точки, то есть не инвариантна для точек гиперболического пространства, 
+её стоит использовать с осторожностью -}
 form (Point x1 y1 z1 t1) (Point x2 y2 z2 t2) = x1*x2 + y1*y2 + z1*z2 - t1*t2 
 
 
@@ -53,7 +66,8 @@ data Line a = Line (Point a) (Point a) {- ^ if one of the points is proper, the 
 
 data Plane a = Plane a a a a {- ^ for proper plane a^2 + b^2 + c^2 - d^2 > 0 -}
 
-data Absolute a = Abs a a a {- ^ point on celestial sphere or "absolute point". t^2 = x^2 + y^2 + z^2 -}
+data Absolute a = Abs a a a {- ^ point on celestial sphere or "absolute point". t^2 = x^2 + y^2 + z^2 
+x^2+y^2+z^2 > 0-}
 
 data Camera a = Cam (Point a) (Absolute a) (Absolute a) {- ^ Viewer's eye, direction and SOME vertical 
 direction.
@@ -63,7 +77,7 @@ orthogonal to first one
 Space is projected on a sphere or radius 1 and then sphere is moved to 
 euclid space and projected to tangent space -}
 
-class Viewable e i where {- entity e is viewed as i -}
+class Viewable e i where {- ^ entity e is viewed as i -}
     view :: {- some constraint on a -} Camera a -> e a -> i a
 
 direction :: Floating a => Point a -> Point a -> Absolute a
