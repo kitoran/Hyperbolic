@@ -65,7 +65,7 @@ form (Point x1 y1 z1 t1) (Point x2 y2 z2 t2) = x1*x2 + y1*y2 + z1*z2 - t1*t2
 data Line a = Line (Point a) (Point a) {- ^ if one of the points is proper, the line is proper -}
 
 data Plane a = Plane a a a a {- ^ for proper plane a^2 + b^2 + c^2 - d^2 > 0 -}
-
+   
 data Absolute a = Abs a a a {- ^ point on celestial sphere or "absolute point". t^2 = x^2 + y^2 + z^2 
 x^2+y^2+z^2 > 0-}
 
@@ -76,6 +76,7 @@ orthogonal to first one
 
 Space is projected on a sphere or radius 1 and then sphere is moved to 
 euclid space and projected to tangent space -}
+
 
 class Viewable e i where {- ^ entity e is viewed as i -}
     view :: {- some constraint on a -} Camera a -> e a -> i a
