@@ -92,7 +92,7 @@ direction a b = a + c*b
 data Point2 a = Point2 a a
 
 data Segment2 a = Seg2 (Point2 a) (Point2 a)
- {---------}
+
 data PlaneImage2 a = PI2 (Point2 a) a a a a {- ^ center, direction of main axis and axes -}
  {- not all ellipses are given this way; this type needs refactoring    -}
 
