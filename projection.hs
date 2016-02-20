@@ -4,7 +4,7 @@ import Hyperbolic
 
 data Camera a = Cam {
                     cameraPosition::(Point a),
-                    cameraDirection::(Absolute a),
+                    cameraDirection::(Point a),
                     cameraVerticalDirection::(Absolute a)
                      }
 {- ^ Viewer's eye, direction and SOME vertical
