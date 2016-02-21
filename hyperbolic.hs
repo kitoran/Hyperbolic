@@ -27,6 +27,8 @@ that trere won't be any meaningless values of type 'subspace'.
 
 For that reason i chose first way for 1- and 2-subspaces and second for 3-subspaces.
 They are also easier to implement (not that it's important).
+
+Для переключения между первыми двумя подходами нужно решить систему уравнений
 -}
 {- |
 Klein's approach for representing hyperbolic space is used.

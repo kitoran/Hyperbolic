@@ -10,7 +10,9 @@ data Camera a = Cam {
 {- ^ Viewer's eye, direction and SOME vertical
 direction.
 Note that second absolute point directs up but not nessesarily straight up; it doesn't need to be
-orthogonal to first one  -}
+orthogonal to first one 
+Положение точки d определяет масштаб полученного изображения. Благодаря этому я могу не извлекать
+корень при проецировании, но должен извлечь его, когда устанавливаю камеру -}
 
 class Viewable e i where {- ^ entity e is viewed as i -}
     view :: {- some constraint on a -} Camera a -> e a -> i a
@@ -19,31 +21,26 @@ class Viewable e i where {- ^ entity e is viewed as i -}
 
 {-
 
-Чтобы спроецировать точку на плоскость, мы проецируем её на абсолют и затем проецируем её
-на плоскость, касающуюся абсолюта в точке cameraDirection из точки cameraPosition
+Чтобы спроецировать точку p на плоскость камерой Cam p0 d v, мы
 
-Проецирование точки на абсолют is pretty straightforward, но спроецировать точку абсолюта на касательную
-плоскость можно разными способами (с одинаковым результатом). Я реализовал первый способ, пришедший в
-голову: использовать простое линейное преобразование, переводящее cameraPosition в центр (точку 0,0,0,t)
-и не меняющее t. При этом, конечно, метрика Минковского летит к хуям.
+проецируем её из p0 на (гипер)плоскость, перпендикулярную прямой p0-d в точке d
+затем проецируем из начала координат на (гипер)плоскость, полярную точке p0, сдвинутую на что-нибудь
+Пока она сдвигается на d
 
 -}
 
-direction :: Floating a => Point a -> Point a -> Absolute a
-{- ^ Эта функция проецирует вторую точку из первой на абсолют.
- Может быть, её можно написать без констрейнта -}
-direction a b = a + c*b
-    where c = (ab + sqrt (ab*ab - aa*bb))/aa
-          ab = form a b
-          bb = form b b
-          aa = form a a
+instance Viewable Point where
+	view c = (project origin (translate polarPlane d)) . (project p0 planeOfView) 
+		where planeOfView = Plane d a b
+			  Line a b = eqtobas (LineEq (polar p0) (polar d))
+			  polarPlane (Point x y x t) = Plane (-x) (-y) (-z) t
 
--- функция tangentHyperplane, наверное, даже не понадобится
-tangentHyperplane :: Floating a => Absolute a -> Plane a
-tangentHyperplane (Abs x y z) = (Plane (-x) (-y) (-z) (sqrt $ 1+x*x+y*y+z*z))
+projectPoint::Camera a -> Point a -> Point2 a
+projectPoint c p = 
+	project p to plane orthogonal to line p d in p translated by d where d = cameraPosition c
 
-moveHyperplane :: Absolute a -> Plane a -> Plane a
-moveHyperplane (Abs x y z) (Plane a a a a) = 
+
+
 
 data Point2 a = Point2 a a
 
