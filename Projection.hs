@@ -58,7 +58,7 @@ toAffine p0@(Point x0 y0 z0 t0) p@(Point x y z t)
         where t' = form p0 p / form p0 p0
 
 
-
+ 
 {-projectPoint::Camera a -> Point a -> Point2 a
 projectPoint c p = 
 	project p to plane orthogonal to line p d in p translated by d where d = cameraPosition c
