@@ -1,12 +1,12 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings, RebindableSystax #-}
 module Projection where
 import Hyperbolic
-
+import Data.Matrix
 data Projector a = Cam {
                     projectorPosition::(Point a),
                     projectorDirection::(Point a),
-                    projectorVerticalDirection::(Absolute a),
-                    projectorHorizontalDirection::(Absolute a)
+                    projectorVertical::(Point a),
+                    projectorHorizontal::(Point a)
                      }
 {- ^ Viewer's eye, direction and SOME vertical
 direction.
@@ -45,6 +45,9 @@ class Viewable e i where {- ^ entity e is viewed as i -}
 
 -}
 
+toV4 (Point a b c d) = V4 a b c d
+
+
 instance Viewable Point where
     view c = (toAffine origin (translate polarPlane d)) . (project p0 planeOfView) 
         where planeOfView = Plane d a b
@@ -52,13 +55,17 @@ instance Viewable Point where
               polarPlane (Point x y x t) = Plane (-x) (-y) (-z) t
 			  --project 
 
-toAffine :: Num a => Point a -> (Point a -> (a, a, a))
-toAffine p0@(Point x0 y0 z0 t0) p@(Point x y z t) 
-    = ((t' *x - x0)/t0, (t' *y - y0)/t0, (t' *z - z0)/t0)
+toAffineDeprecated :: Num a => Point a -> (Point a -> V3 a)
+toAffineDeprecated p0@(Point x0 y0 z0 t0) p@(Point x y z t) 
+    = V3 ((t' *x - x0)/t0) ((t' *y - y0)/t0) ((t' *z - z0)/t0))
         where t' = form p0 p / form p0 p0
 
 
- 
+decompose :: Num a => V4 (V4 a)) -> V4 a -> V4 (V4 a)
+decompose m p = inv44 m *! p
+
+
+
 {-projectPoint::Camera a -> Point a -> Point2 a
 projectPoint c p = 
 	project p to plane orthogonal to line p d in p translated by d where d = cameraPosition c
