@@ -1,12 +1,15 @@
-{-# Language NoMonomorphismRestriction, OverloadedStrings, RebindableSystax #-}
-module Projection where
+{-# Language NoMonomorphismRestriction, OverloadedStrings #-}
+module Projection(viewPoint, 
+                    Projector (..)) where
 import Hyperbolic
-import Data.Matrix
-data Projector a = Cam {
+import Linear.Matrix
+import Linear.V4
+import Linear.V3
+data Projector a = Projector {
                     projectorPosition::(Point a),
                     projectorDirection::(Point a),
-                    projectorVertical::(Point a),
-                    projectorHorizontal::(Point a)
+                    projectorHorizontal::(Point a),
+                    projectorVertical::(Point a)
                      }
 {- ^ Viewer's eye, direction and SOME vertical
 direction.
@@ -16,14 +19,14 @@ orthogonal to first one
 корень при проецировании, но должен извлечь его, когда устанавливаю камеру 
 
 
--}
+-
 
 class Viewable e i where {- ^ entity e is viewed as i -}
     view :: {- some constraint on a -} Camera a -> e a -> i a
 
 
 
-{-
+-
 
 Чтобы спроецировать точку p на плоскость камерой Cam p0 d v, мы
 1) превращаем проективное пространство в аффинное, выбирая в качестве бесконечно удалённой
@@ -47,28 +50,34 @@ class Viewable e i where {- ^ entity e is viewed as i -}
 
 toV4 (Point a b c d) = V4 a b c d
 
-
+{-
 instance Viewable Point where
     view c = (toAffine origin (translate polarPlane d)) . (project p0 planeOfView) 
         where planeOfView = Plane d a b
               Line a b = eqtobas (LineEq (polar p0) (polar d))
               polarPlane (Point x y x t) = Plane (-x) (-y) (-z) t
-			  --project 
+              --project 
+              -}
 
-toAffineDeprecated :: Num a => Point a -> (Point a -> V3 a)
+toAffineDeprecated :: Fractional a => Point a -> (Point a -> V3 a)
 toAffineDeprecated p0@(Point x0 y0 z0 t0) p@(Point x y z t) 
-    = V3 ((t' *x - x0)/t0) ((t' *y - y0)/t0) ((t' *z - z0)/t0))
+    = V3 ((t' *x - x0)/t0) ((t' *y - y0)/t0) ((t' *z - z0)/t0)
         where t' = form p0 p / form p0 p0
 
 
-decompose :: Num a => V4 (V4 a)) -> V4 a -> V4 (V4 a)
-decompose m p = inv44 m *! p
+decompose :: Fractional a => V4 (V4 a) -> V4 a -> (V4 a)
+decompose m p = inv44 m !* p
 
-
+viewPoint :: Fractional a => Projector a -> Point a -> (a, a)
+viewPoint c p = (h / (t * d), v / (t * d)) 
+    where V4 h v d t = decompose matrix (toV4 p) 
+          Projector p0'' d'' h'' v'' = c
+          [p0', d', h', v'] = map toV4 [p0'', d'', h'', v'']
+          matrix = V4 (h' - p0') (v' - p0') (d' - p0') (p0')
 
 {-projectPoint::Camera a -> Point a -> Point2 a
 projectPoint c p = 
-	project p to plane orthogonal to line p d in p translated by d where d = cameraPosition c
+    project p to plane orthogonal to line p d in p translated by d where d = cameraPosition c
 -}
 
 

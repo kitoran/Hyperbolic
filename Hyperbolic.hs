@@ -1,5 +1,6 @@
-{-# Language NoMonomorphismRestriction, OverloadedStrings, MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
-module Hyperbolic where
+{-# Language NoMonomorphismRestriction, OverloadedStrings,
+             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
+module Hyperbolic (Point(..), form) where
 
 import Linear.Vector
 import Control.Applicative
