@@ -1,0 +1,14 @@
+Name:		hyperbolic
+Version:	10.17.12
+Cabal-Version:  >= 1.2
+License:	BSD3
+Author:		Some Author
+Synopsis:	Is it
+Build-Type:     Simple
+
+Executable program1
+  Build-Depends:  base, GLUT, linear
+  Main-Is:        Main.hs
+  Hs-Source-Dirs: .
+
+--  Extensions:	CPP

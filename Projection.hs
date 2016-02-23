@@ -4,6 +4,7 @@ module Projection(viewPoint,
 import Hyperbolic
 import Linear.Matrix
 import Linear.V4
+import Linear.Vector
 import Linear.V3
 data Projector a = Projector {
                     projectorPosition::(Point a),
@@ -11,19 +12,16 @@ data Projector a = Projector {
                     projectorHorizontal::(Point a),
                     projectorVertical::(Point a)
                      }
+
 {- ^ Viewer's eye, direction and SOME vertical
 direction.
-Note that second absolute point directs up but not nessesarily straight up; it doesn't need to be
-orthogonal to first one 
-Положение точки d определяет масштаб полученного изображения. Благодаря этому я могу не извлекать
-корень при проецировании, но должен извлечь его, когда устанавливаю камеру 
+projectorHorizontal проецируется в (0, 1), projectorVertical - в (1, 0)
 
 
 -
 
 class Viewable e i where {- ^ entity e is viewed as i -}
     view :: {- some constraint on a -} Camera a -> e a -> i a
-
 
 
 -
@@ -66,14 +64,15 @@ toAffineDeprecated p0@(Point x0 y0 z0 t0) p@(Point x y z t)
 
 
 decompose :: Fractional a => V4 (V4 a) -> V4 a -> (V4 a)
-decompose m p = inv44 m !* p
+decompose m p = transpose (inv44 (transpose m)) !* p
 
 viewPoint :: Fractional a => Projector a -> Point a -> (a, a)
 viewPoint c p = (h / (t * d), v / (t * d)) 
     where V4 h v d t = decompose matrix (toV4 p) 
           Projector p0'' d'' h'' v'' = c
           [p0', d', h', v'] = map toV4 [p0'', d'', h'', v'']
-          matrix = V4 (h' - p0') (v' - p0') (d' - p0') (p0')
+          matrix = V4 (ch *^ h' ^-^ cd *^ d') (cv *^ v' ^-^ cd *^ d') (cd *^ d' ^-^ p0') (p0')
+          [ch, cv, cd] = [form p0'' p0'' / form p0'' t| t <- [h'', v'', d'']]
 
 {-projectPoint::Camera a -> Point a -> Point2 a
 projectPoint c p = 
