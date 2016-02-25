@@ -2,16 +2,41 @@
 module Projection(viewPoint, 
                     Projector (..)) where
 import Hyperbolic
-import Linear.Matrix
+import Linear.Matrix hiding (inv33)
 import Linear.V4
 import Linear.Vector
 import Linear.V3
+-------- for inv33
+import Linear.V2
+--------
 data Projector a = Projector {
                     projectorPosition::(Point a),
                     projectorDirection::(Point a),
                     projectorHorizontal::(Point a),
                     projectorVertical::(Point a)
                      }
+{- this function is defined in Matrix with stronger constraint -}
+inv33 :: Fractional a => M33 a -> M33 a
+inv33 m@(V3 (V3 a b c)
+            (V3 d e f)
+            (V3 g h i))
+  = (1 / det) *!! V3 (V3 a' b' c')
+                     (V3 d' e' f')
+                     (V3 g' h' i')
+  where a' = cofactor (e,f,h,i)
+        b' = cofactor (c,b,i,h)
+        c' = cofactor (b,c,e,f)
+        d' = cofactor (f,d,i,g)
+        e' = cofactor (a,c,g,i)
+        f' = cofactor (c,a,f,d)
+        g' = cofactor (d,e,g,h)
+        h' = cofactor (b,a,h,g)
+        i' = cofactor (a,b,d,e)
+        cofactor (q,r,s,t) = det22 (V2 (V2 q r) (V2 s t))
+        det = det33 m
+{-# INLINE inv33 #-}
+{- -}
+
 
 {- ^ Viewer's eye, direction and SOME vertical
 direction.
@@ -63,17 +88,26 @@ toAffineDeprecated p0@(Point x0 y0 z0 t0) p@(Point x y z t)
         where t' = form p0 p / form p0 p0
 
 
-decompose :: Fractional a => V4 (V4 a) -> V4 a -> (V4 a)
-decompose m p = transpose (inv44 (transpose m)) !* p
+decompose :: Fractional a => V3 (V3 a) -> V3 a -> (V3 a)
+decompose m p = {-(-p *!) -}transpose (inv33 (transpose m))  !* p
 
 viewPoint :: Fractional a => Projector a -> Point a -> (a, a)
-viewPoint c p = (h / (t * d), v / (t * d)) 
-    where V4 h v d t = decompose matrix (toV4 p) 
+viewPoint (Projector p0 d h v) p = (x, y) where
+  [h', v', d', p0', p'] = map (normalizePoint . toV4) [h, v, d, p0, p]
+  [h'', v'', d'', p''] = map (\t -> t-p0') [h', v', d', p']
+  matrix = V3 (h'' ^-^ d'') (v'' ^-^ d'') (d'')
+  V3 x y _ = decompose matrix p''
+--не совсем понятно мне, как писать без этих вот dash'ей. State вроде не позволяет так легко
+--сопоставлять и мапить состояния.
+  {- я не понимаю, почему эта версия viewPoint работает, поэтому удаляю её
+viewPoint :: Fractional a => Projector a -> Point a -> (a, a)
+viewPoint c p = 
+    where V4 h v d t = decompose matrix $ (form p0'' p0'' / form p0'' p) *^  toV4 p
           Projector p0'' d'' h'' v'' = c
           [p0', d', h', v'] = map toV4 [p0'', d'', h'', v'']
-          matrix = V4 (ch *^ h' ^-^ cd *^ d') (cv *^ v' ^-^ cd *^ d') (cd *^ d' ^-^ p0') (p0')
+          matrix = V4 (ch *^ h' ^-^  cd *^ d') (cv *^ v' ^-^ p0' ) ( cd *^ d' ^-^ p0' ) (p0')
           [ch, cv, cd] = [form p0'' p0'' / form p0'' t| t <- [h'', v'', d'']]
-
+-}
 {-projectPoint::Camera a -> Point a -> Point2 a
 projectPoint c p = 
     project p to plane orthogonal to line p d in p translated by d where d = cameraPosition c

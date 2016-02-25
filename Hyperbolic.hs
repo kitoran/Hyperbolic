@@ -5,6 +5,7 @@ module Hyperbolic (Point(..), form ) where
 import Linear.Vector
 import Control.Applicative
 import GHC.Generics
+
 {-|
 
 Этот модуль описывает гиперболическое пространство
@@ -54,7 +55,7 @@ projective 3-space is sheaf in 4-dimensional vector space.
 -}
 
 
-data Point a = Point a a a a deriving (Generic1)
+data Point a = Point a a a a deriving (Generic1, Show)
 {- ^ for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map 
   is not nearly injective, that's sad. However, sometimes i use improper points -}
 
@@ -75,6 +76,8 @@ data Plane a = Plane (Point a) (Point a) (Point a) {- ^ if one of the points is 
    
 data Absolute a = Abs a a a {- ^ point on celestial sphere or "absolute point". t^2 = x^2 + y^2 + z^2 
 x^2+y^2+z^2 > 0-}
+
+
 
 
 
