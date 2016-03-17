@@ -1,6 +1,6 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings #-}
-module Projection(viewPoint, 
-                    Projector (..)) where
+module Projection(viewPoint, viewPointInf,
+                    Projector (..), detinv44) where
 import Hyperbolic
 import Linear.Matrix hiding (inv33)
 import Linear.V4
@@ -8,14 +8,10 @@ import Linear.Vector
 import Linear.V3
 -------- for inv33
 import Linear.V2
+import Camera
 --------
-data Projector a = Projector {
-                    projectorPosition::(Point a),
-                    projectorDirection::(Point a),
-                    projectorHorizontal::(Point a),
-                    projectorVertical::(Point a)
-                     }
-{- this function is defined in Matrix with stronger constraint -}
+
+{- this function is defined in Linear.Matrix with stronger constraint -}
 inv33 :: Fractional a => M33 a -> M33 a
 inv33 m@(V3 (V3 a b c)
             (V3 d e f)
@@ -35,6 +31,9 @@ inv33 m@(V3 (V3 a b c)
         cofactor (q,r,s,t) = det22 (V2 (V2 q r) (V2 s t))
         det = det33 m
 {-# INLINE inv33 #-}
+
+
+
 {- -}
 
 
@@ -71,7 +70,6 @@ class Viewable e i where {- ^ entity e is viewed as i -}
 
 -}
 
-toV4 (Point a b c d) = V4 a b c d
 
 {-
 instance Viewable Point where
@@ -97,6 +95,15 @@ viewPoint (Projector p0 d h v) p = (x, y) where
   [h'', v'', d'', p''] = map (\t -> t-p0') [h', v', d', p']
   matrix = V3 (h'' ^-^ d'') (v'' ^-^ d'') (d'')
   V3 x y _ = decompose matrix p''
+
+viewPointInf :: Fractional a => Projector a -> Point a -> (a, a)
+viewPointInf (Projector p0 d h v) p = (x, y) where
+  [h', v', d', p0', p'] = map (normalizePoint . toV4) [h, v, d, p0, p]
+  [h'', v'', d'', p''] = map (\t -> t-p0') [h', v', d', p']
+  matrix = V3 (h'') (v'') (d'')
+  V3 x y _ = decompose matrix p''
+
+
 --не совсем понятно мне, как писать без этих вот dash'ей. State вроде не позволяет так легко
 --сопоставлять и мапить состояния.
   {- я не понимаю, почему эта версия viewPoint работает, поэтому удаляю её

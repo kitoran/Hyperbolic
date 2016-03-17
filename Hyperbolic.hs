@@ -1,8 +1,10 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
-module Hyperbolic (Point(..), form ) where
+module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4,
+                   rotateAroundZ, rotateAroundY, rotateAroundX ) where
 
-import Linear.Vector
+import Linear
+import Control.Lens
 import Control.Applicative
 import GHC.Generics
 
@@ -18,7 +20,7 @@ First two ways are very similar and dual to each other in a sense. Neither of th
 When seen like maps Gr(m, n) -> R^(m*n) (or n-m for second approach, i'll ignore this difference below)
  they lack bijectivity:  
 image of this map contains matrices m*n of maximal rank and similar matrices represent same subspace.
-Third way (grassman coordinates) lacks bijectivity as well
+Third way (grassman coordinates) lacks bijectivity as well: its image is order-2 hypersurface in codomain.
 
 First approach is almost surjective: complement of its image is lower-dimensional.
 Third approach is almost injective: two coordinates represent same subspace exactly when 
@@ -28,7 +30,7 @@ Injectivity matters when comparing two subspaces. But surjectivity is way more i
 that trere won't be any meaningless values of type 'subspace'.
 
 For that reason i chose first way for 1- and 2-subspaces and second for 3-subspaces.
-They are also easier to implement (not that it's important).
+They are also easier to implement (not that it's important or anything).
 
 Для переключения между первыми двумя подходами нужно решить систему уравнений
 -}
@@ -54,18 +56,25 @@ projective 3-space is sheaf in 4-dimensional vector space.
 Пространство Лобачевского (с идеальными элементами)
 -}
 
-
-data Point a = Point a a a a deriving (Generic1, Show)
+instance Additive Point where
+  
+data Point a = Point !a !a !a !a deriving (Generic1, Show, Eq, Functor)
 {- ^ for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map 
   is not nearly injective, that's sad. However, sometimes i use improper points -}
-
+_v4::Lens' (Point a) (V4 a)
+_v4 f (Point x y z t) = fmap fromV4 $ f (V4 x y z t)
+fromV4 (V4 a s d f) = Point a s d f
+instance Applicative Point where
+  pure a = Point a a a a
+  (Point a b c d) <*> (Point e f g h) = Point (a e) (b f) (c g) (d h)
 
 
 
 form :: Num a => Point a -> Point a -> a {- fundamental minkowski form, она зависит от координатного
-представления точки, то есть не инвариантна для точек гиперболического пространства, 
+представления точки, то есть не однозначна для точек гиперболического пространства, 
 её стоит использовать с осторожностью -}
 form (Point x1 y1 z1 t1) (Point x2 y2 z2 t2) = x1*x2 + y1*y2 + z1*z2 - t1*t2 
+formV (V4 x1 y1 z1 t1) (V4 x2 y2 z2 t2) = x1*x2 + y1*y2 + z1*z2 - t1*t2 
 
 -- next three datatypes represent things in hyperbolic space
 data Line a = Line (Point a) (Point a) {- ^ if one of the points is proper, the line is proper -}
@@ -79,6 +88,14 @@ x^2+y^2+z^2 > 0-}
 
 
 
+type ProjectiveMap a = V4 (V4 a)
 
-
+-- По дебильному решению кметта матрицы записываются по строкам :(
+-- всё это можно сделать наверное линзами _z, _t
+moveAlongZ d = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 (cosh d) (sinh d)) (V4 0 0 (sinh d) (cosh d))
+moveAlongY d = V4 (V4 1 0 0 0) (V4 0 (cosh d) 0 (sinh d)) (V4 0 0 1 0) (V4 0 (sinh d) 0 (cosh d))
+moveAlongX d = V4 (V4 (cosh d) 0 0 (sinh d)) (V4 0 1 0 0) (V4 0 0 1 0) (V4 (sinh d) 0 0 (cosh d))
+rotateAroundZ a = V4 (V4 (cos a) (-sin a) 0 0) (V4 (sin a) (cos a) 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
+rotateAroundY a = V4 (V4 (cos a) 0 (sin a) 0) (V4 0 1 0 0) (V4 (-sin a) 0 (cos a) 0) (V4 0 0 0 1)
+rotateAroundX a = V4 (V4 1 0 0 0) (V4 0 (cos a) (-sin a) 0) (V4 0 (sin a) (cos a) 0) (V4 0 0 0 1)
 
