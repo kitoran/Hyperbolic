@@ -1,7 +1,8 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
 module Universe (module Hyperbolic, points, cameraC, module Projection, 
-                 viewSegment, module Camera,enviroment, tau, _ends, Segment(..)) where
+                 viewSegment, module Camera,enviroment, tau, _ends, Segment(..),
+                  absoluteCircle) where
 import Projection
 import Control.Applicative
 import Data.List.Split
@@ -42,10 +43,14 @@ points = -- [Point (sinh t) 0 0 (cosh t) | t <- [-10, -9.5 .. -0.4]]
            -- ++[Point 0 (sinh t)  0 (cosh t) | t <- [10, 9 .. 0]]
             [Point (sinh 1) (sin t * sinh r/cosh r) (cos t * sinh r/cosh r)  (cosh 1) |
                                              r <- [0, 0.1.. 3],t <- [0, tau/(2**r)/10 .. tau]]
+
+absoluteCircle :: [Point Double]
+absoluteCircle = 
+            [Point (sinh 1) (sin t ) (cos t)  (cosh 1) | t <- [0, tau/30 .. tau]]
 enviroment :: [Segment Double]
 enviroment = map (\c -> case c of
                           [a, b] -> Segment a b
-                          [a] -> Segment a a) (chunksOf 2 points)
+                          [a] -> Segment a a) (chunksOf 2 absoluteCircle)
     {-[Point t 0 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
          [Point 0 t 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
          [Point 0 0 t (sqrt (t+1)) | t <- [-1, -0.99..1]] 

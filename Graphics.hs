@@ -18,7 +18,8 @@ import Data.Time.Clock
 ( x, y) +^ ( z, w) = ( (x+z) ,(y+w))
 data MoveDirection = Fw | Bc | Lf | Rg deriving (Enum, Eq)
 matrices :: [(Char, M44 Double)]
-matrices = [('w', moveAlongX 0.1), ('s', moveAlongX (-0.1)), ('a', moveAlongY 0.1), ('d', moveAlongY (-0.1))]
+matrices = [('w', moveAlongX (-0.1)), ('s', moveAlongX (0.1)), 
+                ('a', moveAlongY (0.1)), ('d', moveAlongY (-0.1))]
 
 myPoints :: [(GLfloat,GLfloat, GLfloat)]
 myPoints = [  (0, 1/2, 0), (0, 1/2, 3)]--(sin (2*pi*k/12), cos (2*pi*k/12)) | k <- [1..12] ]
@@ -51,12 +52,12 @@ main = do
           let !move = (filterJust $ fmap (flip lookup matrices) ekeyboard)
           let toGradi (x,y) = (ff x, ff y) where ff i = (fromIntegral i / 360*tau)
           let !rotate = fmap (\(a, p) -> rotateAroundZ a !*! rotateAroundY p) (toGradi <$> mouseDelta)
-          let !viewPortDelta = unionWith (!*!) move rotate
-          !viewPortChange <- accumE identity (fmap (\x y -> x !*! y) viewPortDelta)
+          let !viewPortDelta = unionWith ((!*!)) move rotate
+          !viewPortChange <- accumE identity (fmap (\x y -> y !*! x) viewPortDelta)
           reactimate (fmap (\x -> do
             let movedEnviroment = (fmap) ( _ends._v4 %~ (*! x)) enviroment 
             let ts = [a| Segment w e  <- movedEnviroment,  a <- [w, e], (\(Point x _ _ _) -> x>0) a]
-            let sp = [(y/x/2, z/x/2) | Point x y z t <- ts]
+            let sp = [(y/x, z/x) | Point x y z t <- ts]
             writeIORef curmat sp
             display curmat listen
            {-  writeIORef listen FalseTrue-}) viewPortChange)
@@ -96,7 +97,7 @@ display tran lis = do
   s <- readIORef tran
   --let s = cam
   clear [ColorBuffer]
-  renderPrimitive Points $
+  renderPrimitive LineLoop $
      mapM_ (\(x, y) -> vertex $ Vertex2 (x*0.9) (y*0.9)) s
 --     mapM_ (\(x, y) -> vertex $ Vertex2 (x*0.9) (y*0.9)) $ concatMap (viewSegment cameraC) $  movedEnviroment
 --    mapM_ (\(x, y, z) -> vertex $ Vertex3 x y z) myPoints
