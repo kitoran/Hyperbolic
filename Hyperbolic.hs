@@ -1,7 +1,7 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
 module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4,
-                   rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity) where
+                   rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm) where
 
 import Linear hiding (transpose)
 import Control.Lens
@@ -109,3 +109,4 @@ data Quadrilatheral a = QL (Point a) (Point a) (Point a) (Point a) -- points mus
 -- that is, they must be linearly dependent
 
 origin = Point 0 0 0 1
+identityIm = identity--V4 (V4 (0) 0 0 1)(V4 0 (0) 1 0 )(V4 0 1  (0) 0) (V4 (-1) 0 0 (0))

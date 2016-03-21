@@ -1,6 +1,7 @@
 {-# Language NoMonomorphismRestriction, BangPatterns, RecursiveDo #-}
 module Main where
 import Control.Monad
+import Control.Concurrent
 import System.Exit
 import Data.IORef
 import Reactive.Banana 
@@ -20,7 +21,7 @@ both f (a, b) = (f a, f b)
 data MoveDirection = Fw | Bc | Lf | Rg deriving (Enum, Eq)
 matrices :: [(Char, M44 Double)]
 matrices = [('w', moveAlongX (-0.1)), ('s', moveAlongX (0.1)), 
-                ('a', moveAlongY (0.01)), ('d', moveAlongY (-0.01))]
+                ('a', moveAlongY (0.1)), ('d', moveAlongY (-0.1))]
 
 myPoints :: [(GLfloat,GLfloat, GLfloat)]
 myPoints = [  (0, 1/2, 0), (0, 1/2, 3)]--(sin (2*pi*k/12), cos (2*pi*k/12)) | k <- [1..12] ]
@@ -35,6 +36,7 @@ main = do
  {-   print $ map (viewP cameraC) points { -}
     (_progName, _args) <- getArgsAndInitialize
     _window <- createWindow "Hello World"
+    fullScreen
     (Size width' height') <- get screenSize 
     let width = fromIntegral width'
     let height = fromIntegral height'-- >>= (\(Size x y) -> (fromIntegral x, fromIntegral y))
@@ -44,7 +46,8 @@ main = do
     ct <- getCurrentTime
     last <- newIORef $ UTCTime (toEnum 0) 1
     (addDisplay, raiseDisplay) <- newAddHandler
-    curmat <- newIORef []
+    let segments = concat [[a, b] | Segment a b <- enviroment]  
+    curmat <- newIORef [(y/x/width*600, z/x/height*600) | Point x y z t <- segments]
     let networkDescription :: MomentIO ()
         networkDescription = mdo
            -- input: obtain  Event  from functions that register event handlers
@@ -58,8 +61,8 @@ main = do
           let !move = (filterJust $ fmap (flip lookup matrices) ekeyboard)
           let toGradi (x,y) = (ff x, ff y) where ff i = (fromIntegral i / 360*tau)
           let !rotate = fmap (\(a, p) -> rotateAroundZ a !*! rotateAroundY p) (toGradi <$> mouseDelta)
-          let !viewPortDelta = unionWith ((!*!)) move rotate
-          !viewPortChange <- accumE identity (fmap (\x y -> y !*! x) viewPortDelta)
+          let !viewPortDelta = unionWith (!*!) move rotate
+          !viewPortChange <- accumE identityIm (fmap (\x y -> y !*! x) viewPortDelta)
           reactimate (fmap (\x -> do
             let movedEnviroment = (fmap) ( _ends._v4 %~ (*! x)) enviroment 
             let ts = [a| Segment w e  <- movedEnviroment,  a <- [w, e], (\(Point x _ _ _) -> x>0) a]
@@ -100,11 +103,11 @@ main = do
   --                            Where' GameModeRefreshRate IsEqualTo 60, 
     --                           Where' GameModeBitsPerPlane IsEqualTo 16]
     
-    fullScreen
-    mainLoop
 
+    mainLoop
+    threadDelay 50000000  
     display curmat
-    fireMouse (0, 1)
+    fireKeyboard 'w'
     pointerPosition $= (Position 0 0)
     pointerPosition $= (Position 0 6)
     
