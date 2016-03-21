@@ -6,6 +6,7 @@ module Universe (module Hyperbolic, points, cameraC, module Projection,
 import Projection
 import Control.Applicative
 import Data.List.Split
+import Linear
 import Hyperbolic
 import Camera
 import Control.Lens hiding (view)
@@ -47,10 +48,19 @@ points = -- [Point (sinh t) 0 0 (cosh t) | t <- [-10, -9.5 .. -0.4]]
 absoluteCircle :: [Point Double]
 absoluteCircle = 
             [Point (sinh 1) (sin t ) (cos t)  (cosh 1) | t <- [0, tau/30 .. tau]]
+
+tunnel :: [Point Double]
+tunnel = concatMap huy (take 30 $ iterate (!*! (moveAlongX (-0.1))) identity)
+    where huy :: M44 Double -> [Point Double]
+          huy = (\m -> fmap (_v4 %~ (*! m)) circle)
+          circle = [Point (sinh 1) (sin $ t*tau/20) (cos $ t*tau/20)  (cosh 3) | t <- [0..19]]
+spiral :: [Point Double]
+spiral = map (\m -> (Point 0 (sinh 1) 0 (cosh 1)) & _v4 %~ (*! m) ) 
+                  $ take 300 $ iterate (!*!(moveAlongX (0.1) !*! rotateAroundX (tau/10)) ) identity
 enviroment :: [Segment Double]
 enviroment = map (\c -> case c of
                           [a, b] -> Segment a b
-                          [a] -> Segment a a) (chunksOf 2 absoluteCircle)
+                          [a] -> Segment a a) (chunksOf 2 spiral)
     {-[Point t 0 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
          [Point 0 t 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
          [Point 0 0 t (sqrt (t+1)) | t <- [-1, -0.99..1]] 

@@ -1,11 +1,13 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
 module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4,
-                   rotateAroundZ, rotateAroundY, rotateAroundX ) where
+                   rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity) where
 
-import Linear
+import Linear hiding (transpose)
 import Control.Lens
 import Control.Applicative
+import Data.Monoid
+import Data.Foldable
 import GHC.Generics
 
 {-|
@@ -64,12 +66,16 @@ data Point a = Point !a !a !a !a deriving (Generic1, Show, Eq, Functor)
 _v4::Lens' (Point a) (V4 a)
 _v4 f (Point x y z t) = fmap fromV4 $ f (V4 x y z t)
 fromV4 (V4 a s d f) = Point a s d f
-instance Applicative Point where
+instance Applicative Point where --stupid instance, don't use it
   pure a = Point a a a a
   (Point a b c d) <*> (Point e f g h) = Point (a e) (b f) (c g) (d h)
 
-
-
+transpose::Num a => M44 a -> M44 a
+transpose (V4 (V4 a b c d) (V4 e f g h) (V4 i j k l) (V4 m n o p))
+  = (V4 (V4 a e i (-m)) (V4 b f j (-n)) (V4 c g k (-o)) (V4 (-d) (-h) (-l) p))
+sanity :: Num a => M44 a -> M44 a
+sanity a = a !*! transpose a
+insanity a = getSum $ fold $ fmap (foldMap (\x->Sum $ x*x)) (sanity a ^-^ identity)
 form :: Num a => Point a -> Point a -> a {- fundamental minkowski form, она зависит от координатного
 представления точки, то есть не однозначна для точек гиперболического пространства, 
 её стоит использовать с осторожностью -}
@@ -99,3 +105,7 @@ rotateAroundZ a = V4 (V4 (cos a) (-sin a) 0 0) (V4 (sin a) (cos a) 0 0) (V4 0 0 
 rotateAroundY a = V4 (V4 (cos a) 0 (sin a) 0) (V4 0 1 0 0) (V4 (-sin a) 0 (cos a) 0) (V4 0 0 0 1)
 rotateAroundX a = V4 (V4 1 0 0 0) (V4 0 (cos a) (-sin a) 0) (V4 0 (sin a) (cos a) 0) (V4 0 0 0 1)
 
+data Quadrilatheral a = QL (Point a) (Point a) (Point a) (Point a) -- points must lie in same plane
+-- that is, they must be linearly dependent
+
+origin = Point 0 0 0 1

@@ -1,6 +1,7 @@
 {-# Language NoMonomorphismRestriction, BangPatterns, RecursiveDo #-}
 module Main where
 import Control.Monad
+import System.Exit
 import Data.IORef
 import Reactive.Banana 
 import Reactive.Banana.Frameworks 
@@ -10,16 +11,16 @@ import Universe
 import Linear
 import Control.Lens
 import Data.Time.Clock
-
+both f (a, b) = (f a, f b)
 --tau::Floating a => a
 --tau = 2*pi 
-(-^), (+^) :: (Int, Int) -> (Int, Int) -> (Int, Int) 
+--(-^), (+^) :: (Int, Int) -> (Int, Int) -> (Int, Int) 
 (x, y) -^ ( z, w) = ((x-z) ,(y-w))
 ( x, y) +^ ( z, w) = ( (x+z) ,(y+w))
 data MoveDirection = Fw | Bc | Lf | Rg deriving (Enum, Eq)
 matrices :: [(Char, M44 Double)]
 matrices = [('w', moveAlongX (-0.1)), ('s', moveAlongX (0.1)), 
-                ('a', moveAlongY (0.1)), ('d', moveAlongY (-0.1))]
+                ('a', moveAlongY (0.01)), ('d', moveAlongY (-0.01))]
 
 myPoints :: [(GLfloat,GLfloat, GLfloat)]
 myPoints = [  (0, 1/2, 0), (0, 1/2, 3)]--(sin (2*pi*k/12), cos (2*pi*k/12)) | k <- [1..12] ]
@@ -29,15 +30,19 @@ upC = (\(Camera (Point x y z t) b c) -> Camera (Point (x+1) y z t) b c)
 downC = (\(Camera (Point x y z t) b c) -> Camera (Point (x-1) y z t) b c)
 main :: IO ()
 main = do
+   -- print enviroment
+    --exitSuccess
  {-   print $ map (viewP cameraC) points { -}
     (_progName, _args) <- getArgsAndInitialize
     _window <- createWindow "Hello World"
-    
+    (Size width' height') <- get screenSize 
+    let width = fromIntegral width'
+    let height = fromIntegral height'-- >>= (\(Size x y) -> (fromIntegral x, fromIntegral y))
     (addKeyboard, fireKeyboard) <- (newAddHandler::IO (AddHandler Char, Handler Char))
     (addMouse, fireMouse) <- (newAddHandler::IO (AddHandler (Int, Int), Handler (Int, Int)))
     listen <- newIORef True
     ct <- getCurrentTime
-    last <- newIORef ct
+    last <- newIORef $ UTCTime (toEnum 0) 1
     (addDisplay, raiseDisplay) <- newAddHandler
     curmat <- newIORef []
     let networkDescription :: MomentIO ()
@@ -47,7 +52,8 @@ main = do
           emouse' <- (fromAddHandler $ addMouse  )
           ewithpr <- accumE ((0,0),(0,0)) ((\x (t, p) -> (p,x)) <$> emouse')
       --    emouse <- ( 0::Double, 0::Double) emouse'
-          let mouseDelta = (\(x,y) -> y -^ x) <$> ewithpr--(\a f -> a -^ f) <$> mouseAbs <@> emouse'
+          let mouseDelta = fmap (-^ (width`div`2, height`div`2)) emouse'
+-- (\(x,y) -> y -^ x) <$> ewithpr--(\a f -> a -^ f) <$> mouseAbs <@> emouse'
           mouseAbs <- accumB ( 0::Int, 0) ((\x y -> x +^ y) `fmap` mouseDelta)
           let !move = (filterJust $ fmap (flip lookup matrices) ekeyboard)
           let toGradi (x,y) = (ff x, ff y) where ff i = (fromIntegral i / 360*tau)
@@ -57,21 +63,26 @@ main = do
           reactimate (fmap (\x -> do
             let movedEnviroment = (fmap) ( _ends._v4 %~ (*! x)) enviroment 
             let ts = [a| Segment w e  <- movedEnviroment,  a <- [w, e], (\(Point x _ _ _) -> x>0) a]
-            let sp = [(y/x, z/x) | Point x y z t <- ts]
+            let sp = [(y/x/width*600, z/x/height*600) | Point x y z t <- ts]
             writeIORef curmat sp
-            display curmat listen
+            display curmat
            {-  writeIORef listen FalseTrue-}) viewPortChange)
-          reactimate (print <$> mouseDelta)
-
+          reactimate ((\x -> putStrLn $ "insanity:"++ show (insanity x)) <$> viewPortChange)
+   
     compile networkDescription >>= actuate
-    displayCallback $= display curmat listen
+    cursor $= None
+    displayCallback $= display curmat
     keyboardCallback $= (Just $ \c p -> fireKeyboard (c::Char))
     passiveMotionCallback $= (Just $ (\(Position x y) -> do
-                                                         last' <- readIORef last
-                                                         now <- getCurrentTime
-                                                         when (now `diffUTCTime ` last' > 0.04)
-                                                              (writeIORef last now >>
-                                                               fireMouse (fromEnum x,fromEnum y)) 
+
+       last' <- readIORef last
+       now <- getCurrentTime
+       when (now `diffUTCTime ` last' > 0.04)
+            (do 
+             writeIORef last now 
+             fireMouse (fromEnum x,fromEnum y)
+             pointerPosition $= (Position (width'`div`2) (height'`div`2))
+             ) 
                                                        {->> 
                                                          pointerPosition $= (Position 0 0)-}) )
     
@@ -85,21 +96,28 @@ main = do
      $= Just (\(Position x y) -> print $ "Mouse Callback!" ++ show x ++ ", "++ show y)
 
     idleCallback $= (Just (print "r" >> pointerPosition $= (Position 30 40)))-}
+--    gameModeCapabilities $= [Where' GameModeWidth IsEqualTo 1024, Where' GameModeHeight IsEqualTo 600,
+  --                            Where' GameModeRefreshRate IsEqualTo 60, 
+    --                           Where' GameModeBitsPerPlane IsEqualTo 16]
+    
+    fullScreen
     mainLoop
-    display curmat listen
+
+    display curmat
+    fireMouse (0, 1)
     pointerPosition $= (Position 0 0)
     pointerPosition $= (Position 0 6)
     
     
  
-display :: IORef [(Double, Double)]-> IORef Bool -> DisplayCallback
-display tran lis = do
+display :: IORef [(Double, Double)] -> DisplayCallback
+display tran = do
   s <- readIORef tran
   --let s = cam
   clear [ColorBuffer]
-  renderPrimitive LineLoop $
+  renderPrimitive LineStrip $
      mapM_ (\(x, y) -> vertex $ Vertex2 (x*0.9) (y*0.9)) s
 --     mapM_ (\(x, y) -> vertex $ Vertex2 (x*0.9) (y*0.9)) $ concatMap (viewSegment cameraC) $  movedEnviroment
 --    mapM_ (\(x, y, z) -> vertex $ Vertex3 x y z) myPoints
   flush
-  lis $= True
+  
