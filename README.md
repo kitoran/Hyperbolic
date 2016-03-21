@@ -1,8 +1,7 @@
 # Hyperbolic
 
-Hyperbolic space
 
-You walk around in hyperbolic space with w, s, a, d keys.
-Rotate viewport with mouse.
+Press w, s, a, d keys to move in hyperbolic space.
+Move mouse to rotate viewport.
 
-Program prints insatiny in stdout. Insanity is error accumulated in motion matrix. Program only draws sane pictures when insanity is close to zero.
+App prints insatiny to stdout. Insanity is error accumulated in motion matrix. Sane pictures are only drawn when insanity is close to zero.
