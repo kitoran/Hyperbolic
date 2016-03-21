@@ -15,15 +15,6 @@ version:             0.0
 -- A short (one-line) description of the package.
 synopsis:            later
 
--- A longer description of the package.
--- description:         
-
--- The license under which the package is released.
--- license:             
-
--- The file containing the license text.
-license-file:        LICENSE
-
 -- The package author(s).
 author:              Nikita Fufaev
 
