@@ -9,9 +9,10 @@ import Reactive.Banana.Frameworks
 import Graphics.UI.GLUT hiding (Point)
 --import State(stepForward)
 import Universe
-import Linear
+import Linear hiding (perspective, lookAt, trace)
 import Control.Lens
 import Data.Time.Clock
+import Debug.Trace
 both f (a, b) = (f a, f b)
 --tau::Floating a => a
 --tau = 2*pi 
@@ -21,7 +22,8 @@ both f (a, b) = (f a, f b)
 data MoveDirection = Fw | Bc | Lf | Rg deriving (Enum, Eq)
 matrices :: [(Char, M44 Double)]
 matrices = [('w', moveAlongX (-0.1)), ('s', moveAlongX (0.1)), 
-                ('a', moveAlongY (0.1)), ('d', moveAlongY (-0.1))]
+                ('a', moveAlongY (0.01)), ('d', moveAlongY (-0.01)),
+                  ('z', moveAlongZ (0.01)), ('c', moveAlongZ (-0.01))]
 
 myPoints :: [(GLfloat,GLfloat, GLfloat)]
 myPoints = [  (0, 1/2, 0), (0, 1/2, 3)]--(sin (2*pi*k/12), cos (2*pi*k/12)) | k <- [1..12] ]
@@ -34,9 +36,23 @@ main = do
    -- print enviroment
     --exitSuccess
  {-   print $ map (viewP cameraC) points { -}
+    initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered]
     (_progName, _args) <- getArgsAndInitialize
-    _window <- createWindow "Hello World"
+
+    _window <- createWindow "Hyperbolic"
     fullScreen
+
+   -- polygonMode $= (Line, Fill)
+    depthFunc $= Just Lequal
+    depthBounds $= Nothing--Just (1/40,39/40)
+    lineSmooth $= Enabled
+    lineWidth $= 2
+{-}
+    matrixMode $= Projection
+    perspective 40.0 1.0 1.0 10.0
+    matrixMode $= Modelview 0
+    lookAt (Vertex3 0.0 0.0 0.0) (Vertex3 1.0 0.0 0.0) (Vector3 0.0 1.0 0.0)
+  { -}
     (Size width' height') <- get screenSize 
     let width = fromIntegral width'
     let height = fromIntegral height'-- >>= (\(Size x y) -> (fromIntegral x, fromIntegral y))
@@ -47,7 +63,8 @@ main = do
     last <- newIORef $ UTCTime (toEnum 0) 1
     (addDisplay, raiseDisplay) <- newAddHandler
     let segments = concat [[a, b] | Segment a b <- enviroment]  
-    curmat <- newIORef [(y/x/width*600, z/x/height*600) | Point x y z t <- segments]
+    curmat <- newIORef (identity :: M44 Double)
+    let enviroment = level-- <- parse <$> (readFile "level.dat")
     let networkDescription :: MomentIO ()
         networkDescription = mdo
            -- input: obtain  Event  from functions that register event handlers
@@ -63,18 +80,18 @@ main = do
           let !rotate = fmap (\(a, p) -> rotateAroundZ a !*! rotateAroundY p) (toGradi <$> mouseDelta)
           let !viewPortDelta = unionWith (!*!) move rotate
           !viewPortChange <- accumE identityIm (fmap (\x y -> y !*! x) viewPortDelta)
-          reactimate (fmap (\x -> do
+          reactimate (fmap (\x -> {-do
             let movedEnviroment = (fmap) ( _ends._v4 %~ (*! x)) enviroment 
             let ts = [a| Segment w e  <- movedEnviroment,  a <- [w, e], (\(Point x _ _ _) -> x>0) a]
             let sp = [(y/x/width*600, z/x/height*600) | Point x y z t <- ts]
-            writeIORef curmat sp
-            display curmat
+            writeIORef curmat sp-}
+            display enviroment x
            {-  writeIORef listen FalseTrue-}) viewPortChange)
           reactimate ((\x -> putStrLn $ "insanity:"++ show (insanity x)) <$> viewPortChange)
    
     compile networkDescription >>= actuate
     cursor $= None
-    displayCallback $= display curmat
+    displayCallback $= display enviroment identity
     keyboardCallback $= (Just $ \c p -> fireKeyboard (c::Char))
     passiveMotionCallback $= (Just $ (\(Position x y) -> do
 
@@ -88,12 +105,11 @@ main = do
              ) 
                                                        {->> 
                                                          pointerPosition $= (Position 0 0)-}) )
-    
    {- idleCallback $= (Just $ do
                        Position x y <- get pointerPosition
                        fireMouse (toGradi x, toGradi y) 
                        pointerPosition $= (Position 0 0)) 
- --} 
+ --}
  --   display (identity::M44 Double) 
    {-} displayCallback $= (print "4")
      $= Just (\(Position x y) -> print $ "Mouse Callback!" ++ show x ++ ", "++ show y)
@@ -105,22 +121,85 @@ main = do
     
 
     mainLoop
-    threadDelay 50000000  
-    display curmat
-    fireKeyboard 'w'
-    pointerPosition $= (Position 0 0)
-    pointerPosition $= (Position 0 6)
-    
-    
+--    threadDelay 50000000  
+    display enviroment identity
+--    fireKeyboard 'w'
+--    pointerPosition $= (Position 0 0)
+--    pointerPosition $= (Position 0 6)
+(asss, fffffg) = (1, 2)::(Int, Int)
+colors = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1), (0, 0, 1), (0, 1, 0), (0, 1, 1), (0.5, 0.5, 1)]
+level = Env $ zip colors [ HE f l u, ( HE f d l), HE f u r, HE f r d,
+              HE b u l, HE b l d, HE b r u, HE b d r] 
+  where f = Point (sinh w) 0 0 (cosh w)
+        r = Point 0 (sinh w) 0 (cosh w)
+        u = Point 0 0 (sinh w) (cosh w)
+        b = Point (sinh (-w)) 0 0 (cosh w)
+        l = Point 0 (sinh (-w)) 0 (cosh w)
+        d = Point 0 0 (sinh (-w)) (cosh w)
+        w = 1/3
+{-level = Env $ zip colors [HE a b c, HE a b e]
+          where a = Point 0 (-1)  0 1
+                b = Point  0 1 0 1
+                c = Point (sin (tau/12)) (cos (tau/12)) 0 1
+                e = Point (sin (tau*5/12)) (cos (tau*5/12)) 0 1-}
+toFrame::Enviroment Double -> [Point Double]
+toFrame (Env []) = []
+toFrame (Env ((_, HE x y z):xs)) = x:y:y:z:z:x:(toFrame (Env xs))
  
-display :: IORef [(Double, Double)] -> DisplayCallback
-display tran = do
-  s <- readIORef tran
-  --let s = cam
-  clear [ColorBuffer]
-  renderPrimitive LineStrip $
-     mapM_ (\(x, y) -> vertex $ Vertex2 (x*0.9) (y*0.9)) s
+display :: Enviroment Double -> M44 Double -> DisplayCallback
+display (Env env) tran = do
+--  let s <- readIORef tran
+  clear [ColorBuffer, DepthBuffer]
+  color $ Color3 0 0 (0::GLfloat)
+  renderPrimitive Triangles $ do 
+     
+    -- perspective 45 (1024/600) 0.1 20
+     
+    mapM_ toRaw env
 --     mapM_ (\(x, y) -> vertex $ Vertex2 (x*0.9) (y*0.9)) $ concatMap (viewSegment cameraC) $  movedEnviroment
 --    mapM_ (\(x, y, z) -> vertex $ Vertex3 x y z) myPoints
-  flush
-  
+  color $ Color3 1 1 (1::GLfloat)
+  renderPrimitive Lines $ do
+     mapM_ transform $ toFrame (Env env)
+  swapBuffers
+    where toRaw :: ((Double, Double, Double), HyperEntity Double) -> IO ()
+          toRaw (c1, (HE a b c)) = do
+                              --color $ uncurry3 Color3 $ mapTuple coerce c1
+                              transform a
+                              transform b
+                              transform c
+          transform :: Point Double -> IO ()--Vertex4 Double
+          transform p = let (V4 x y z t) = toV4 p *! tran in 
+                     when (x>0) (vertex $ Vertex3 (y/x*600/1024) (z/x) (x/t)) 
+          coerce :: Double -> GLfloat
+          coerce  = fromRational.toRational
+          uncurry3 f (a,b,c)=f a b c
+          mapTuple f (a, b, c) = (f a, f  b, f c)
+          --toRawLines :: Point Double -> IO ()
+          --toRawLines 
+--x 1
+--(\Point x y z t -> vertex $ Vertex4 x y z t) $ concatMap (\He a b c -> [a, b, c])
+{-}
+
+display :: Enviroment Double -> M44 Double -> DisplayCallback
+display (Env env) tran = do
+--  let s <- readIORef tran
+  clear [ColorBuffer, DepthBuffer]
+  renderPrimitive Triangles $ do
+
+    -- perspective 45 (1024/600) 0.1 20
+     mapM_ toRaw env
+--     mapM_ (\(x, y) -> vertex $ Vertex2 (x*0.9) (y*0.9)) $ concatMap (viewSegment cameraC) $  movedEnviroment
+--    mapM_ (\(x, y, z) -> vertex $ Vertex3 x y z) myPoints
+  swapBuffers
+
+    where toRaw :: HyperEntity Double -> IO ()
+          toRaw (HE a b c) = do
+                              transform a
+                              transform b
+                              transform c
+          transform :: Point Double -> IO ()--Vertex2 Double
+          transform p = let (V4 x y z t) =  toV4 p *! tran in
+                              when (x>0)
+                                   (vertex $ Vertex2 (y/x/1024*600) (z/x))-- x t
+--(\Point x y z t -> vertex $ Vertex4 x y z t) $ concatMap (\He a b c -> [a, b, c])-}

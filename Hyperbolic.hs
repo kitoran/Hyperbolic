@@ -18,7 +18,7 @@ So i cant switch to russian so i'm going to try to write comments in english wit
 There are three ways to code m-dimentional subspace of E^n: with m points it contains, 
  with n-m linear equations, and with grassman method.
 
-First two ways are very similar and dual to each other in a sense. Neither of them is better.
+Two first ways are very similar and dual to each other in a sense. Neither of them is better.
 When seen like maps Gr(m, n) -> R^(m*n) (or n-m for second approach, i'll ignore this difference below)
  they lack bijectivity:  
 image of this map contains matrices m*n of maximal rank and similar matrices represent same subspace.

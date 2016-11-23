@@ -1,8 +1,9 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
-             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
+             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric,
+             ScopedTypeVariables #-}
 module Universe (module Hyperbolic, points, cameraC, module Projection, 
                  viewSegment, module Camera,enviroment, tau, _ends, Segment(..),
-                  absoluteCircle) where
+                  absoluteCircle, Enviroment(..), HyperEntity(..), parse) where
 import Projection
 import Control.Applicative
 import Data.List.Split
@@ -50,17 +51,28 @@ absoluteCircle =
             [Point (sinh 1) (sin t ) (cos t)  (cosh 1) | t <- [0, tau/30 .. tau]]
 
 tunnel :: [Point Double]
-tunnel = concatMap huy (take 30 $ iterate (!*! (moveAlongX (-0.1))) identity)
+tunnel = concatMap huy (take 100 $ iterate (!*! (moveAlongX (-0.09))) identity)
     where huy :: M44 Double -> [Point Double]
           huy = (\m -> fmap (_v4 %~ (*! m)) circle)
-          circle = [Point (sinh 1) (sin $ t*tau/20) (cos $ t*tau/20)  (cosh 3) | t <- [0..19]]
+          circle = [Point (sinh 1) (sin $ t*tau/4) (cos $ t*tau/4)  (cosh 3) | t <- [0..4]]
 spiral :: [Point Double]
 spiral = map (\m -> (Point 0 (sinh 1) 0 (cosh 1)) & _v4 %~ (*! m) ) 
                   $ take 300 $ iterate (!*!(moveAlongX (0.1) !*! rotateAroundX (tau/10)) ) identity
 enviroment :: [Segment Double]
 enviroment = map (\c -> case c of
                           [a, b] -> Segment a b
-                          [a] -> Segment a a) (chunksOf 2 spiral)
+                          [a] -> Segment a a) (chunksOf 2 tunnel)
+
+data Enviroment a = Env [((Double, Double, Double), HyperEntity a)] deriving (Eq, Show,Functor)
+
+data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor)
+   -- пока все будет твёрдое и со всеми видимыми рёбрами
+
+parse::forall a. Read a => String -> Enviroment a
+parse = Env . f . (map (read::String -> a)) . words
+  where f [] = []
+        f (a1:a2:a3:a4:b1:b2:b3:b4:c1:c2:c3:c4:xs) 
+               = ((0,0,0),HE (Point a1 a2 a3 a4) (Point b1 b2 b3 b4) (Point c1 c2 c3 c4) ) : f xs
     {-[Point t 0 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
          [Point 0 t 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
          [Point 0 0 t (sqrt (t+1)) | t <- [-1, -0.99..1]] 
