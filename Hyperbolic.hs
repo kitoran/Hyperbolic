@@ -45,7 +45,7 @@ projective 3-space is sheaf in 4-dimensional vector space.
 На самом деле пространство у нас трёхмерное, и для представления точки достаточно трёх координат x, y, z,
 если использовать проекцию Ганса, которая является глобальным диффеоморфизмом между R^3 и H^3. 
 При этом t считается как sqrt(1+x^2+y^2+z^2). К сожалению, такой подход потребует включения лишнего 
-констрейнта (Floating a) в большинство функций.
+констрейнта (Floating a) в большинство функций and overall inefficient.
 
 Уровни абстракции расположены так:
                 4-мерное пространство
@@ -57,6 +57,7 @@ projective 3-space is sheaf in 4-dimensional vector space.
                 \|                   |/
                --                     -- 
 Пространство Лобачевского (с идеальными элементами)
+
 -}
 
 instance Additive Point where
@@ -114,3 +115,12 @@ identityIm = identity--V4 (V4 (0) 0 0 1)(V4 0 (0) 1 0 )(V4 0 1  (0) 0) (V4 (-1) 
 
 pretty :: Show m => V4 (m) -> String
 pretty (V4 a b c d) = intercalate "\n" $ map show [a, b, c, d]
+{-
+
+
+
+
+-}
+
+
+

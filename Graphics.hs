@@ -29,7 +29,7 @@ both f (a, b) = (f a, f b)
 data MoveDirection = Fw | Bc | Lf | Rg deriving (Enum, Eq)
 matrices :: [(Char, M44 Double)]
 matrices = [('w', moveAlongX (-0.1)), ('s', moveAlongX (0.1)), 
-                ('a', moveAlongY (0.01)), ('d', moveAlongY (-0.01)),
+                ('a', moveAlongY (0.1)), ('d', moveAlongY (-0.1)),
                   ('z', moveAlongZ (0.01)), ('c', moveAlongZ (-0.01))]
 
 myPoints :: [(GLfloat,GLfloat, GLfloat)]
@@ -127,7 +127,7 @@ main = do
           $(prettyV "upAngle") 
           $(prettyR "moveDelta")
 
-          let viewPortChange = fmap (\(x,y,z) -> x !*! y !*! z)  viewPortChangeStream --valueB $ stepper identity move !*!@ stepper identity rotate !*!@ stepper identity upMatrix 
+          let viewPortChange = fmap (\(x,y,z) -> moveAlongZ (-1/4) !*! x !*! y !*! z)  viewPortChangeStream --valueB $ stepper identity move !*!@ stepper identity rotate !*!@ stepper identity upMatrix 
           -- !viewPortChange <- accumE identityIm (fmap (\x y -> y !*! x) viewPortDelta)
 
           reactimate (fmap (\x -> {-do
@@ -223,7 +223,7 @@ display (Env env) tran = do
   swapBuffers
     where toRaw :: ((Double, Double, Double), HyperEntity Double) -> IO ()
           toRaw (c1, (HE a b c)) = do
-                              --color $ uncurry3 Color3 $ mapTuple coerce c1
+                             -- color $ uncurry3 Color3 $ mapTuple coerce c1
                               transform a
                               transform b
                               transform c
