@@ -2,7 +2,7 @@
 module Projection(viewPoint, viewPointInf,
                     Projector (..), detinv44) where
 import Hyperbolic
-import Linear.Matrix hiding (inv33)
+import Linear.Matrix 
 import Linear.V4
 import Linear.Vector
 import Linear.V3
@@ -10,29 +10,6 @@ import Linear.V3
 import Linear.V2
 import Camera
 --------
-
-{- this function is defined in Linear.Matrix with stronger constraint -}
-inv33 :: Fractional a => M33 a -> M33 a
-inv33 m@(V3 (V3 a b c)
-            (V3 d e f)
-            (V3 g h i))
-  = (1 / det) *!! V3 (V3 a' b' c')
-                     (V3 d' e' f')
-                     (V3 g' h' i')
-  where a' = cofactor (e,f,h,i)
-        b' = cofactor (c,b,i,h)
-        c' = cofactor (b,c,e,f)
-        d' = cofactor (f,d,i,g)
-        e' = cofactor (a,c,g,i)
-        f' = cofactor (c,a,f,d)
-        g' = cofactor (d,e,g,h)
-        h' = cofactor (b,a,h,g)
-        i' = cofactor (a,b,d,e)
-        cofactor (q,r,s,t) = det22 (V2 (V2 q r) (V2 s t))
-        det = det33 m
-{-# INLINE inv33 #-}
-
-
 
 {- -}
 

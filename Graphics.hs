@@ -1,18 +1,25 @@
-{-# Language NoMonomorphismRestriction, BangPatterns, RecursiveDo #-}
+{-# Language NoMonomorphismRestriction, BangPatterns, RecursiveDo, TupleSections, TemplateHaskell #-}
 module Main where
+import Behaviour
+
 import Control.Monad
 import Control.Concurrent
 import System.Exit
 import Data.IORef
-import Reactive.Banana 
+import Reactive.Banana hiding (stepper, (<@), (<@>), accumB)
 import Reactive.Banana.Frameworks 
 import Graphics.UI.GLUT hiding (Point)
 --import State(stepForward)
 import Universe
+import DebugTH
 import Linear hiding (perspective, lookAt, trace)
 import Control.Lens
 import Data.Time.Clock
 import Debug.Trace
+
+append = (++)
+startPosMatrix = identityIm
+
 both f (a, b) = (f a, f b)
 --tau::Floating a => a
 --tau = 2*pi 
@@ -31,6 +38,11 @@ upC :: Camera Double -> Camera Double
 downC :: Camera Double -> Camera Double
 upC = (\(Camera (Point x y z t) b c) -> Camera (Point (x+1) y z t) b c)
 downC = (\(Camera (Point x y z t) b c) -> Camera (Point (x-1) y z t) b c)
+
+bound low high x 
+  | x < low = low
+  | x < high = x
+  | otherwise = high
 main :: IO ()
 main = do
    -- print enviroment
@@ -66,7 +78,7 @@ main = do
     curmat <- newIORef (identity :: M44 Double)
     let enviroment = level-- <- parse <$> (readFile "level.dat")
     let networkDescription :: MomentIO ()
-        networkDescription = mdo
+        networkDescription = do
            -- input: obtain  Event  from functions that register event handlers
           ekeyboard <- fromAddHandler $ addKeyboard
           emouse' <- (fromAddHandler $ addMouse  )
@@ -74,21 +86,68 @@ main = do
       --    emouse <- ( 0::Double, 0::Double) emouse'
           let mouseDelta = fmap (-^ (width`div`2, height`div`2)) emouse'
 -- (\(x,y) -> y -^ x) <$> ewithpr--(\a f -> a -^ f) <$> mouseAbs <@> emouse'
-          mouseAbs <- accumB ( 0::Int, 0) ((\x y -> x +^ y) `fmap` mouseDelta)
-          let !move = (filterJust $ fmap (flip lookup matrices) ekeyboard)
+--          mouseAbs <- accumB ( 0::Int, 0) ((\x y -> x +^ y) `fmap` mouseDelta)
+          --let !move = (filterJust $ fmap (flip lookup matrices) ekeyboard)
           let toGradi (x,y) = (ff x, ff y) where ff i = (fromIntegral i / 360*tau)
-          let !rotate = fmap (\(a, p) -> rotateAroundZ a !*! rotateAroundY p) (toGradi <$> mouseDelta)
-          let !viewPortDelta = unionWith (!*!) move rotate
-          !viewPortChange <- accumE identityIm (fmap (\x y -> y !*! x) viewPortDelta)
+          --let !rotate = fmap (\(a, p) -> rotateAroundZ a !*! rotateAroundY p) (toGradi <$> mouseDelta)
+      --    let !viewPortDelta = unionWith (!*!) move rotate
+          let  
+          --        moveDeltaFunc = fmap (\x (_, y) -> (x, y)) moveDelta
+              rotateDelta = fmap (\(p) -> rotateAroundZ p) (fmap fst $ toGradi <$> mouseDelta)
+
+
+          rotateB <- accumB startPosMatrix (fmap (\x y -> x !*! y) rotateDelta)
+          rotate <- accumE startPosMatrix (fmap (\x y -> x !*! y) rotateDelta)
+          let moveDeltaRotated :: Event (M44 Double)
+              moveDeltaRotated = (filterJust $ fmap (flip lookup matrices) ekeyboard)
+
+--              moveDeltaB :: Behaviour (M44 Double)
+--              moveDeltaB = liftA3 (\x y z -> z !*! y !*! x) rotateB moveRotated (fmap inv44 rotateB) <@ (filterJust $ fmap (flip lookup matrices) ekeyboard)
+              straighten :: Behaviour (M44 Double -> M44 Double)
+              straighten = liftA2 (\x y z -> x !*! z !*! y) rotateB (fmap inv44 rotateB)
+
+          moveDelta <- straighten <@> moveDeltaRotated
+            --      rotateDeltaFunc = fmap (\y (x, _) -> (x, y)) rotateDelta
+      --        moveRotateStream <- accumE (identity, identity) (unionsC [moveDeltaFunc, rotateDeltaFunc])
+          move <- accumE startPosMatrix (fmap (\x y -> y !*! x) $ moveDelta )
+          let moveFunc::Event ((M44 Double, M44 Double, M44 Double) -> (M44 Double, M44 Double, M44 Double))
+              moveFunc = fmap (\x (_, b, c) -> (x, b, c)) move
+          --moveTrace <- valueB move
+
+          -- rotate <- toEvent rotateB
+          let rotateFunc::Event ((M44 Double, M44 Double, M44 Double) -> (M44 Double, M44 Double, M44 Double))
+              rotateFunc =  fmap (\x (a, _, c) -> (a, x, c)) $ rotate
+          upAngle <- accumE 0 (fmap (\n delta -> bound (-tau/4) (tau/4) (n+delta)) (fmap snd $ toGradi <$> mouseDelta))
+          let upMatrix = fmap rotateAroundY upAngle
+              upFunc::Event ((M44 Double, M44 Double, M44 Double) -> (M44 Double, M44 Double, M44 Double))
+              upFunc =  fmap (\x (a, b, _) -> (a, b, x)) upMatrix
+          viewPortChangeStream <- accumE (identityIm, identityIm, identityIm) (unions [moveFunc, rotateFunc, upFunc])
+              --x !*!@ y = liftA2 (!*!) x y
+          $(prettyR "upMatrix")
+          $(prettyV "upAngle") 
+          $(prettyR "moveDelta")
+
+          let viewPortChange = fmap (\(x,y,z) -> x !*! y !*! z)  viewPortChangeStream --valueB $ stepper identity move !*!@ stepper identity rotate !*!@ stepper identity upMatrix 
+          -- !viewPortChange <- accumE identityIm (fmap (\x y -> y !*! x) viewPortDelta)
+
           reactimate (fmap (\x -> {-do
             let movedEnviroment = (fmap) ( _ends._v4 %~ (*! x)) enviroment 
             let ts = [a| Segment w e  <- movedEnviroment,  a <- [w, e], (\(Point x _ _ _) -> x>0) a]
             let sp = [(y/x/width*600, z/x/height*600) | Point x y z t <- ts]
             writeIORef curmat sp-}
-            display enviroment x
+            display enviroment (x)
            {-  writeIORef listen FalseTrue-}) viewPortChange)
-          reactimate ((\x -> putStrLn $ "insanity:"++ show (insanity x)) <$> viewPortChange)
-   
+          reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n" {-++
+                                              pretty moveTrace-})  viewPortChange 
+          let mo' = (stepper (0,1) emouse')
+          mo <- (mo' <@ viewPortChangeStream )
+
+          reactimate $ fmap (\x -> putStrLn $ "mo:"++ {-show (mo) ++ -}", emouse: " ++ show x ++ "\n" {-++
+                                              pretty moveTrace-})   mo
+          --reactimate $ fmap (\x -> putStrLn $ "\nmoveDelta:\n" ++
+            --                                  pretty x)  moveDelta 
+          -- $(prettyR "moveDelta")
+
     compile networkDescription >>= actuate
     cursor $= None
     displayCallback $= display enviroment identity

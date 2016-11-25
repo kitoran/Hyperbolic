@@ -1,13 +1,14 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
 module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4,
-                   rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm) where
+                   rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, pretty) where
 
 import Linear hiding (transpose)
 import Control.Lens
 import Control.Applicative
 import Data.Monoid
 import Data.Foldable
+import Data.List (intercalate)
 import GHC.Generics
 
 {-|
@@ -110,3 +111,6 @@ data Quadrilatheral a = QL (Point a) (Point a) (Point a) (Point a) -- points mus
 
 origin = Point 0 0 0 1
 identityIm = identity--V4 (V4 (0) 0 0 1)(V4 0 (0) 1 0 )(V4 0 1  (0) 0) (V4 (-1) 0 0 (0))
+
+pretty :: Show m => V4 (m) -> String
+pretty (V4 a b c d) = intercalate "\n" $ map show [a, b, c, d]
