@@ -27,7 +27,7 @@ import Reactive.Banana.Frameworks(newAddHandler,
 import Reactive.Banana.Combinators (accumE, Event, filterJust, unions) 
 
 import Behaviour(accumB, Behaviour, (<@>))
-import Hyperbolic (rotateAroundZ, rotateAroundY, moveAlongZ, moveAlongX, moveAlongY, identityIm, insanity, pretty)
+import Hyperbolic (rotateAroundZ, rotateAroundY, moveAlongZ, moveAlongX, moveAlongY, identityIm, insanity, pretty, invAroundZ, (!$), origin, distance)
 import Graphics(initialiseGraphics, display)
 import DebugTH(prettyR, prettyV)
 --import Physics
@@ -87,8 +87,10 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
   $(prettyR "upMatrix")
   $(prettyV "upAngle")
   $(prettyR "moveDelta")
-
+  
   let viewPortChange = fmap (\(x,y,z) -> moveAlongZ (-1/4) !*! x !*! y !*! z)  viewPortChangeStream 
+  let dist = fmap (\x -> distance origin (x !$ origin)) viewPortChange
+  $(prettyV "dist")
   reactimate (fmap (\x -> display (mesh enviroment) (x)) viewPortChange)
   reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  viewPortChange
 

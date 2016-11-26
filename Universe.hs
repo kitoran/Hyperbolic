@@ -1,45 +1,45 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric,
              ScopedTypeVariables #-}
-module Universe (module Hyperbolic, points, cameraC, module Projection, 
-                 viewSegment, module Camera,enviroment, tau, _ends, Segment(..),
+module Universe (module Hyperbolic, points, {-cameraC, module Projection,
+                 viewSegment, module Camera,-}enviroment, tau, _ends, Segment(..),
                   absoluteCircle, Environment(..), HyperEntity(..), parse, level, startPosMatrix,
                   Mesh(..)) where
-import Projection
+--import Projection
 import Control.Applicative
 import Data.List.Split
 import Linear
 import Hyperbolic
-import Camera
+--import Camera
 import Control.Lens hiding (view)
 
 tau::Floating a => a
 tau = 2*pi 
 
-camera :: Projector Double
-camera = Projector  { projectorPosition = Point 0 0 (sinh 2) $ cosh 2,
-                      projectorDirection = Point 0 0 0 1,
-                      projectorHorizontal = Point 1 {-(sinh 1)-} 0 0 $ 1 {-cosh 1-},
-                      projectorVertical = Point 0 1{-(sinh 1)-} 0 $ 1{-cosh 1 -}}
-            where sq2 = sqrt 2
+--camera :: Projector Double
+--camera = Projector  { projectorPosition = Point 0 0 (sinh 2) $ cosh 2,
+--                      projectorDirection = Point 0 0 0 1,
+--                      projectorHorizontal = Point 1 {-(sinh 1)-} 0 0 $ 1 {-cosh 1-},
+--                      projectorVertical = Point 0 1{-(sinh 1)-} 0 $ 1{-cosh 1 -}}
+--            where sq2 = sqrt 2
 
-cameraC = Camera {
-                  cameraPosition = Point 0 0 0 $ 1,
-                  cameraDirection = Point (sinh 1) 0 0 $ cosh 1,
-                  cameraVertical = Point 0 0 (sinh 1) $ cosh 1
-         }
+--cameraC = Camera {
+--                  cameraPosition = Point 0 0 0 $ 1,
+--                  cameraDirection = Point (sinh 1) 0 0 $ cosh 1,
+--                  cameraVertical = Point 0 0 (sinh 1) $ cosh 1
+--         }
 
-cameraInf =  Projector  { projectorPosition = Point 0 0 (sinh 2) $ cosh 2,
-                          projectorDirection = Point 0 0 0 1,
-                          projectorHorizontal = Point 1  0 (sinh 2) $ cosh 2 {-cosh 1-},
-                          projectorVertical = Point 0 1 (sinh 2) $ cosh 2 }
+--cameraInf =  Projector  { projectorPosition = Point 0 0 (sinh 2) $ cosh 2,
+--                          projectorDirection = Point 0 0 0 1,
+--                          projectorHorizontal = Point 1  0 (sinh 2) $ cosh 2 {-cosh 1-},
+--                          projectorVertical = Point 0 1 (sinh 2) $ cosh 2 }
 
 
 data Segment a = Segment !(Point a) !(Point a) deriving (Eq, Show,Functor)
 _ends :: Traversal' (Segment a) (Point a)
 _ends f (Segment x y) = liftA2 Segment (f x) (f y)
-viewSegment :: Floating a => Camera a -> Segment a -> [(a, a)]
-viewSegment c@(Camera p0' d' v') s@(Segment a b) = [view c a, view c b]
+--viewSegment :: Floating a => Camera a -> Segment a -> [(a, a)]
+--viewSegment c@(Camera p0' d' v') s@(Segment a b) = [view c a, view c b]
 
 points :: [Point Double]
 points = -- [Point (sinh t) 0 0 (cosh t) | t <- [-10, -9.5 .. -0.4]] 

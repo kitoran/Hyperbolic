@@ -2,16 +2,17 @@
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
 module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
                    rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
-                   pretty, proper, distance, adj44, moveTo, invAroundZ, invAroundY) where
+                   pretty, proper, distance, chDistance, adj44, moveTo, invAroundZ, invAroundY, fromV4, toV4 {-FIMXE when learn lens-}, 
+                   normalizeWass, normalizeKlein, (!$), transposeMink) where
 
-import Linear hiding (transpose, distance)
+import Linear hiding (transpose, distance, normalize)
 import Control.Lens
 import Control.Applicative
 import Data.Monoid
 import Data.Foldable
 import Data.List (intercalate)
 import GHC.Generics
-
+toV4 (Point a b c d) = V4 a b c d {-FIMXE when learn lens-}
 {-|
 
 Этот модуль описывает гиперболическое пространство
@@ -59,10 +60,11 @@ projective 3-space is sheaf in 4-dimensional vector space.
                --                     -- 
 Пространство Лобачевского (с идеальными элементами)
 
+В правой системе координат если Ox направлена  вперёд, а Oz вверх, то Oy направлена влево!
 -}
 
 instance Additive Point where
-  
+
 data Point a = Point !a !a !a !a deriving (Generic1, Show, Eq, Functor)
 {- ^ for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map 
   is not nearly injective, that's sad. However, sometimes i use improper points -}
@@ -71,16 +73,19 @@ _v4 f (Point x y z t) = fmap fromV4 $ f (V4 x y z t)
 
 _t = _w
 
+m !$ p = over _v4 (m!*) p
+--agressive inlining...
+
 fromV4 (V4 a s d f) = Point a s d f
 instance Applicative Point where --stupid instance, don't use it
   pure a = Point a a a a
   (Point a b c d) <*> (Point e f g h) = Point (a e) (b f) (c g) (d h)
 
-transpose::Num a => M44 a -> M44 a
-transpose (V4 (V4 a b c d) (V4 e f g h) (V4 i j k l) (V4 m n o p))
-  = (V4 (V4 a e i (-m)) (V4 b f j (-n)) (V4 c g k (-o)) (V4 (-d) (-h) (-l) p))
+
+
+  
 sanity :: Num a => M44 a -> M44 a
-sanity a = a !*! transpose a
+sanity a = a !*! transposeMink a
 insanity a = getSum $ fold $ fmap (foldMap (\x->Sum $ x*x)) (sanity a ^-^ identity)
 form :: Num a => Point a -> Point a -> a {- fundamental minkowski form, она зависит от координатного
 представления точки, то есть не однозначна для точек гиперболического пространства, 
@@ -102,8 +107,10 @@ x^2+y^2+z^2 > 0-}
 
 type ProjectiveMap a = V4 (V4 a)
 
+
+
+
 -- По дебильному решению кметта матрицы записываются по строкам :(
--- всё это можно сделать наверное линзами _z, _t
 moveAlongZ d = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 (cosh d) (sinh d)) (V4 0 0 (sinh d) (cosh d))
 moveAlongY d = V4 (V4 1 0 0 0) (V4 0 (cosh d) 0 (sinh d)) (V4 0 0 1 0) (V4 0 (sinh d) 0 (cosh d))
 moveAlongX d = V4 (V4 (cosh d) 0 0 (sinh d)) (V4 0 1 0 0) (V4 0 0 1 0) (V4 (sinh d) 0 0 (cosh d))
@@ -112,11 +119,20 @@ rotateAroundY a = V4 (V4 (cos a) 0 (sin a) 0) (V4 0 1 0 0) (V4 (-sin a) 0 (cos a
 rotateAroundX a = V4 (V4 1 0 0 0) (V4 0 (cos a) (-sin a) 0) (V4 0 (sin a) (cos a) 0) (V4 0 0 0 1)
 
 
-
+-- fast special invertions:
+-- (add inline pragmas...)
 invAroundZ (V4 (V4 a b _ _) _ _ _) = V4 (V4 a (-b) 0 0) (V4 b a 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
 invAroundY (V4 (V4 a _ b _) _ _ _) = V4 (V4 a 0 (-b) 0) (V4 0 1 0 0) (V4 b 0 a 0) (V4 0 0 0 1)
 
+-- |4x4 matrix transpose with respect to minkowski form
+-- for hyperbolic space isometries this is same as inv44 (modulo floating-point precision)
+transposeMink::Num a => M44 a -> M44 a
+transposeMink (V4 (V4 a b c d) (V4 e f g h) (V4 i j k l) (V4 m n o p))
+  = (V4 (V4 a e i (-m)) (V4 b f j (-n)) (V4 c g k (-o)) (V4 (-d) (-h) (-l) p))
+
 -- |4x4 matrix adjugate (inverse multiplied by det)
+-- for matrices with det 1 this is same as inv44 (modulo floating-point precision)
+-- (copied and patsed from linear package)
 adj44 :: Fractional a => M44 a -> M44 a
 adj44   (V4 (V4 i00 i01 i02 i03)
             (V4 i10 i11 i12 i13)
@@ -156,8 +172,8 @@ adj44   (V4 (V4 i00 i01 i02 i03)
 distance :: Floating a => Point a -> Point a -> a
 distance a b = acosh (chDistance a b)
 
-chDistance ::Num a => Point a -> Point a -> a
-chDistance a b = negate (form a b) --let diff = a ^-^ b in form diff diff
+chDistance :: Floating a => Point a -> Point a -> a
+chDistance a b = negate (form (normalizeWass a) (normalizeWass b)) --let diff = a ^-^ b in form diff diff
 
 data Quadrilatheral a = QL (Point a) (Point a) (Point a) (Point a) -- points must lie in same plane
 -- that is, they must be linearly dependent
@@ -171,15 +187,19 @@ pretty (V4 a b c d) = intercalate "\n" $ map show [a, b, c, d]
 proper :: (Num a, Ord a) => Point a -> Bool
 proper m = form m m < 0
 
+normalizeKlein (Point x y z t) = Point (x/t) (y/t) (z/t) 1
+
+normalizeWass (Point x y z t) = Point (x/d) (y/d) (z/d) (t/d)
+    where d = sqrt ((-(x*x)) - y*y - z*z + t*t) * signum t
+
 {-
 So i can't find out how to do this properly and i'm too shy to go to mail lists so i'll just have to invent physics myself :(
 The only shape is (irregular) hexahedron. 
-
 -}
 
 moveTo :: (Eq a, Floating a) => Point a -> a -> M44 a
-moveTo (Point x y z t) dist = a !*! b !*! moveAlongX dist !*! invAroundY b !*! invAroundZ a
+moveTo (Point x y z t) dist =  invAroundZ a !*! invAroundY b !*! moveAlongX dist !*! b !*! a
   where alpha = if(x/=0)then atan (-y/x) * signum x else 0
-        beta = if (x /= 0 ) || (y /= 0) then atan (-z/sqrt(x*x + y*y)) else 0
+        beta = -(if (x /= 0 ) || (y /= 0) then atan (-z/sqrt(x*x + y*y)) else 0)
         a = rotateAroundZ alpha
         b = rotateAroundY beta
