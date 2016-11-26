@@ -27,41 +27,6 @@ fromCamera (Camera cp0 cd cv) = Projector pp0 pd ph pv where
   ph =  cp0 + (cd - cp0) `cross` (pv - cp0) -}
 
 
--- |4x4 matrix inverse.
-detinv44 :: Fractional a => M44 a -> M44 a
-detinv44 (V4 (V4 i00 i01 i02 i03)
-          (V4 i10 i11 i12 i13)
-          (V4 i20 i21 i22 i23)
-          (V4 i30 i31 i32 i33)) =
-  let s0 = i00 * i11 - i10 * i01
-      s1 = i00 * i12 - i10 * i02
-      s2 = i00 * i13 - i10 * i03
-      s3 = i01 * i12 - i11 * i02
-      s4 = i01 * i13 - i11 * i03
-      s5 = i02 * i13 - i12 * i03
-      c5 = i22 * i33 - i32 * i23
-      c4 = i21 * i33 - i31 * i23
-      c3 = i21 * i32 - i31 * i22
-      c2 = i20 * i33 - i30 * i23
-      c1 = i20 * i32 - i30 * i22
-      c0 = i20 * i31 - i30 * i21
-  in            V4 (V4 (i11 * c5 - i12 * c4 + i13 * c3)
-                       (-i01 * c5 + i02 * c4 - i03 * c3)
-                       (i31 * s5 - i32 * s4 + i33 * s3)
-                       (-i21 * s5 + i22 * s4 - i23 * s3))
-                   (V4 (-i10 * c5 + i12 * c2 - i13 * c1)
-                       (i00 * c5 - i02 * c2 + i03 * c1)
-                       (-i30 * s5 + i32 * s2 - i33 * s1)
-                       (i20 * s5 - i22 * s2 + i23 * s1))
-                   (V4 (i10 * c4 - i11 * c2 + i13 * c0)
-                       (-i00 * c4 + i01 * c2 - i03 * c0)
-                       (i30 * s4 - i31 * s2 + i33 * s0)
-                       (-i20 * s4 + i21 * s2 - i23 * s0))
-                   (V4 (-i10 * c3 + i11 * c1 - i12 * c0)
-                       (i00 * c3 - i01 * c1 + i02 * c0)
-                       (-i30 * s3 + i31 * s1 - i32 * s0)
-                       (i20 * s3 - i21 * s1 + i22 * s0))
-{-# INLINE detinv44 #-}
 {-
 В принципе, надо доказать, что можно спроецировать все точки на квазиполярную гиперплоскость и
 вызвать функции сишной библиотеки, чтобы смотреть уже из этой плоскости
@@ -83,7 +48,6 @@ delta p0 d v = polar v + deltad * (polar d) + deltap0 *(polar p0)
 
 data CameraEuclid a = CameraEuclid (V3 a) (V3 a) (V3 a) deriving (Show, Eq, Functor)
 -- сделать из v точку, которая будет проецироваться на (0, +inf)
-_t = _w
 
 makeMatrix :: Floating a => Camera a -> M44 a
 makeMatrix (Camera p0' d' v') = V4 eh ev ed p0 where

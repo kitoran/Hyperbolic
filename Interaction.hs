@@ -70,7 +70,7 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
   let moveDeltaRotated :: Event (M44 Double)
       moveDeltaRotated = (filterJust $ fmap (flip lookup matrices) ekeyboard)
       straighten :: Behaviour (M44 Double -> M44 Double)
-      straighten = liftA2 (\x y z -> x !*! z !*! y) rotateB (fmap inv44 rotateB)
+      straighten = liftA2 (\x y z -> x !*! z !*! y) rotateB (fmap invAroundZ rotateB)
 
   moveDelta <- straighten <@> moveDeltaRotated
   move <- accumE startPosMatrix (fmap (\x y -> y !*! x) $ moveDelta )
@@ -83,14 +83,14 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
       upFunc::Event ((M44 Double, M44 Double, M44 Double) -> (M44 Double, M44 Double, M44 Double))
       upFunc =  fmap (\x (a, b, _) -> (a, b, x)) upMatrix
   viewPortChangeStream <- accumE (identityIm, identityIm, identityIm) (unions [moveFunc, rotateFunc, upFunc])
-  
+
   $(prettyR "upMatrix")
   $(prettyV "upAngle")
   $(prettyR "moveDelta")
 
   let viewPortChange = fmap (\(x,y,z) -> moveAlongZ (-1/4) !*! x !*! y !*! z)  viewPortChangeStream 
   reactimate (fmap (\x -> display (mesh enviroment) (x)) viewPortChange)
-  reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  viewPortChange 
+  reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  viewPortChange
 
 bound low high x 
   | x < low = low

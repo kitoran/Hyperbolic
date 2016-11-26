@@ -1,9 +1,10 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
-module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4,
-                   rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, pretty) where
+module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
+                   rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
+                   pretty, proper, distance, adj44, moveTo, invAroundZ, invAroundY) where
 
-import Linear hiding (transpose)
+import Linear hiding (transpose, distance)
 import Control.Lens
 import Control.Applicative
 import Data.Monoid
@@ -67,6 +68,9 @@ data Point a = Point !a !a !a !a deriving (Generic1, Show, Eq, Functor)
   is not nearly injective, that's sad. However, sometimes i use improper points -}
 _v4::Lens' (Point a) (V4 a)
 _v4 f (Point x y z t) = fmap fromV4 $ f (V4 x y z t)
+
+_t = _w
+
 fromV4 (V4 a s d f) = Point a s d f
 instance Applicative Point where --stupid instance, don't use it
   pure a = Point a a a a
@@ -108,6 +112,47 @@ rotateAroundY a = V4 (V4 (cos a) 0 (sin a) 0) (V4 0 1 0 0) (V4 (-sin a) 0 (cos a
 rotateAroundX a = V4 (V4 1 0 0 0) (V4 0 (cos a) (-sin a) 0) (V4 0 (sin a) (cos a) 0) (V4 0 0 0 1)
 
 
+
+invAroundZ (V4 (V4 a b _ _) _ _ _) = V4 (V4 a (-b) 0 0) (V4 b a 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
+invAroundY (V4 (V4 a _ b _) _ _ _) = V4 (V4 a 0 (-b) 0) (V4 0 1 0 0) (V4 b 0 a 0) (V4 0 0 0 1)
+
+-- |4x4 matrix adjugate (inverse multiplied by det)
+adj44 :: Fractional a => M44 a -> M44 a
+adj44   (V4 (V4 i00 i01 i02 i03)
+            (V4 i10 i11 i12 i13)
+            (V4 i20 i21 i22 i23)
+            (V4 i30 i31 i32 i33)) =
+  let s0 = i00 * i11 - i10 * i01
+      s1 = i00 * i12 - i10 * i02
+      s2 = i00 * i13 - i10 * i03
+      s3 = i01 * i12 - i11 * i02
+      s4 = i01 * i13 - i11 * i03
+      s5 = i02 * i13 - i12 * i03
+      c5 = i22 * i33 - i32 * i23
+      c4 = i21 * i33 - i31 * i23
+      c3 = i21 * i32 - i31 * i22
+      c2 = i20 * i33 - i30 * i23
+      c1 = i20 * i32 - i30 * i22
+      c0 = i20 * i31 - i30 * i21
+  in V4 (V4 (i11 * c5 - i12 * c4 + i13 * c3)
+           (-i01 * c5 + i02 * c4 - i03 * c3)
+           (i31 * s5 - i32 * s4 + i33 * s3)
+           (-i21 * s5 + i22 * s4 - i23 * s3))
+        (V4 (-i10 * c5 + i12 * c2 - i13 * c1)
+           (i00 * c5 - i02 * c2 + i03 * c1)
+           (-i30 * s5 + i32 * s2 - i33 * s1)
+           (i20 * s5 - i22 * s2 + i23 * s1))
+        (V4 (i10 * c4 - i11 * c2 + i13 * c0)
+           (-i00 * c4 + i01 * c2 - i03 * c0)
+           (i30 * s4 - i31 * s2 + i33 * s0)
+           (-i20 * s4 + i21 * s2 - i23 * s0))
+        (V4 (-i10 * c3 + i11 * c1 - i12 * c0)
+           (i00 * c3 - i01 * c1 + i02 * c0)
+           (-i30 * s3 + i31 * s1 - i32 * s0)
+           (i20 * s3 - i21 * s1 + i22 * s0))
+{-# INLINE adj44 #-}
+
+
 distance :: Floating a => Point a -> Point a -> a
 distance a b = acosh (chDistance a b)
 
@@ -122,12 +167,19 @@ identityIm = identity--V4 (V4 (0) 0 0 1)(V4 0 (0) 1 0 )(V4 0 1  (0) 0) (V4 (-1) 
 
 pretty :: Show m => V4 (m) -> String
 pretty (V4 a b c d) = intercalate "\n" $ map show [a, b, c, d]
+
+proper :: (Num a, Ord a) => Point a -> Bool
+proper m = form m m < 0
+
 {-
 So i can't find out how to do this properly and i'm too shy to go to mail lists so i'll just have to invent physics myself :(
 The only shape is (irregular) hexahedron. 
 
-
 -}
 
-
-
+moveTo :: (Eq a, Floating a) => Point a -> a -> M44 a
+moveTo (Point x y z t) dist = a !*! b !*! moveAlongX dist !*! invAroundY b !*! invAroundZ a
+  where alpha = if(x/=0)then atan (-y/x) * signum x else 0
+        beta = if (x /= 0 ) || (y /= 0) then atan (-z/sqrt(x*x + y*y)) else 0
+        a = rotateAroundZ alpha
+        b = rotateAroundY beta

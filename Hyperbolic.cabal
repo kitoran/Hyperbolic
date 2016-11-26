@@ -65,6 +65,7 @@ executable Hyperbolic
                      , split
                      , GLUT
                      , template-haskell
+                     , QuickCheck
   
   -- Directories containing source files.
   -- hs-source-dirs:      
