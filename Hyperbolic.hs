@@ -107,6 +107,13 @@ rotateAroundZ a = V4 (V4 (cos a) (-sin a) 0 0) (V4 (sin a) (cos a) 0 0) (V4 0 0 
 rotateAroundY a = V4 (V4 (cos a) 0 (sin a) 0) (V4 0 1 0 0) (V4 (-sin a) 0 (cos a) 0) (V4 0 0 0 1)
 rotateAroundX a = V4 (V4 1 0 0 0) (V4 0 (cos a) (-sin a) 0) (V4 0 (sin a) (cos a) 0) (V4 0 0 0 1)
 
+
+distance :: Floating a => Point a -> Point a -> a
+distance a b = acosh (chDistance a b)
+
+chDistance ::Num a => Point a -> Point a -> a
+chDistance a b = negate (form a b) --let diff = a ^-^ b in form diff diff
+
 data Quadrilatheral a = QL (Point a) (Point a) (Point a) (Point a) -- points must lie in same plane
 -- that is, they must be linearly dependent
 
@@ -116,8 +123,8 @@ identityIm = identity--V4 (V4 (0) 0 0 1)(V4 0 (0) 1 0 )(V4 0 1  (0) 0) (V4 (-1) 
 pretty :: Show m => V4 (m) -> String
 pretty (V4 a b c d) = intercalate "\n" $ map show [a, b, c, d]
 {-
-
-
+So i can't find out how to do this properly and i'm too shy to go to mail lists so i'll just have to invent physics myself :(
+The only shape is (irregular) hexahedron. 
 
 
 -}

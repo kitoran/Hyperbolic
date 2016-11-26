@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+-- {-# LANGUAGE TemplateHaskell #-}
 module DebugTH  where
 import Control.Monad
 import Language.Haskell.TH
@@ -13,7 +13,7 @@ prettyR matrixName = do
   Just putStrLn <- lookupValueName "putStrLn"
   Just pretty <- lookupValueName "pretty"
   Just fmap <- lookupValueName "fmap"
-  Just append <- lookupValueName "append"
+  Just append <- lookupValueName "++"
   Just reactimate <- lookupValueName "reactimate"
   x  <- newName "x"
   return $ AppE (VarE reactimate) (AppE (AppE (VarE fmap)
@@ -34,7 +34,7 @@ prettyV matrixName = do
   Just putStrLn <- lookupValueName "putStrLn"
   Just pretty <- lookupValueName "show"
   Just fmap <- lookupValueName "fmap"
-  Just append <- lookupValueName "append"
+  Just append <- lookupValueName "++"
   Just reactimate <- lookupValueName "reactimate"
   x  <- newName "x"
   return $ AppE (VarE reactimate) (AppE (AppE (VarE fmap)

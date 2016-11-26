@@ -3,7 +3,8 @@
              ScopedTypeVariables #-}
 module Universe (module Hyperbolic, points, cameraC, module Projection, 
                  viewSegment, module Camera,enviroment, tau, _ends, Segment(..),
-                  absoluteCircle, Enviroment(..), HyperEntity(..), parse) where
+                  absoluteCircle, Environment(..), HyperEntity(..), parse, level, startPosMatrix,
+                  Mesh(..)) where
 import Projection
 import Control.Applicative
 import Data.List.Split
@@ -63,13 +64,34 @@ enviroment = map (\c -> case c of
                           [a, b] -> Segment a b
                           [a] -> Segment a a) (chunksOf 2 tunnel)
 
-data Enviroment a = Env [((Double, Double, Double), HyperEntity a)] deriving (Eq, Show,Functor)
+colors = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1), (0, 0, 1), (0, 1, 0), (0, 1, 1), (0.5, 0.5, 1)]
+level = Env (Mesh $ zip colors [ HE f l u, ( HE f d l), HE f u r, HE f r d,
+              HE b u l, HE b l d, HE b r u, HE b d r]) $ Obs [(Point 0 0 0 1, 1/3)]
+  where f = Point (sinh w) 0 0 (cosh w)
+        r = Point 0 (sinh w) 0 (cosh w)
+        u = Point 0 0 (sinh w) (cosh w)
+        b = Point (sinh (-w)) 0 0 (cosh w)
+        l = Point 0 (sinh (-w)) 0 (cosh w)
+        d = Point 0 0 (sinh (-w)) (cosh w)
+        w = 1/3
+startPosMatrix = identityIm
 
+parallelAxiom = Env (Mesh $ zip colors [HE a b c, HE a b e]) ghost
+          where a = Point 0 (-1)  0 1
+                b = Point  0 1 0 1
+                c = Point (sin (tau/12)) (cos (tau/12)) 0 1
+                e = Point (sin (tau*5/12)) (cos (tau*5/12)) 0 1
+
+data Environment a = Env { mesh :: Mesh a,
+                          obstacles :: Obstacles a } deriving (Eq, Show,Functor)
+newtype Mesh a = Mesh [((Double, Double, Double), HyperEntity a)] deriving (Eq, Show,Functor)
 data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor)
+newtype Obstacles a = Obs [(Point a, a)] deriving (Eq, Show,Functor)
    -- пока все будет твёрдое и со всеми видимыми рёбрами
+ghost = Obs []
 
-parse::forall a. Read a => String -> Enviroment a
-parse = Env . f . (map (read::String -> a)) . words
+parse::forall a. Read a => String -> Environment a
+parse = (`Env` ghost) . Mesh . f . (map (read::String -> a)) . words
   where f [] = []
         f (a1:a2:a3:a4:b1:b2:b3:b4:c1:c2:c3:c4:xs) 
                = ((0,0,0),HE (Point a1 a2 a3 a4) (Point b1 b2 b3 b4) (Point c1 c2 c3 c4) ) : f xs
