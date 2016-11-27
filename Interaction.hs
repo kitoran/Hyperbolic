@@ -54,8 +54,12 @@ main = do
              writeIORef last now 
              fireMouse (fromEnum x,fromEnum y)
              pointerPosition $= (Position (width'`div`2) (height'`div`2)))))
-    mainLoop
     display (mesh level) startPosMatrix
+    fireMouse (width`div`2, height`div`2)
+    fireMouse (width`div`2, height`div`2)
+    fireMouse (width`div`2, height`div`2)
+    fireMouse (width`div`2, height`div`2)
+    mainLoop
 
 networkDescription :: Environment Double -> (Int, Int) -> AddHandler Char -> AddHandler (Int, Int) -> MomentIO ()
 networkDescription enviroment (width, height) addKeyboard addMouse = do

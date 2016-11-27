@@ -1,9 +1,9 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
-             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric #-}
+             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables #-}
 module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
                    rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
                    pretty, proper, distance, chDistance, adj44, moveTo, invAroundZ, invAroundY, fromV4, toV4 {-FIMXE when learn lens-}, 
-                   normalizeWass, normalizeKlein, (!$), transposeMink) where
+                   normalizeWass, normalizeKlein, (!$), transposeMink, turmPToOxz, turmPToOx) where
 
 import Linear hiding (transpose, distance, normalize)
 import Control.Lens
@@ -12,6 +12,8 @@ import Data.Monoid
 import Data.Foldable
 import Data.List (intercalate)
 import GHC.Generics
+import Debug.Trace
+import Unsafe.Coerce
 toV4 (Point a b c d) = V4 a b c d {-FIMXE when learn lens-}
 {-|
 
@@ -198,8 +200,18 @@ The only shape is (irregular) hexahedron.
 -}
 
 moveTo :: (Eq a, Floating a) => Point a -> a -> M44 a
-moveTo (Point x y z t) dist =  invAroundZ a !*! invAroundY b !*! moveAlongX dist !*! b !*! a
-  where alpha = if(x/=0)then atan (-y/x) * signum x else 0
-        beta = -(if (x /= 0 ) || (y /= 0) then atan (-z/sqrt(x*x + y*y)) else 0)
-        a = rotateAroundZ alpha
-        b = rotateAroundY beta
+moveTo p dist =  transposeMink a !*! moveAlongX (dist) !*! a
+    where a = turmPToOx p
+    
+turmPToOxz ::forall a . (Eq a, Floating a) => Point a -> M44 a -- cbc
+turmPToOxz  (Point x y z t) = rotateAroundZ (unsafeCoerce (traceShowId (unsafeCoerce alpha::Double))::a)
+  where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0
+
+turmPToOx ::forall a . (Eq a, Floating a) => Point a -> M44 a -- cbc
+turmPToOx  (Point x y z t) =  rotateAroundY (beta) !*! rotateAroundZ alpha
+  where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0
+        beta = -signum t * (if (x /= 0 ) || (y /= 0) then atan (-z/sqrt(x*x + y*y)) else 0)
+
+
+tra :: forall a. a -> a
+tra = unsafeCoerce . traceShowId . (unsafeCoerce :: a -> Double)

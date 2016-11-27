@@ -1,4 +1,8 @@
+{-# Language NoMonomorphismRestriction, OverloadedStrings,
+             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables #-}
+
 import Test.QuickCheck
+import Test.QuickCheck.Property
 
 import Debug.Trace
 import Linear hiding (distance, trace, normalize)
@@ -21,21 +25,34 @@ infix 4 =!=
 infix 4 =!!=
 
 
+(=...=) :: Double -> Double -> String -> Property
+a =...= b = \s -> whenFail' (putStr (show a) >> putStr " /= " >> putStr (show b) >> putStrLn s) (abs (a-b) < 0.01)
+(=..=) :: Double -> Double -> Property
+a =..= b = whenFail' (putStr (show a) >> putStr " /= " >> putStr (show b) >> putStrLn "") (abs (a-b) < 0.01)
 (=.=) :: Double -> Double -> Bool
-a =.= b = abs (a-b) < 0.01
+a =.= b = (abs (a-b) < 0.01)
 
 (/.=) a = not . (=.= a) 
 
-testMoveTo :: (Point Double -> Double -> M44 Double) -> Point Double -> Double -> Bool
-testMoveTo f to dist = if proper to
-                       then let point = over _v4 (f to dist !*) to in distance origin point =.= abs (distance origin to + dist) ||  distance origin point =.= abs (distance origin to - dist) 
-                       else (trace "nonapplicabe" True)
+testMoveTo :: Point Double -> Double -> Property
+testMoveTo to dist = (proper to && abs dist < 13.125) ==> (let point = over _v4 (moveTo to dist !*) to 
+                                                               formDist = distance origin to 
+                                                               newDist = distance origin point 
+                                                               info = show dist ++ " " ++ show formDist ++ " " ++ show newDist in 
+         {-}      if(formDist < dist) then (( newDist =...= abs (dist - formDist) $ " (diff)" ++ info) )
+                                                           else (({ -} newDist =..= abs(dist + formDist) {-$ " (absum)" ++ info ))-})
+dfo = distance origin
+
+testMoveSimpl to = (proper to && dfo to   < 13.125) ==> (let point = over _v4 (moveTo to (-formDist) !*) to 
+                                                             formDist = distance origin to 
+                                                             newDist = distance origin point in 
+              ( newDist =..= 0 ))
 
 
-testMoveTo1 :: (Point Double -> Double -> M44 Double) -> Point Double  -> Bool
-testMoveTo1 f to      = if proper to
-                        then let point = over _v4 (f to 1 !*) to in distance origin point =.= abs (distance origin to + 1) ||  distance origin point =.= abs (distance origin to - 1) 
-                        else (trace "nonapplicabe" True)
+testMoveTo1 :: Point Double  -> Property
+testMoveTo1   to      = if proper to
+                        then let point = over _v4 (moveTo to 1 !*) to in distance origin point =..= abs (distance origin to + 1) .||.  distance origin point =..= abs (distance origin to - 1) 
+                        else (error  "nonapplicabe" True)
 
 
 testinverseZ :: (M44 Double -> M44 Double) -> Double -> Bool
@@ -54,6 +71,18 @@ triangleInequality p r s =
 
 symmetry p r = distance p r =.= distance r p
 
+onPositiveX px = ((signum $ px ^. _v4 . _x) == 0 .||. (signum $ px ^. _v4 . _x) == (signum $  px ^. _v4 . _t))
+
+testTurmPToOxz p = (turmPToOxz p !$ p ^. _v4 . _y) =..= 0 .&&.  (onPositiveX $ turmPToOxz p !$ p)
+
+testTurmPToOx p = let px = turmPToOx p !$ p in (px ^. _v4 . _y) =..= 0 .&&. 
+                                               (px  ^. _v4 . _z) =..= 0 .&&. 
+                                               onPositiveX px .&&. 
+                                               distance origin p =..= distance origin px 
+
+testTurmPToOxb p = (turmPToOx p !$ p ^. _v4 . _y) =.= 0 && (turmPToOx p !$ p ^. _v4 . _z) =.= 0
+
 isometry m p r = distance p r =.= distance (m !$ p) (m !$ r)
 main = verboseCheck (isometry . moveAlongX )
 
+check = verboseCheckWith (stdArgs {maxDiscardRatio = 100000})
