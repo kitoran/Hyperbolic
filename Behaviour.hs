@@ -21,6 +21,21 @@ instance Applicative Behaviour where
       --stream :: Event (a -> b, a)
       stream <- accumE (f, a) (unionWith (.) efFunc afFunc)
       return (f a, (fmap (uncurry ($)) stream))
+-- instance Monad Behaviour where
+--   return = pure
+--   (B ma) >>= (B mf) = do
+--       (a, af) <- ma
+--       (f, ff) <- mf
+--       liftM2 (,) (f a) (ff af)
+  -- (<*>)::forall a b.Behaviour ( a -> b) -> Behaviour a -> Behaviour b
+  -- (B mf) <*> (B ma) = B $ do
+  --     (f, ef) <- mf
+  --     (a, af) <- ma
+  --     let efFunc = fmap (\x (_, y) -> (x,y)) (ef :: Event (a -> b))
+  --         afFunc = fmap (\y (x, _) -> (x,y)) af
+  --     --stream :: Event (a -> b, a)
+  --     stream <- accumE (f, a) (unionWith (.) efFunc afFunc)
+  --     return (f a, (fmap (uncurry ($)) stream))
 
 unionsC :: [Event a] -> Event a
 unionsC = foldr (unionWith const) never

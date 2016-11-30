@@ -3,7 +3,8 @@
 module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
                    rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
                    pretty, proper, distance, chDistance, adj44, moveTo, invAroundZ, invAroundY, fromV4, toV4 {-FIMXE when learn lens-}, 
-                   normalizeWass, normalizeKlein, (!$), transposeMink, turmPToOxz, turmPToOx) where
+                   normalizeWass, normalizeKlein, (!$), transposeMink, turmPToOxz, turmPToOx, moveFromTo, commute,
+                   moveRightTo) where
 
 import Linear hiding (transpose, distance, normalize)
 import Control.Lens
@@ -170,9 +171,20 @@ adj44   (V4 (V4 i00 i01 i02 i03)
            (i20 * s3 - i21 * s1 + i22 * s0))
 {-# INLINE adj44 #-}
 
+{-
 
-distance :: Floating a => Point a -> Point a -> a
-distance a b = acosh (chDistance a b)
+*Main> distance (Point (-1.7252007297487297) (-14.389920392888179) 7.890168332835287 17.402341677747398) (Point (-1.7252007297487297) (-14.389920392888179) 7.890168332835287 17.402341677747398)
+NaN
+*Main> chDistance (Point (-1.7252007297487297) (-14.389920392888179) 7.890168332835287 17.402341677747398) (Point (-1.7252007297487297) (-14.389920392888179) 7.890168332835287 17.402341677747398)
+0.9999999999999982
+*Main> 
+jjjjjgsgdxxxxxxx
+fd
+-}
+distance :: (Floating a, Ord a) => Point a -> Point a -> a
+distance a b 
+  | (chDistance a b) > 1 = acosh (chDistance a b)
+  | otherwise = 0 -- cvjcvddddddddddssddsdsfdddcvcvcvdfdfdfdfdfffddfdfdfggPackageResourceViewer: Open Resource:fffffs
 
 chDistance :: Floating a => Point a -> Point a -> a
 chDistance a b = negate (form (normalizeWass a) (normalizeWass b)) --let diff = a ^-^ b in form diff diff
@@ -199,10 +211,18 @@ So i can't find out how to do this properly and i'm too shy to go to mail lists 
 The only shape is (irregular) hexahedron. 
 -}
 
+commute a b = (transposeMink a) !*! b !*! a
+
 moveTo :: (Eq a, Floating a) => Point a -> a -> M44 a
 moveTo p dist =  transposeMink a !*! moveAlongX (dist) !*! a
     where a = turmPToOx p
+
+moveRightTo p = moveTo p (distance origin p) 
     
+moveFromTo :: (Eq a, Ord a, Floating a) => Point a -> Point a -> a -> M44 a
+moveFromTo fr to dist =  transposeMink a !*! moveTo to (dist) !*! a
+    where a = moveTo fr (distance origin fr) 
+
 turmPToOxz ::forall a . (Eq a, Floating a) => Point a -> M44 a -- cbc
 turmPToOxz  (Point x y z t) = rotateAroundZ (unsafeCoerce (traceShowId (unsafeCoerce alpha::Double))::a)
   where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0

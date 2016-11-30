@@ -4,7 +4,7 @@
 module Universe (module Hyperbolic, points, {-cameraC, module Projection,
                  viewSegment, module Camera,-}enviroment, tau, _ends, Segment(..),
                   absoluteCircle, Environment(..), HyperEntity(..), parse, level, startPosMatrix,
-                  Mesh(..)) where
+                  Mesh(..), Obstacles(..)) where
 --import Projection
 import Control.Applicative
 import Data.List.Split
@@ -66,7 +66,7 @@ enviroment = map (\c -> case c of
 
 colors = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1), (0, 0, 1), (0, 1, 0), (0, 1, 1), (0.5, 0.5, 1)]
 level = Env (Mesh $ zip colors [ HE f l u, ( HE f d l), HE f u r, HE f r d,
-              HE b u l, HE b l d, HE b r u, HE b d r]) $ Obs [(Point 0 0 0 1, 1/3)]
+              HE b u l, HE b l d, HE b r u, HE b d r]) $ Obs [(Point 0 0 0 1, 1)]
   where f = Point (sinh w) 0 0 (cosh w)
         r = Point 0 (sinh w) 0 (cosh w)
         u = Point 0 0 (sinh w) (cosh w)
@@ -95,6 +95,7 @@ parse = (`Env` ghost) . Mesh . f . (map (read::String -> a)) . words
   where f [] = []
         f (a1:a2:a3:a4:b1:b2:b3:b4:c1:c2:c3:c4:xs) 
                = ((0,0,0),HE (Point a1 a2 a3 a4) (Point b1 b2 b3 b4) (Point c1 c2 c3 c4) ) : f xs
+        f _ = error "mesh is ill-formed"
     {-[Point t 0 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
          [Point 0 t 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
          [Point 0 0 t (sqrt (t+1)) | t <- [-1, -0.99..1]] 

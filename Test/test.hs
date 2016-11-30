@@ -66,6 +66,9 @@ testInvariant1 f p d = f p =!= f (fmap (*d) p)
 
 testInvariant2 f p p1 d d1 = d /.= 0 && d1 /.= 0 ==> f p p1 =.= f (fmap (*d) p) (fmap (*d1) p1)
 
+testMoveFromTo :: Point Double -> Point Double -> Double -> Property
+testMoveFromTo fr to d = (proper to && abs d < 13.125) ==> let m = moveFromTo fr to d in distance fr (m !$ fr) =..= d .&&.  distance to (m !$ to) =..= d
+
 triangleInequality p r s = 
        distance p r + distance r s >= distance p s
 

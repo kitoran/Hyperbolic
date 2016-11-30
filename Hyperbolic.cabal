@@ -56,7 +56,7 @@ executable Hyperbolic
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
 
-  ghc-options: -dynamic
+  ghc-options: -Wall
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.8 && <4.9

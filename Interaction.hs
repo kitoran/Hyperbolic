@@ -2,6 +2,7 @@
 module Main where
 
 import Data.IORef(newIORef, readIORef, writeIORef)
+import Debug.Trace
 import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
 import Control.Monad(when)
 import Control.Applicative(liftA2)
@@ -31,7 +32,8 @@ import Hyperbolic (rotateAroundZ, rotateAroundY, moveAlongZ, moveAlongX, moveAlo
 import Graphics(initialiseGraphics, display)
 import DebugTH(prettyR, prettyV)
 --import Physics
-import Universe (level, startPosMatrix, Environment(mesh), tau)
+import Universe (level, startPosMatrix, Environment(..), tau)
+import Physics
 
 main :: IO ()
 main = do
@@ -76,8 +78,8 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
       straighten :: Behaviour (M44 Double -> M44 Double)
       straighten = liftA2 (\x y z -> x !*! z !*! y) rotateB (fmap invAroundZ rotateB)
 
-  moveDelta <- straighten <@> moveDeltaRotated
-  move <- accumE startPosMatrix (fmap (\x y -> y !*! x) $ moveDelta )
+  moveDelta <- (straighten <@> moveDeltaRotated)
+  move <-  accumE startPosMatrix (fmap (\x y -> pushOut (obstacles enviroment) (y !*! x)) $ moveDelta )
   let moveFunc::Event ((M44 Double, M44 Double, M44 Double) -> (M44 Double, M44 Double, M44 Double))
       moveFunc = fmap (\x (_, b, c) -> (x, b, c)) move
   let rotateFunc::Event ((M44 Double, M44 Double, M44 Double) -> (M44 Double, M44 Double, M44 Double))
@@ -87,6 +89,7 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
       upFunc::Event ((M44 Double, M44 Double, M44 Double) -> (M44 Double, M44 Double, M44 Double))
       upFunc =  fmap (\x (a, b, _) -> (a, b, x)) upMatrix
   viewPortChangeStream <- accumE (identityIm, identityIm, identityIm) (unions [moveFunc, rotateFunc, upFunc])
+
 
   $(prettyR "upMatrix")
   $(prettyV "upAngle")
