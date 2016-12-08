@@ -56,7 +56,7 @@ executable Hyperbolic
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
 
-  ghc-options: -Wall
+  ghc-options: -Wall  -fdefer-type-errors
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.8 && <4.9
@@ -68,6 +68,7 @@ executable Hyperbolic
                      , GLUT
                      , template-haskell
                      , QuickCheck
+                     , exact-real
   
   -- Directories containing source files.
   -- hs-source-dirs:      

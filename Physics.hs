@@ -10,7 +10,7 @@ import Linear(M44, (!*!))
 -- correct 
 
 --   старое положение    новое положение
-pushOut :: Obstacles Double -> M44 Double -> M44 Double
+pushOut :: (Floating a, Eq a, Ord a, Show a) => Obstacles a -> M44 a -> M44 a
 pushOut (Obs a) currentPos = foldr (\(center, radius) -> (pushOutOne center radius (transposeMink currentPos !$ origin) !*!)) currentPos a
 -- Тут мы много раз умножаем на identity, это можно оптимизировать разными 
 -- способами, самый безболезненный, мне кажется - это добавить конструктор 
@@ -26,7 +26,7 @@ pushOut (Obs a) currentPos = foldr (\(center, radius) -> (pushOutOne center radi
 -- pushOutOne :: Point Double -> Double -> Point Double -> M44 Double
 -- pushOutOne center radius pos = {-commute (transposeMink $ moveRightTo pos) $-} pushOutOneOrigin (moveRightTo pos !$ center) radius
 
-pushOutOne :: Point Double -> Double -> Point Double -> M44 Double
+pushOutOne :: (Floating a, Eq a, Ord a, Show a) => Point a -> a -> Point a -> M44 a
 pushOutOne m r pos = let 
                         diff = r - distance pos  m
                        in  if (trace ("diff:" ++ show diff) diff) > 0 then moveFromTo pos m (-diff) else identityIm

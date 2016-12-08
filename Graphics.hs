@@ -1,4 +1,5 @@
-{-# Language NoMonomorphismRestriction, BangPatterns, RecursiveDo, TupleSections, TemplateHaskell #-}
+{-# Language NoMonomorphismRestriction, BangPatterns, RecursiveDo, TupleSections, TemplateHaskell,
+    ScopedTypeVariables #-}
 module Graphics where
 
 import Control.Monad(when)
@@ -32,7 +33,7 @@ import Hyperbolic (Point)
 import Linear hiding (perspective, lookAt, trace)
 --import DebugTH
 --import Control.Lens
---import Debug.Trace
+-- --import Debug.Trace
 
 initialiseGraphics :: IO ()
 initialiseGraphics = do
@@ -46,11 +47,11 @@ initialiseGraphics = do
     lineWidth $= 2
     cursor $= None
 
-toFrame::Mesh Double -> [Point Double]
+toFrame::Floating a => Mesh a -> [Point a]
 toFrame (Mesh []) = []
 toFrame (Mesh ((_, HE x y z):xs) ) = x:y:y:z:z:x:(toFrame (Mesh xs ))
  
-display :: Mesh Double -> M44 Double -> DisplayCallback
+display ::forall a. (Floating a, Ord a, Real a) =>  Mesh a -> M44 a -> DisplayCallback
 display (Mesh env) tran = do
   clear [ColorBuffer, DepthBuffer]
   color $ Color3 0 0 (0::GLfloat)
@@ -59,15 +60,15 @@ display (Mesh env) tran = do
   renderPrimitive Lines $ do
      mapM_ transform $ toFrame (Mesh env)
   swapBuffers
-    where toRaw :: ((Double, Double, Double), HyperEntity Double) -> IO ()
+    where toRaw :: ((a, a, a), HyperEntity a) -> IO ()
           toRaw (c1, (HE a b c)) = do
                               transform a
                               transform b
                               transform c
-          transform :: Point Double -> IO ()--Vertex4 Double
+          transform :: Point a -> IO ()--Vertex4 Double
           transform p = let (V4 x y z t) = toV4 p *! tran in 
-                     when (x>0) (vertex $ Vertex3 (y/x*600/1024) (z/x) (x/t)) 
-          coerce :: Double -> GLfloat
+                     when (x>0) (vertex $ Vertex3 (coerce $ y/x*600/1024) (coerce $ z/x) (coerce $ x/t)) 
+          coerce :: a -> GLfloat
           coerce  = fromRational.toRational
           uncurry3 f (a,b,c)=f a b c
           mapTuple f (a, b, c) = (f a, f  b, f c)

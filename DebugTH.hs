@@ -46,3 +46,4 @@ prettyV matrixName = do
                                                                       (VarE x))))))
                                          (VarE matrix))
 
+  

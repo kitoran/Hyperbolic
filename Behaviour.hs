@@ -2,7 +2,7 @@
 module Behaviour where
 import Control.Monad
 import Reactive.Banana hiding (stepper, (<@), Behavior)
-import Reactive.Banana.Frameworks 
+import Reactive.Banana.Frameworks
 import DebugTH
 import Debug.Trace
 import Control.Arrow
@@ -50,6 +50,11 @@ toEvent :: Behaviour a -> MomentIO (Event a)
 toEvent (B m) = fmap snd m
 
 accumB a e = stepper a <$> accumE a e
+
+-- accumReload :: MonadMoment m => a -> Event (a -> a) -> Event b ->  MomentIO (Behaviour a)
+-- accumReload a f b = mdo
+--     accum <- toEvent (liftA2 (\))  
+--     accumr <- pure 0 <@ b
 
 (<@) :: Behaviour a -> Event b -> MomentIO (Event a)
 (B m) <@ e = do

@@ -84,9 +84,6 @@ instance Applicative Point where --stupid instance, don't use it
   pure a = Point a a a a
   (Point a b c d) <*> (Point e f g h) = Point (a e) (b f) (c g) (d h)
 
-
-
-  
 sanity :: Num a => M44 a -> M44 a
 sanity a = a !*! transposeMink a
 insanity a = getSum $ fold $ fmap (foldMap (\x->Sum $ x*x)) (sanity a ^-^ identity)
@@ -224,7 +221,7 @@ moveFromTo fr to dist =  transposeMink a !*! moveTo to (dist) !*! a
     where a = moveTo fr (distance origin fr) 
 
 turmPToOxz ::forall a . (Eq a, Floating a) => Point a -> M44 a -- cbc
-turmPToOxz  (Point x y z t) = rotateAroundZ (unsafeCoerce (traceShowId (unsafeCoerce alpha::Double))::a)
+turmPToOxz  (Point x y z t) = rotateAroundZ alpha
   where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0
 
 turmPToOx ::forall a . (Eq a, Floating a) => Point a -> M44 a -- cbc
@@ -232,6 +229,3 @@ turmPToOx  (Point x y z t) =  rotateAroundY (beta) !*! rotateAroundZ alpha
   where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0
         beta = -signum t * (if (x /= 0 ) || (y /= 0) then atan (-z/sqrt(x*x + y*y)) else 0)
 
-
-tra :: forall a. a -> a
-tra = unsafeCoerce . traceShowId . (unsafeCoerce :: a -> Double)

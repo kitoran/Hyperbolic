@@ -66,7 +66,7 @@ enviroment = map (\c -> case c of
 
 colors = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1), (0, 0, 1), (0, 1, 0), (0, 1, 1), (0.5, 0.5, 1)]
 level = Env (Mesh $ zip colors [ HE f l u, ( HE f d l), HE f u r, HE f r d,
-              HE b u l, HE b l d, HE b r u, HE b d r]) $ Obs [(Point 0 0 0 1, 1)]
+              HE b u l, HE b l d, HE b r u, HE b d r]) $ Obs [(Point 0 0 0.01 1, 1)]
   where f = Point (sinh w) 0 0 (cosh w)
         r = Point 0 (sinh w) 0 (cosh w)
         u = Point 0 0 (sinh w) (cosh w)
@@ -74,7 +74,7 @@ level = Env (Mesh $ zip colors [ HE f l u, ( HE f d l), HE f u r, HE f r d,
         l = Point 0 (sinh (-w)) 0 (cosh w)
         d = Point 0 0 (sinh (-w)) (cosh w)
         w = 1/3
-startPosMatrix = identityIm
+startPosMatrix = identity --V4 (V4 0 0 0 1) (V4 0 1 0 0 ) (V4 0 0 1 0) (V4 1 0 0 (0))
 
 parallelAxiom = Env (Mesh $ zip colors [HE a b c, HE a b e]) ghost
           where a = Point 0 (-1)  0 1
@@ -84,15 +84,16 @@ parallelAxiom = Env (Mesh $ zip colors [HE a b c, HE a b e]) ghost
 
 data Environment a = Env { mesh :: Mesh a,
                           obstacles :: Obstacles a } deriving (Eq, Show,Functor)
-newtype Mesh a = Mesh [((Double, Double, Double), HyperEntity a)] deriving (Eq, Show,Functor)
+newtype Mesh a = Mesh [((a, a, a), HyperEntity a)] deriving (Eq, Show,Functor)
 data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor)
 newtype Obstacles a = Obs [(Point a, a)] deriving (Eq, Show,Functor)
    -- пока все будет твёрдое и со всеми видимыми рёбрами
 ghost = Obs []
 
-parse::forall a. Read a => String -> Environment a
+parse::forall a. (Read a, Num a) => String -> Environment a
 parse = (`Env` ghost) . Mesh . f . (map (read::String -> a)) . words
-  where f [] = []
+  where f :: Num a => [a] -> [((a,a,a) , HyperEntity a)]
+        f [] = []
         f (a1:a2:a3:a4:b1:b2:b3:b4:c1:c2:c3:c4:xs) 
                = ((0,0,0),HE (Point a1 a2 a3 a4) (Point b1 b2 b3 b4) (Point c1 c2 c3 c4) ) : f xs
         f _ = error "mesh is ill-formed"
