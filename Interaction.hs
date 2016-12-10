@@ -7,7 +7,7 @@ import Data.CReal
 import System.IO.Unsafe -- это так пока поиграться, потом уберу наверное
 import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
 import Control.Monad(when)
-import Control.Applicative(liftA2)
+import Control.Applicative(liftA2, liftA3)
 import Data.List((++))
 import Graphics.UI.GLUT as GL
     (    Size(Size)
@@ -30,7 +30,16 @@ import Reactive.Banana.Frameworks(newAddHandler,
                                   actuate,
                                   MomentIO,
                                   reactimate)
-import Reactive.Banana.Combinators -- (accumE, Event, filterJust, unions, filterE, accumB, Behavior, (<@>)) 
+import Reactive.Banana.Combinators  
+    (
+      accumE
+    , Event
+    , filterJust
+    , unions
+    , filterE
+--    , Behavior
+    , unionWith
+    ) 
 
 import Hyperbolic 
         ( rotateAroundZ
@@ -47,6 +56,7 @@ import Hyperbolic
         , distance
         , commute
         )
+import Behaviour
 import Graphics as G (initialiseGraphics, display) 
 import DebugTH(prettyR, prettyV)
 --import Physics
@@ -134,16 +144,16 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
   rotate <- accumB startPosMatrix $ unions [(fmap (\x y -> x !*! y) rotateDelta),  reset]
   let moveDeltaRotated :: Event (M44 a)
       moveDeltaRotated = (filterJust $ fmap (flip lookup matrices) ekeyboard)
-      straighten :: Behavior (M44 a -> M44 a)
+      straighten :: Behaviour (M44 a -> M44 a)
       straighten = liftA2 (\x y z -> x !*! z !*! y) rotate (fmap invAroundZ rotate)
 
-  let moveDelta = (straighten <@> moveDeltaRotated)
-  (move::Behavior (M44 a)) <- accumB startPosMatrix (fmap (\x y -> pushOut (obstacles enviroment) (y !*! x)) $ moveDelta )
+  moveDelta <- (straighten <@> moveDeltaRotated)
+  (move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> pushOut (obstacles enviroment) (y !*! x)) $ moveDelta ), reset]
   -- let moveFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
   --     moveFunc = fmap (\x (_, b, c) -> (x, b, c)) move
   -- let rotateFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
   --     rotateFunc =  fmap (\x (a, _, c) -> (a, x, c)) $ rotate
-  upAngle <- accumB 0 (fmap (\n delta -> bound (-tau/4) (tau/4) (n+delta)) (fmap snd $ toGradi <$> mouseDelta))
+  upAngle <- accumB 0 $ unions [(fmap (\n delta -> bound (-tau/4) (tau/4) (n+delta)) (fmap snd $ toGradi <$> mouseDelta)), fmap (const $ const 0) $ filterE (== 'r') ekeyboard]
   let upMatrix = fmap rotateAroundY upAngle
       -- upFunc::Behavior ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
       -- upFunc =  fmap (\x (a, b, _) -> (a, b, x)) upMatrix
@@ -156,8 +166,8 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
   -- let moveDeltaEvent = moveDelta <@ ekeyboard
   $(prettyR "moveDelta")
   
-  let viewPortChange = liftA3 (\x y z -> moveAlongZ (-1/4) !*! x !*! y !*! z)  move rotate upMatrix  <@ viewPortChangeStream
-  let dist = fmap (\x -> distance origin (x !$ origin)) viewPortChange -- <@ ekeyboard
+  viewPortChange <- liftA3 (\x y z -> moveAlongZ (-1/4) !*! x !*! y !*! z)  move rotate upMatrix  <@ viewPortChangeStream
+  let dist = fmap (\x -> distance origin (x !$ origin)) (viewPortChange)-- ::Event (M44 Double)) -- <@ ekeyboard
   $(prettyV "dist")
   reactimate (fmap (\x -> display (mesh enviroment) (x)) viewPortChange)
   reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  viewPortChange

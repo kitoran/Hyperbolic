@@ -51,6 +51,7 @@ toEvent (B m) = fmap snd m
 
 accumB a e = stepper a <$> accumE a e
 
+--unionWith a b 
 -- accumReload :: MonadMoment m => a -> Event (a -> a) -> Event b ->  MomentIO (Behaviour a)
 -- accumReload a f b = mdo
 --     accum <- toEvent (liftA2 (\))  
