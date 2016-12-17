@@ -119,6 +119,13 @@ rotateAroundY a = V4 (V4 (cos a) 0 (sin a) 0) (V4 0 1 0 0) (V4 (-sin a) 0 (cos a
 rotateAroundX a = V4 (V4 1 0 0 0) (V4 0 (cos a) (-sin a) 0) (V4 0 (sin a) (cos a) 0) (V4 0 0 0 1)
 
 
+qr :: Floating a => M44 a -> M44 a
+qr (V4 (V4 a11 a12 a13 a14) 
+       (V4 a21 a22 a23 a24) 
+       (V4 a31 a32 a33 a34) 
+       (V4 a41 a42 a43 a44) ) = error "qr is not implemented"
+
+
 -- fast special invertions:
 -- (add inline pragmas...)
 invAroundZ (V4 (V4 a b _ _) _ _ _) = V4 (V4 a (-b) 0 0) (V4 b a 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
@@ -181,7 +188,7 @@ fd
 distance :: (Floating a, Ord a) => Point a -> Point a -> a
 distance a b 
   | (chDistance a b) > 1 = acosh (chDistance a b)
-  | otherwise = 0 -- cvjcvddddddddddssddsdsfdddcvcvcvdfdfdfdfdfffddfdfdfggPackageResourceViewer: Open Resource:fffffs
+  | otherwise = 0 
 
 chDistance :: Floating a => Point a -> Point a -> a
 chDistance a b = negate (form (normalizeWass a) (normalizeWass b)) --let diff = a ^-^ b in form diff diff
@@ -228,4 +235,29 @@ turmPToOx ::forall a . (Eq a, Floating a) => Point a -> M44 a -- cbc
 turmPToOx  (Point x y z t) =  rotateAroundY (beta) !*! rotateAroundZ alpha
   where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0
         beta = -signum t * (if (x /= 0 ) || (y /= 0) then atan (-z/sqrt(x*x + y*y)) else 0)
+-- тут сожно наверное всё сделать ДРАМАТИЧЕСКИ быстрее, если вставить rewrite rules
+
+getPointToOrigin = transposeMink . moveRightTo
+getPointToOxyAroundOy (Point x y z t) = rotateAroundY $ atan2 x z --  брать синус и косинус арктангенса очень весело, конечно
+getPointToOxzAroundOz (Point x y z t) = rotateAroundZ $ atan2 x y
+getPointToOxyAroundOx (Point x y z t) = rotateAroundX $ atan2 z y
+getPointOnOxToOrigin (Point x y z t) = moveAlongX $ acosh (-x/t) -- брать гиперболические синус и косинус аркчосинуса очень весело, конечно
+
+
+andThen :: Num a => (Point a -> M44 a) -> (Point a -> M44 a) -> Point a -> M44 a -- может быть, это какой-нибудь arrows 
+(f `andThen` g) p = g ((f p) !$ p) !*! f p -- безумно неэффективно и вообще пиздец
+
+andConsideringThat :: Num a => M44 a -> (Point a -> M44 a) -> Point a -> M44 a 
+andConsideringThat m f p = f (m !$ p)
+
+getTriangleToOxy a b c = ((getPointToOxyAroundOx `andThen` getPointToOxzAroundOz `andThen` getPointOnOxToOrigin $ a) `andConsideringThat` (getPointToOxyAroundOx `andThen` getPointToOxzAroundOz)) b `andConsideringThat` getPointToOxyAroundOx $ c
+
+{- 
+Мы хотим сделать, чтобы все углы треугольника стали на од
+
+-}
+
+
+
+
 
