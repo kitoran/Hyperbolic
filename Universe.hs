@@ -65,15 +65,27 @@ enviroment = map (\c -> case c of
                           [a] -> Segment a a) (chunksOf 2 tunnel)
 
 colors = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1), (0, 0, 1), (0, 1, 0), (0, 1, 1), (0.5, 0.5, 1)]
-level = Env (Mesh $ zip colors [ HE f l u, ( HE f d l), HE f u r, HE f r d,
-              HE b u l, HE b l d, HE b r u, HE b d r]) $ Obs [(Point 0 0 0.01 1, 1)]
-  where f = Point (sinh w) 0 0 (cosh w)
-        r = Point 0 (sinh w) 0 (cosh w)
-        u = Point 0 0 (sinh w) (cosh w)
-        b = Point (sinh (-w)) 0 0 (cosh w)
-        l = Point 0 (sinh (-w)) 0 (cosh w)
-        d = Point 0 0 (sinh (-w)) (cosh w)
+blacks = repeat (1,0,0)
+whites = repeat (1,1,1)
+level :: Environment Double
+level = Env (Mesh $ zip (take 8 blacks ++ take 8 whites) [ HE f l u, ( HE f d l), HE f u r, HE f r d,
+              HE b u l, HE b l d, HE b r u, HE b d r, HE f1 l1 u1, ( HE f1 d1 l1), HE f1 u1 r1, HE f1 r1 d1,
+              HE b1 u1 l1, HE b1 l1 d1, HE b1 r1 u1, HE b1 d1 r1]) $ Obs [(Point (sinh 1) 0 0.00 (cosh 1), 1/3), (Point (sinh 0) 0 0.00 (cosh 0), 1/3)]
+  where f, r, u, b, l, d :: Point Double
+        f =(moveAlongX 1 !$) $ Point (sinh w) 0 0 (cosh w)
+        r =(moveAlongX 1 !$) $ Point 0 (sinh w) 0 (cosh w)
+        u = (moveAlongX 1 !$) $Point 0 0 (sinh w) (cosh w)
+        b =(moveAlongX 1 !$) $ Point (sinh (-w)) 0 0 (cosh w)
+        l =(moveAlongX 1 !$) $ Point 0 (sinh (-w)) 0 (cosh w)
+        d = (moveAlongX 1 !$) $Point 0 0 (sinh (-w)) (cosh w)
         w = 1/3
+        f1 = Point (sinh w) 0 0 (cosh w)
+        r1 = Point 0 (sinh w) 0 (cosh w)
+        u1 = Point 0 0 (sinh w) (cosh w)
+        b1 = Point (sinh (-w)) 0 0 (cosh w)
+        l1 = Point 0 (sinh (-w)) 0 (cosh w)
+        d1 = Point 0 0 (sinh (-w)) (cosh w)
+
 startPosMatrix = identity --V4 (V4 0 0 0 1) (V4 0 1 0 0 ) (V4 0 0 1 0) (V4 1 0 0 (0))
 
 parallelAxiom = Env (Mesh $ zip colors [HE a b c, HE a b e]) ghost
@@ -89,6 +101,9 @@ data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor
 newtype Obstacles a = Obs [(Point a, a)] deriving (Eq, Show,Functor)
    -- пока все будет твёрдое и со всеми видимыми рёбрами
 ghost = Obs []
+
+
+
 
 parse::forall a. (Read a, Num a) => String -> Environment a
 parse = (`Env` ghost) . Mesh . f . (map (read::String -> a)) . words

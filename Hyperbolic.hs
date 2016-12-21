@@ -76,7 +76,7 @@ _v4 f (Point x y z t) = fmap fromV4 $ f (V4 x y z t)
 
 _t = _w
 
-m !$ p = over _v4 (m!*) p
+--m !$ p = over _v4 (m!*) p
 --agressive inlining...
 
 fromV4 (V4 a s d f) = Point a s d f
@@ -244,10 +244,10 @@ getPointToOxyAroundOx (Point x y z t) = rotateAroundX $ atan2 z y
 getPointOnOxToOrigin (Point x y z t) = moveAlongX $ acosh (-x/t) -- брать гиперболические синус и косинус аркчосинуса очень весело, конечно
 
 
-andThen :: Num a => (Point a -> M44 a) -> (Point a -> M44 a) -> Point a -> M44 a -- может быть, это какой-нибудь arrows 
+andThen :: (Num a, Movable m) => (m a -> M44 a) -> (m a -> M44 a) -> m a -> M44 a -- может быть, это какой-нибудь arrows 
 (f `andThen` g) p = g ((f p) !$ p) !*! f p -- безумно неэффективно и вообще пиздец
 
-andConsideringThat :: Num a => M44 a -> (Point a -> M44 a) -> Point a -> M44 a 
+andConsideringThat :: (Num a, Movable m) => M44 a -> (m a -> M44 a) -> m a -> M44 a 
 andConsideringThat m f p = f (m !$ p)
 
 getTriangleToOxy a b c = ((getPointToOxyAroundOx `andThen` getPointToOxzAroundOz `andThen` getPointOnOxToOrigin $ a) `andConsideringThat` (getPointToOxyAroundOx `andThen` getPointToOxzAroundOz)) b `andConsideringThat` getPointToOxyAroundOx $ c
@@ -255,9 +255,15 @@ getTriangleToOxy a b c = ((getPointToOxyAroundOx `andThen` getPointToOxzAroundOz
 {- 
 Мы хотим сделать, чтобы все углы треугольника стали на од
 
+
+
+
 -}
 
 
+class Movable p where
+  (!$) :: (Num a) => M44 a -> p a -> p a 
 
-
-
+instance Movable Point where
+  m !$ p = over _v4 (m!*) p
+--so much for agressive inlining... class methods dont get rewrited... class methods are harder to inline.. sad..

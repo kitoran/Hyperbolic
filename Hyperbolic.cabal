@@ -69,6 +69,7 @@ executable Hyperbolic
                      , template-haskell
                      , QuickCheck
                      , exact-real
+                     , random
   
   -- Directories containing source files.
   -- hs-source-dirs:      

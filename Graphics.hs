@@ -31,6 +31,8 @@ import Graphics.UI.GLUT (($=),
 import Universe (Mesh(..), HyperEntity(..), toV4)
 import Hyperbolic (Point)
 import Linear hiding (perspective, lookAt, trace)
+import System.Random
+
 --import DebugTH
 --import Control.Lens
 -- --import Debug.Trace
@@ -58,10 +60,15 @@ display (Mesh env) tran = do
   renderPrimitive Triangles $ mapM_ toRaw env
   color $ Color3 1 1 (1::GLfloat)
   renderPrimitive Lines $ do
+     r <- randomIO
+     g <- randomIO
+     b <- randomIO
+     color $ Color3 r g (b::GLfloat)
      mapM_ transform $ toFrame (Mesh env)
   swapBuffers
     where toRaw :: ((a, a, a), HyperEntity a) -> IO ()
-          toRaw (c1, (HE a b c)) = do
+          toRaw ((r, g, bl), (HE a b c)) = do
+                              color $ Color3 (coerce r) (coerce g) (coerce bl::GLfloat)
                               transform a
                               transform b
                               transform c
