@@ -21,7 +21,8 @@ import Graphics.UI.GLUT as GL
     ,    pointerPosition
     ,    mainLoop
     )
-import Linear ((!*!), M44, inv44)
+import Linear ((!*), (*!), (!*!), M44, inv44)
+import Control.Lens (over)
 import Reactive.Banana.Frameworks(newAddHandler,
                                   fromAddHandler, 
                                   AddHandler, 
@@ -55,6 +56,9 @@ import Hyperbolic
         , origin
         , distance
         , commute
+        , _v4
+        , Point (..)
+        , transposeMink
         )
 import Behaviour
 import Graphics as G (initialiseGraphics, display) 
@@ -148,7 +152,7 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
       straighten = liftA2 (\x y z -> x !*! z !*! y) rotate (fmap invAroundZ rotate)
 
   moveDelta <- (straighten <@> moveDeltaRotated)
-  (move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> pushOut (obstacles enviroment) (y !*! x)) $ moveDelta ), reset]
+  (move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> pushOut (obstacles enviroment) (y !*! x)) $ moveDelta ), reset]--(move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> (y !*! x !*! transposeMink y)) $  unionWith (!*!) moveDeltaRotated rotateDelta ), reset]
   -- let moveFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
   --     moveFunc = fmap (\x (_, b, c) -> (x, b, c)) move
   -- let rotateFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
@@ -166,9 +170,12 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
   -- let moveDeltaEvent = moveDelta <@ ekeyboard
   $(prettyR "moveDelta")
   
-  viewPortChange <- liftA3 (\x y z -> moveAlongZ (-1/4) !*! x !*! y !*! z)  move rotate upMatrix  <@ viewPortChangeStream
+  viewPortChange <- liftA3 (\x y z -> {-moveAlongZ (-1/4) !*!-} x !*! y !*! z)  move rotate upMatrix  <@ viewPortChangeStream
   let dist = fmap (\x -> distance origin (x !$ origin)) (viewPortChange)-- ::Event (M44 Double)) -- <@ ekeyboard
   $(prettyV "dist")
+  let currp :: Event (Point a, Point a)
+      currp = fmap (\x -> ((x !$ origin), (over _v4  (*! x) origin))) (viewPortChange)-- ::Event (M44 Double)) -- <@ ekeyboard
+  $(prettyV "currp")
   reactimate (fmap (\x -> display (mesh enviroment) (x)) viewPortChange)
   reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  viewPortChange
 

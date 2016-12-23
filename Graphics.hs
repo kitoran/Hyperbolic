@@ -29,7 +29,7 @@ import Graphics.UI.GLUT (($=),
                          vertex,
                          Vertex3(Vertex3) )
 import Universe (Mesh(..), HyperEntity(..), toV4)
-import Hyperbolic (Point)
+import Hyperbolic (Point, transposeMink)
 import Linear hiding (perspective, lookAt, trace)
 import System.Random
 
@@ -73,7 +73,7 @@ display (Mesh env) tran = do
                               transform b
                               transform c
           transform :: Point a -> IO ()--Vertex4 Double
-          transform p = let (V4 x y z t) = toV4 p *! tran in 
+          transform p = let (V4 x y z t) = toV4 p *! tran in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                      when (x>0) (vertex $ Vertex3 (coerce $ y/x*600/1024) (coerce $ z/x) (coerce $ x/t)) 
           coerce :: a -> GLfloat
           coerce  = fromRational.toRational

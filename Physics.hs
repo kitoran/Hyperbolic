@@ -11,8 +11,7 @@ import Linear(M44, (!*!))
 
 --   старое положение    новое положение
 pushOut :: (Floating a, Eq a, Ord a, Show a) => Obstacles a -> M44 a -> M44 a
-pushOut (Obs a) currentPos = foldr (\(center, radius) a -> (transposeMink (pushOutSphere center radius ( currentPos !$ origin)))
-                                                           !*! a
+pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink (pushOutSphere ( currentPos !$ center) radius )))
                                                            ) currentPos a
 -- Тут мы много раз умножаем на identity, это можно оптимизировать разными 
 -- способами, самый безболезненный, мне кажется - это добавить конструктор 
@@ -30,10 +29,10 @@ pushOut (Obs a) currentPos = foldr (\(center, radius) a -> (transposeMink (pushO
 -- 1 - ((c+e-b-d)/(a - 2*b + c)) = (a - 2*b + c)/(a - 2*b + c) - ((c+e-b-d)/(a - 2*b + c)) = 
 -- a - b + d - e     
 
-pushOutSphere :: (Floating a, Eq a, Ord a, Show a) => Point a -> a -> Point a -> M44 a
-pushOutSphere m r pos = let 
-                        diff = r - distance pos  m
-                           in  if (trace ("diff:" ++ show diff) diff) > 0 then moveFromTo m pos (-diff) else identityIm
+pushOutSphere :: (Floating a, Eq a, Ord a, Show a) => Point a -> a -> M44 a
+pushOutSphere m r = let 
+                        diff = r - distance origin m
+                           in  if (trace ("diff:" ++ show diff) diff) > 0 then moveTo m (-diff) else identityIm
 
 -- pushOutTriangle :: (Floating a, Eq a, Ord a, Show a) => Point a -> Point a -> Point a -> Point a -> M44 a
 -- pushOutTriangle b k r p = 
