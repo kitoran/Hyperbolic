@@ -2,8 +2,9 @@ module Physics where
 
 import Hyperbolic
 import Universe
+import Unsafe.Coerce
 import Debug.Trace
-import Linear(M44, (!*!))
+import Linear(M44, (!*!), (!*), (*!))
 
 --текущее положение  матрица куда надо пойти   результат (?) 
 -- correct :: M44 Double -> M44 Double -> M44 Double
@@ -11,7 +12,7 @@ import Linear(M44, (!*!))
 
 --   старое положение    новое положение
 pushOut :: (Floating a, Eq a, Ord a, Show a) => Obstacles a -> M44 a -> M44 a
-pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink (pushOutSphere ( currentPos !$ center) radius )))
+pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink (pushOutSphere (fromV4 $ (toV4 center) *! currentPos ) radius )))
                                                            ) currentPos a
 -- Тут мы много раз умножаем на identity, это можно оптимизировать разными 
 -- способами, самый безболезненный, мне кажется - это добавить конструктор 
@@ -29,10 +30,13 @@ pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink
 -- 1 - ((c+e-b-d)/(a - 2*b + c)) = (a - 2*b + c)/(a - 2*b + c) - ((c+e-b-d)/(a - 2*b + c)) = 
 -- a - b + d - e     
 
-pushOutSphere :: (Floating a, Eq a, Ord a, Show a) => Point a -> a -> M44 a
+pushOutSphere :: (Floating a, Eq a, Ord a) => Point a -> a -> M44 a
 pushOutSphere m r = let 
                         diff = r - distance origin m
-                           in  if (trace ("diff:" ++ show diff) diff) > 0 then moveTo m (-diff) else identityIm
+                           in  if (trace ("diff:" ++ show (unsafeCoerce diff::Double)) diff) > 0 then moveTo m (-diff) else identityIm
+
+-- nearestPoint :: (Floating a, Eq a, Ord a) => Point a -> Point a -> Point a -> Point a
+-- nearestPoint a b c = toV4 
 
 -- pushOutTriangle :: (Floating a, Eq a, Ord a, Show a) => Point a -> Point a -> Point a -> Point a -> M44 a
 -- pushOutTriangle b k r p = 

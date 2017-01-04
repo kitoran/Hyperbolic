@@ -267,3 +267,5 @@ class Movable p where
 instance Movable Point where
   m !$ p = over _v4 (m!*) p
 --so much for agressive inlining... class methods dont get rewrited... class methods are harder to inline.. sad..
+
+

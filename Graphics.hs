@@ -79,3 +79,30 @@ display (Mesh env) tran = do
           coerce  = fromRational.toRational
           uncurry3 f (a,b,c)=f a b c
           mapTuple f (a, b, c) = (f a, f  b, f c)
+
+-- display :: forall a. (Floating a, Ord a, Real a) =>  Mesh a -> Point a -> a -> a -> DisplayCallback
+-- display (Mesh env) tran = do
+--   clear [ColorBuffer, DepthBuffer]
+--   color $ Color3 0 0 (0::GLfloat)
+--   renderPrimitive Triangles $ mapM_ toRaw env
+--   color $ Color3 1 1 (1::GLfloat)
+--   renderPrimitive Lines $ do
+--      r <- randomIO
+--      g <- randomIO
+--      b <- randomIO
+--      color $ Color3 r g (b::GLfloat)
+--      mapM_ transform $ toFrame (Mesh env)
+--   swapBuffers
+--     where toRaw :: ((a, a, a), HyperEntity a) -> IO ()
+--           toRaw ((r, g, bl), (HE a b c)) = do
+--                               color $ Color3 (coerce r) (coerce g) (coerce bl::GLfloat)
+--                               transform a
+--                               transform b
+--                               transform c
+--           transform :: Point a -> IO ()--Vertex4 Double
+--           transform p = let (V4 x y z t) = toV4 p *! tran in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+--                      when (x>0) (vertex $ Vertex3 (coerce $ y/x*600/1024) (coerce $ z/x) (coerce $ x/t)) 
+--           coerce :: a -> GLfloat
+--           coerce  = fromRational.toRational
+--           uncurry3 f (a,b,c)=f a b c
+--           mapTuple f (a, b, c) = (f a, f b, f c)

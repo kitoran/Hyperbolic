@@ -70,14 +70,14 @@ whites = repeat (1,1,1)
 level :: Environment Double
 level = Env (Mesh $ zip (take 8 reds ++ take 8 whites) [ HE f l u, ( HE f d l), HE f u r, HE f r d,
               HE b u l, HE b l d, HE b r u, HE b d r, HE f1 l1 u1, ( HE f1 d1 l1), HE f1 u1 r1, HE f1 r1 d1,
-              HE b1 u1 l1, HE b1 l1 d1, HE b1 r1 u1, HE b1 d1 r1]) $ Obs [(Point (sinh 1) 0 0.00 (cosh 1), 1/2), (Point (sinh 0) 0 0.00 (cosh 0), 1/2)]
+              HE b1 u1 l1, HE b1 l1 d1, HE b1 r1 u1, HE b1 d1 r1]) $ Obs [(Point (sinh 2) 0 0.00 (cosh 2), 1/2), (Point (sinh 0) 0 0.00 (cosh 0), 1/2)]
   where f, r, u, b, l, d :: Point Double
-        f =(moveAlongX 1 !$) $ Point (sinh w) 0 0 (cosh w)
-        r =(moveAlongX 1 !$) $ Point 0 (sinh w) 0 (cosh w)
-        u = (moveAlongX 1 !$) $Point 0 0 (sinh w) (cosh w)
-        b =(moveAlongX 1 !$) $ Point (sinh (-w)) 0 0 (cosh w)
-        l =(moveAlongX 1 !$) $ Point 0 (sinh (-w)) 0 (cosh w)
-        d = (moveAlongX 1 !$) $Point 0 0 (sinh (-w)) (cosh w)
+        f =(moveAlongX 2 !$) $ Point (sinh w) 0 0 (cosh w)
+        r =(moveAlongX 2 !$) $ Point 0 (sinh w) 0 (cosh w)
+        u = (moveAlongX 2 !$) $Point 0 0 (sinh w) (cosh w)
+        b =(moveAlongX 2 !$) $ Point (sinh (-w)) 0 0 (cosh w)
+        l =(moveAlongX 2 !$) $ Point 0 (sinh (-w)) 0 (cosh w)
+        d = (moveAlongX 2 !$) $Point 0 0 (sinh (-w)) (cosh w)
         w = 1/3
         f1 = Point (sinh w) 0 0 (cosh w)
         r1 = Point 0 (sinh w) 0 (cosh w)
