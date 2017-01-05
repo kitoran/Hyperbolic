@@ -1,10 +1,14 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables #-}
-module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
-                   rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
-                   pretty, proper, distance, chDistance, adj44, moveTo, invAroundZ, invAroundY, fromV4, toV4 {-FIMXE when learn lens-}, 
-                   normalizeWass, normalizeKlein, (!$), transposeMink, turmPToOxz, turmPToOx, moveFromTo, commute,
-                   moveRightTo) where
+-- module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
+--                    rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
+--                    pretty, proper, distance, chDistance, adj44, moveTo, invAroundZ, invAroundY, fromV4, toV4 {-FIMXE when learn lens-}, 
+--                    normalizeWass, normalizeKlein, Movable (..), transposeMink, turmPToOxz, turmPToOx, moveFromTo, commute,
+--                    moveRightTo, getTriangleToOxy) where
+
+
+module Hyperbolic  where -- x=
+
 
 import Linear hiding (transpose, distance, normalize)
 import Control.Lens
@@ -16,6 +20,7 @@ import GHC.Generics
 import Debug.Trace
 import Unsafe.Coerce
 toV4 (Point a b c d) = V4 a b c d {-FIMXE when learn lens-}
+
 {-|
 
 Этот модуль описывает гиперболическое пространство
@@ -217,40 +222,47 @@ The only shape is (irregular) hexahedron.
 
 commute a b = (transposeMink a) !*! b !*! a
 
-moveTo :: (Eq a, Floating a) => Point a -> a -> M44 a
+moveTo :: (Eq a, RealFloat a) => Point a -> a -> M44 a
 moveTo p dist =  transposeMink a !*! moveAlongX (dist) !*! a
-    where a = turmPToOx p
+    where a = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz)  p
 
 moveRightTo p = moveTo p (distance origin p) 
     
-moveFromTo :: (Eq a, Ord a, Floating a) => Point a -> Point a -> a -> M44 a
-moveFromTo fr to dist =  transposeMink a !*! moveTo to (dist) !*! a
-    where a = moveTo fr (distance origin fr) 
+moveFromTo :: (Eq a, Ord a, RealFloat a) => Point a -> Point a -> a -> M44 a
+moveFromTo fr to dist =   a !*! moveTo (transposeMink a!$to) (dist) !*! transposeMink a
+    where a = moveRightTo fr --может быть, тут можно вместо moverightto использовать более простое движение - не из пяти, а из трёх элементарных
 
-turmPToOxz ::forall a . (Eq a, Floating a) => Point a -> M44 a -- cbc
+turmPToOxz ::forall a . (Eq a, Floating a) => Point a -> M44 a -- cbc fixme this function is same as getPointToOxzAroundOz ??
 turmPToOxz  (Point x y z t) = rotateAroundZ alpha
   where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0
 
-turmPToOx ::forall a . (Eq a, Floating a) => Point a -> M44 a -- cbc
+turmPToOx ::forall a . (Eq a, Floating a) => Point a -> M44 a -- cbc fixme this function is same as getPointToOxyAroundOx ??
 turmPToOx  (Point x y z t) =  rotateAroundY (beta) !*! rotateAroundZ alpha
   where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0
         beta = -signum t * (if (x /= 0 ) || (y /= 0) then atan (-z/sqrt(x*x + y*y)) else 0)
 -- тут сожно наверное всё сделать ДРАМАТИЧЕСКИ быстрее, если вставить rewrite rules
 
-getPointToOrigin = transposeMink . moveRightTo
-getPointToOxyAroundOy (Point x y z t) = rotateAroundY $ atan2 x z --  брать синус и косинус арктангенса очень весело, конечно
-getPointToOxzAroundOz (Point x y z t) = rotateAroundZ $ atan2 x y
-getPointToOxyAroundOx (Point x y z t) = rotateAroundX $ atan2 z y
-getPointOnOxToOrigin (Point x y z t) = moveAlongX $ acosh (-x/t) -- брать гиперболические синус и косинус аркчосинуса очень весело, конечно
+--atan3 y x t = atan2 y x 
 
+getPointToOrigin = transposeMink . moveRightTo
+getPointToOxzAroundOz (Point x y z t) = rotateAroundZ $ -(atan2 (y/t) (x/t)) --  брать синус и косинус арктангенса очень весело, конечно
+getPointToOxyAroundOx (Point x y z t) = rotateAroundX $ -(atan2 (z/t) (y/t)) -- от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
+getPointOnOxToOrigin (Point x y z t) = moveAlongX $ asinh $ (  - x/ sqrt (( (t*t-x*x))) * signum t) -- брать гиперболические синус и косинус аркчосинуса очень весело, конечно
+-- moveFromTo a b d = 
 
 andThen :: (Num a, Movable m) => (m a -> M44 a) -> (m a -> M44 a) -> m a -> M44 a -- может быть, это какой-нибудь arrows 
 (f `andThen` g) p = g ((f p) !$ p) !*! f p -- безумно неэффективно и вообще пиздец
 
 andConsideringThat :: (Num a, Movable m) => M44 a -> (m a -> M44 a) -> m a -> M44 a 
-andConsideringThat m f p = f (m !$ p)
+andConsideringThat m f p = f (m !$ p) !*! m
 
-getTriangleToOxy a b c = ((getPointToOxyAroundOx `andThen` getPointToOxzAroundOz `andThen` getPointOnOxToOrigin $ a) `andConsideringThat` (getPointToOxyAroundOx `andThen` getPointToOxzAroundOz)) b `andConsideringThat` getPointToOxyAroundOx $ c
+getTriangleToOxy a b c = (   (   getPointToOxyAroundOx `andThen` 
+                                 getPointToOxzAroundOz `andThen` 
+                                 getPointOnOxToOrigin $ a) `andConsideringThat` 
+                             (   getPointToOxyAroundOx `andThen` 
+                                 getPointToOxzAroundOz ) ) b `andConsideringThat` 
+                         getPointToOxyAroundOx $ c
+getTriangleToOxyD a b c = (t !$ a, t !$ b, t !$ c) where t = getTriangleToOxy a b c 
 
 {- 
 Мы хотим сделать, чтобы все углы треугольника стали на од

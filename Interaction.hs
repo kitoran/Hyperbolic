@@ -135,7 +135,7 @@ redraw mesh = readIORef currentMatrix >>= G.display mesh
 
 
 
-networkDescription :: forall a. (Floating a, Ord a, Show a, Real a) => Environment a -> (Int, Int) -> AddHandler Char -> AddHandler (Int, Int) -> MomentIO ()
+networkDescription :: forall a. (RealFloat a, Ord a, Show a, Real a) => Environment a -> (Int, Int) -> AddHandler Char -> AddHandler (Int, Int) -> MomentIO ()
 networkDescription enviroment (width, height) addKeyboard addMouse = do
   ekeyboard <- fromAddHandler $ addKeyboard
   emouse' <- (fromAddHandler $ addMouse  )

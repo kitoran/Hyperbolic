@@ -4,7 +4,7 @@
 module Universe (module Hyperbolic, points, {-cameraC, module Projection,
                  viewSegment, module Camera,-}enviroment, tau, _ends, Segment(..),
                   absoluteCircle, Environment(..), HyperEntity(..), parse, level, startPosMatrix,
-                  Mesh(..), Obstacles(..)) where
+                  Mesh(..), Obstacles, Obstacle(..)) where
 --import Projection
 import Control.Applicative
 import Data.List.Split
@@ -67,24 +67,32 @@ enviroment = map (\c -> case c of
 colors = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1), (0, 0, 1), (0, 1, 0), (0, 1, 1), (0.5, 0.5, 1)]
 reds = repeat (1,0,0)
 whites = repeat (1,1,1)
+
+-- level :: Environment Double
+-- level = Env (Mesh $ zip (take 8 reds ++ take 8 whites) [ HE f l u, ( HE f d l), HE f u r, HE f r d,
+--               HE b u l, HE b l d, HE b r u, HE b d r, HE f1 l1 u1, ( HE f1 d1 l1), HE f1 u1 r1, HE f1 r1 d1,
+--               HE b1 u1 l1, HE b1 l1 d1, HE b1 r1 u1, HE b1 d1 r1]) $ [Sphere (Point (sinh 2) 0 0.00 (cosh 2)) (1/2), Sphere (Point (sinh 0) 0 0.00 (cosh 0)) (1/2)]
+--   where f, r, u, b, l, d :: Point Double
+--         f =(moveAlongX 2 !$) $ Point (sinh w) 0 0 (cosh w)
+--         r =(moveAlongX 2 !$) $ Point 0 (sinh w) 0 (cosh w)
+--         u = (moveAlongX 2 !$) $Point 0 0 (sinh w) (cosh w)
+--         b =(moveAlongX 2 !$) $ Point (sinh (-w)) 0 0 (cosh w)
+--         l =(moveAlongX 2 !$) $ Point 0 (sinh (-w)) 0 (cosh w)
+--         d = (moveAlongX 2 !$) $Point 0 0 (sinh (-w)) (cosh w)
+--         w = 1/3
+--         f1 = Point (sinh w) 0 0 (cosh w)
+--         r1 = Point 0 (sinh w) 0 (cosh w)
+--         u1 = Point 0 0 (sinh w) (cosh w)
+--         b1 = Point (sinh (-w)) 0 0 (cosh w)
+--         l1 = Point 0 (sinh (-w)) 0 (cosh w)
+--         d1 = Point 0 0 (sinh (-w)) (cosh w)
+
+
 level :: Environment Double
-level = Env (Mesh $ zip (take 8 reds ++ take 8 whites) [ HE f l u, ( HE f d l), HE f u r, HE f r d,
-              HE b u l, HE b l d, HE b r u, HE b d r, HE f1 l1 u1, ( HE f1 d1 l1), HE f1 u1 r1, HE f1 r1 d1,
-              HE b1 u1 l1, HE b1 l1 d1, HE b1 r1 u1, HE b1 d1 r1]) $ Obs [(Point (sinh 2) 0 0.00 (cosh 2), 1/2), (Point (sinh 0) 0 0.00 (cosh 0), 1/2)]
-  where f, r, u, b, l, d :: Point Double
-        f =(moveAlongX 2 !$) $ Point (sinh w) 0 0 (cosh w)
-        r =(moveAlongX 2 !$) $ Point 0 (sinh w) 0 (cosh w)
-        u = (moveAlongX 2 !$) $Point 0 0 (sinh w) (cosh w)
-        b =(moveAlongX 2 !$) $ Point (sinh (-w)) 0 0 (cosh w)
-        l =(moveAlongX 2 !$) $ Point 0 (sinh (-w)) 0 (cosh w)
-        d = (moveAlongX 2 !$) $Point 0 0 (sinh (-w)) (cosh w)
-        w = 1/3
-        f1 = Point (sinh w) 0 0 (cosh w)
-        r1 = Point 0 (sinh w) 0 (cosh w)
-        u1 = Point 0 0 (sinh w) (cosh w)
-        b1 = Point (sinh (-w)) 0 0 (cosh w)
-        l1 = Point 0 (sinh (-w)) 0 (cosh w)
-        d1 = Point 0 0 (sinh (-w)) (cosh w)
+level = Env (Mesh [((0, 0.5, 1), square)]) $ [(\(HE q w e) -> Triangle q w e 1) square]
+  where square = moveAlongX 3 !$ HE (Point 0 (-sinh 3) (-sinh 3) 14.202662994046431) (Point 0 (sinh 3) (-sinh 3) 14.202662994046431) (Point 0 0 (sinh 3) (cosh 3))
+        
+
 
 startPosMatrix = identity --V4 (V4 0 0 0 1) (V4 0 1 0 0 ) (V4 0 0 1 0) (V4 1 0 0 (0))
 
@@ -98,11 +106,14 @@ data Environment a = Env { mesh :: Mesh a,
                           obstacles :: Obstacles a } deriving (Eq, Show,Functor)
 newtype Mesh a = Mesh [((a, a, a), HyperEntity a)] deriving (Eq, Show,Functor)
 data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor)
-newtype Obstacles a = Obs [(Point a, a)] deriving (Eq, Show,Functor)
+type Obstacles a = [Obstacle a] 
+data Obstacle a = Sphere (Point a) a | Triangle (Point a) (Point a) (Point a) a deriving (Eq, Show,Functor)
    -- пока все будет твёрдое и со всеми видимыми рёбрами
-ghost = Obs []
+ghost :: Obstacles a
+ghost =  []
 
-
+instance Movable HyperEntity where
+  a !$ (HE q w e) = HE (a !$ q) (a !$ w) (a !$ e)
 
 
 parse::forall a. (Read a, Num a) => String -> Environment a

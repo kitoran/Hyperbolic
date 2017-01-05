@@ -3,7 +3,7 @@ module Physics where
 import Hyperbolic
 import Universe
 import Unsafe.Coerce
-import Debug.Trace
+import qualified Debug.Trace
 import Linear(M44, (!*!), (!*), (*!))
 
 --текущее положение  матрица куда надо пойти   результат (?) 
@@ -11,9 +11,23 @@ import Linear(M44, (!*!), (!*), (*!))
 -- correct 
 
 --   старое положение    новое положение
-pushOut :: (Floating a, Eq a, Ord a, Show a) => Obstacles a -> M44 a -> M44 a
-pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink (pushOutSphere (fromV4 $ (toV4 center) *! currentPos ) radius )))
+pushOut :: (RealFloat a, Eq a, Ord a) => Obstacles a -> M44 a -> M44 a
+pushOut a currentPos = foldr (\obstacle tr -> tr !*! pushOut obstacle
                                                            ) currentPos a
+            where pushOut (Sphere center radius) = ((transposeMink (pushOutSphereO (fromV4 $ (toV4 center) *! currentPos ) radius )))
+                  pushOut (Triangle a b c r) = ((transposeMink (pushOutTriangleO (fromV4 $ (toV4 a) *! currentPos )
+                                                                                 (fromV4 $ (toV4 b) *! currentPos )
+                                                                                 (fromV4 $ (toV4 c) *! currentPos ) 
+                                                                                 r )))
+
+
+
+
+-- pushOut :: (RealFloat a, Eq a, Ord a, Show a) => Obstacles a -> M44 a -> M44 a
+-- pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink (pushOutSphereO (fromV4 $ (toV4 center) *! currentPos ) radius )))
+--                                                            ) currentPos a            
+
+
 -- Тут мы много раз умножаем на identity, это можно оптимизировать разными 
 -- способами, самый безболезненный, мне кажется - это добавить конструктор 
 -- Identity в тип преобразований (M44)
@@ -30,13 +44,35 @@ pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink
 -- 1 - ((c+e-b-d)/(a - 2*b + c)) = (a - 2*b + c)/(a - 2*b + c) - ((c+e-b-d)/(a - 2*b + c)) = 
 -- a - b + d - e     
 
-pushOutSphere :: (Floating a, Eq a, Ord a) => Point a -> a -> M44 a
-pushOutSphere m r = let 
+pushOutSphereO :: (RealFloat a, Eq a, Ord a) => Point a -> a -> M44 a
+pushOutSphereO m r = let 
                         diff = r - distance origin m
                            in  if (trace ("diff:" ++ show (unsafeCoerce diff::Double)) diff) > 0 then moveTo m (-diff) else identityIm
 
+trace :: String -> a -> a
+trace s v = Debug.Trace.trace (s ++ show (unsafeCoerce s::Double)) v
+traceM :: String -> a -> a
+traceM s v = Debug.Trace.trace (s ++ show (unsafeCoerce s::M44 Double)) v
+traceP :: String -> a -> a
+traceP s v = Debug.Trace.trace (s ++ show (unsafeCoerce s::Point Double)) v
 -- nearestPoint :: (Floating a, Eq a, Ord a) => Point a -> Point a -> Point a -> Point a
 -- nearestPoint a b c = toV4 
+
+pushOutTriangleO :: (RealFloat a, Eq a, Ord a) => Point a -> Point a -> Point a -> a -> M44 a
+pushOutTriangleO a b c r = let 
+                            -- newb = getTriangleToOxy a b c !$ b
+                            newO = getTriangleToOxy a b c !$ origin
+                            -- newc = getTriangleToOxy a b c !$ c
+                            projOfNewO = let (Point x y z t) = newO in  (Point x y 0 t)
+                            diff = r - distance newO projOfNewO 
+                            m = getTriangleToOxy a b c 
+                           in if diff > 0 then (transposeMink m) !*! moveFromTo projOfNewO newO (trace "diff: " diff) !*! m else identityIm
+
+--debug :: HasCallStack
+debug = pushOutTriangleO  (moveAlongX 0.3 !$ (Point 0 (-sinh 3) (-sinh 3) 14.202662994046431)) 
+                          (moveAlongX 0.3 !$ (Point 0 (sinh 3) (-sinh 3) 14.202662994046431)) 
+                          (moveAlongX 0.3 !$ Point 0 0 (sinh 3) (cosh 3)) 
+                          3
 
 -- pushOutTriangle :: (Floating a, Eq a, Ord a, Show a) => Point a -> Point a -> Point a -> Point a -> M44 a
 -- pushOutTriangle b k r p = 
@@ -125,3 +161,5 @@ https://www.geometrictools.com/Documentation/DistancePoint3Triangle3.pdf
 
 
 -}
+
+
