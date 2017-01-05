@@ -151,7 +151,7 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
       straighten :: Behaviour (M44 a -> M44 a)
       straighten = liftA2 (\x y z -> x !*! z !*! y) rotate (fmap invAroundZ rotate)
 
-  moveDelta <- (straighten <@> moveDeltaRotated)
+  moveDelta <- (straighten <@> moveDeltaRotated) --надо сделать чтобы матрица движения всегда сохраняла вертикальное направление (т е перпендикулярное к ox)
   (move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> pushOut (obstacles enviroment) (y !*! x)) $ moveDelta ), reset]--(move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> (y !*! x !*! transposeMink y)) $  unionWith (!*!) moveDeltaRotated rotateDelta ), reset]
   -- let moveFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
   --     moveFunc = fmap (\x (_, b, c) -> (x, b, c)) move

@@ -4,7 +4,7 @@ import Hyperbolic
 import Universe
 import Unsafe.Coerce
 import qualified Debug.Trace
-import Linear(M44, (!*!), (!*), (*!))
+import Linear(M44, (!*!), (!*), (*!), normalizePoint, V3(..))
 
 --текущее положение  матрица куда надо пойти   результат (?) 
 -- correct :: M44 Double -> M44 Double -> M44 Double
@@ -63,10 +63,14 @@ pushOutTriangleO a b c r = let
                             -- newb = getTriangleToOxy a b c !$ b
                             newO = getTriangleToOxy a b c !$ origin
                             -- newc = getTriangleToOxy a b c !$ c
-                            projOfNewO = let (Point x y z t) = newO in  (Point x y 0 t)
+                            projOfNewO = let (Point x y z t) = newO in  (Point (x/t) (y/t) 0 1)
                             diff = r - distance newO projOfNewO 
                             m = getTriangleToOxy a b c 
-                           in if diff > 0 then (transposeMink m) !*! moveFromTo projOfNewO newO (trace "diff: " diff) !*! m else identityIm
+                            inside = (-y2*x) +(x2-x1)*y+x1*y2 > 0 && y > 0 && x/y > x2/y2
+                            V3 x y _ = normalizePoint (toV4 projOfNewO)
+                            V3 x1 _ _ = normalizePoint (toV4 $ m !$ b)
+                            V3 x2 y2 _ = normalizePoint (toV4 $ m !$ c)
+                           in if inside && diff > 0 then (transposeMink m) !*! moveFromTo projOfNewO newO (trace "diff: " diff) !*! m else identityIm
 
 --debug :: HasCallStack
 debug = pushOutTriangleO  (moveAlongX 0.3 !$ (Point 0 (-sinh 3) (-sinh 3) 14.202662994046431)) 
