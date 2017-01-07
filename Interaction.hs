@@ -103,6 +103,8 @@ main = do
     fireMouse (width`div`2, height`div`2)
     fireMouse (width`div`2, height`div`2)
     fireMouse (width`div`2, height`div`2)
+
+    pointerPosition $= (Position (width'`div`2) (height'`div`2))
     mainLoop
 
 processKeyboard :: Char -> IO ()

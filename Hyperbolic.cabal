@@ -70,6 +70,7 @@ executable Hyperbolic
                      , QuickCheck
                      , exact-real
                      , random
+                     , OpenGL
   
   -- Directories containing source files.
   -- hs-source-dirs:      
