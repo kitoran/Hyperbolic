@@ -55,7 +55,7 @@ initialiseGraphics = do
     cursor $= None
     perspective 45 (1024/600) (0.01) 1
     lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
-    
+
 
 toFrame::Floating a => Mesh a -> [Point a]
 toFrame (Mesh []) = []
@@ -86,8 +86,8 @@ display (Mesh env) tran = do
                               transform b
                               transform c
           transform :: Point a -> IO ()--Vertex4 Double
-          transform p = let (V4 x y z t) = toV4 p *! tran in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
-                    {- when ((x/t)>0) -} (vertex $ Vertex3 (coerce $ x/t) (coerce $ (-y)/t) (coerce $ z/t))
+          transform p = let (V4 x y z t) = toV4 (normalizeWass p) *! tran in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+                    {- when ((x/t)>0) -} (vertex $ Vertex3 (coerce $ x) (coerce $ (-y)) (coerce $ z))
           coerce :: a -> GLdouble
           coerce  = unsafeCoerce
           uncurry3 f (a,b,c)=f a b c
