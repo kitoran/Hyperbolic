@@ -155,13 +155,10 @@ networkDescription environment (width, height) addKeyboard addMouse addDisplay =
       reset = fmap (const $ const startPosMatrixM) $ filterE (== 'r') ekeyboard
   let startPosMatrixR = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 (1))
   rotate <- accumB startPosMatrixR $ unions [(fmap (\x y -> x !*! y) rotateDelta),  reset]
-  let moveDeltaRotated :: Event (M44 a)
-      moveDeltaRotated = (filterJust $ fmap (flip lookup matrices) ekeyboard)
-      straighten :: Behaviour (M44 a -> M44 a)
-      straighten = liftA2 (\x y z -> x !*! z !*! y) rotate (fmap invAroundZ rotate)
-
-  moveDelta <- ({-straighten <@>-}return moveDeltaRotated) --надо сделать чтобы матрица движения всегда сохраняла вертикальное направление (т е перпендикулярное к ox)
-  (move::Behaviour (M44 a)) <- accumB startPosMatrixM $ unions [(fmap (\x y -> pushOut (obstacles environment) (y !*! x)) $ moveDelta), fmap (\x y -> y !*! x) rotateDelta , reset]--(move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> (y !*! x !*! transposeMink y)) $  unionWith (!*!) moveDeltaRotated rotateDelta ), reset]
+  let moveDelta :: Event (M44 a)
+      moveDelta = (filterJust $ fmap (flip lookup matrices) ekeyboard)
+  
+  (move::Behaviour (M44 a)) <- accumB startPosMatrixM $ unions [(fmap (\x y -> pushOut (obstacles environment) (x !*! y)) $ moveDelta), fmap (\x y -> x !*! y) rotateDelta , reset]--(move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> (y !*! x !*! transposeMink y)) $  unionWith (!*!) moveDeltaRotated rotateDelta ), reset]
   -- let moveFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
   --     moveFunc = fmap (\x (_, b, c) -> (x, b, c)) move
   -- let rotateFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
