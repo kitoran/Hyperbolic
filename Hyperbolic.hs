@@ -275,7 +275,7 @@ getTriangleToOxyD a b c = (t !$ a, t !$ b, t !$ c) where t = getTriangleToOxy a 
 
 class Movable p where
   (!$) :: (Num a) => M44 a -> p a -> p a 
-
+infixr 1 !$
 instance Movable Point where
   m !$ p = over _v4 (m!*) p
 --so much for agressive inlining... class methods dont get rewrited... class methods are harder to inline.. sad..

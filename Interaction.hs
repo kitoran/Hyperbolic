@@ -19,9 +19,10 @@ import Graphics.UI.GLUT as GL
     ,    displayCallback
     ,    passiveMotionCallback
     ,    pointerPosition
+    ,    idleCallback
     ,    mainLoop
     )
-import Linear ((!*), (*!), (!*!), M44, inv44)
+import Linear ((!*), (*!), (!*!), M44, inv44, V4(..))
 import Control.Lens (over)
 import Reactive.Banana.Frameworks(newAddHandler,
                                   fromAddHandler, 
@@ -75,17 +76,20 @@ currentMatrix = unsafePerformIO $ newIORef (identityIm)
 currentAngle :: IORef Double
 currentAngle = unsafePerformIO $ newIORef (0)
 
+
+
 main :: IO ()
 main = do
     initialiseGraphics
     (addKeyboard, fireKeyboard) <- (newAddHandler::IO (AddHandler Char, Handler Char))
     (addMouse, fireMouse) <- (newAddHandler::IO (AddHandler (Int, Int), Handler (Int, Int)))
+    (addDisplay, fireDisplay) <- (newAddHandler::IO (AddHandler (), Handler ()))
     last <- newIORef $ UTCTime (toEnum 0) 1
     (Size width' height') <- get screenSize 
     let width = fromIntegral width'
     let height = fromIntegral height'
 
-    let network = networkDescription level (width, height) addKeyboard addMouse
+    let network = networkDescription level (width, height) addKeyboard addMouse addDisplay
     compile network >>= actuate 
     keyboardCallback $= (Just $ \a _ -> fireKeyboard a)
     passiveMotionCallback $= (Just $ (\(Position x y) -> do
@@ -97,7 +101,8 @@ main = do
              fireMouse (fromEnum x,fromEnum y)
              pointerPosition $= (Position (width'`div`2) (height'`div`2)))
         ))
-    displayCallback $= fireMouse ((fromEnum width'`div`2), (fromEnum height'`div`2))
+    displayCallback $= fireDisplay ()
+    idleCallback $= (Just $ fireDisplay ())
     redraw (mesh level) 
     fireMouse (width`div`2, height`div`2)
     fireMouse (width`div`2, height`div`2)
@@ -137,24 +142,26 @@ redraw mesh = readIORef currentMatrix >>= G.display mesh
 
 
 
-networkDescription :: forall a. (RealFloat a, Ord a, Show a, Real a) => Environment a -> (Int, Int) -> AddHandler Char -> AddHandler (Int, Int) -> MomentIO ()
-networkDescription enviroment (width, height) addKeyboard addMouse = do
+networkDescription :: forall a. (RealFloat a, Ord a, Show a, Real a) => Environment a -> (Int, Int) -> AddHandler Char -> AddHandler (Int, Int)-> AddHandler () -> MomentIO ()
+networkDescription environment (width, height) addKeyboard addMouse addDisplay = do
   ekeyboard <- fromAddHandler $ addKeyboard
   emouse' <- (fromAddHandler $ addMouse  )
+  edisplay <- (fromAddHandler $ addDisplay)
   let mouseDelta = fmap (\(x,y) -> ( x - (width`div`2), y - (height`div`2))) emouse'
   let toGradi (x,y) = (ff x, ff y) where ff i = (fromIntegral i / 360*tau)
   let rotateDelta = fmap (\(p) -> rotateAroundZ p) (fmap fst $ toGradi <$> mouseDelta)
       ids = (identityIm)
-      reset = fmap (const $ const ids) $ filterE (== 'r') ekeyboard
-
-  rotate <- accumB startPosMatrix $ unions [(fmap (\x y -> x !*! y) rotateDelta),  reset]
+  let startPosMatrixM = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0 ) (V4 0  0 0 1 )--(1))
+      reset = fmap (const $ const startPosMatrixM) $ filterE (== 'r') ekeyboard
+  let startPosMatrixR = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 (1))
+  rotate <- accumB startPosMatrixR $ unions [(fmap (\x y -> x !*! y) rotateDelta),  reset]
   let moveDeltaRotated :: Event (M44 a)
       moveDeltaRotated = (filterJust $ fmap (flip lookup matrices) ekeyboard)
       straighten :: Behaviour (M44 a -> M44 a)
       straighten = liftA2 (\x y z -> x !*! z !*! y) rotate (fmap invAroundZ rotate)
 
-  moveDelta <- (straighten <@> moveDeltaRotated) --надо сделать чтобы матрица движения всегда сохраняла вертикальное направление (т е перпендикулярное к ox)
-  (move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> pushOut (obstacles enviroment) (y !*! x)) $ moveDelta ), reset]--(move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> (y !*! x !*! transposeMink y)) $  unionWith (!*!) moveDeltaRotated rotateDelta ), reset]
+  moveDelta <- ({-straighten <@>-}return moveDeltaRotated) --надо сделать чтобы матрица движения всегда сохраняла вертикальное направление (т е перпендикулярное к ox)
+  (move::Behaviour (M44 a)) <- accumB startPosMatrixM $ unions [(fmap (\x y -> pushOut (obstacles environment) (y !*! x)) $ moveDelta), fmap (\x y -> y !*! x) rotateDelta , reset]--(move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> (y !*! x !*! transposeMink y)) $  unionWith (!*!) moveDeltaRotated rotateDelta ), reset]
   -- let moveFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
   --     moveFunc = fmap (\x (_, b, c) -> (x, b, c)) move
   -- let rotateFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
@@ -170,16 +177,17 @@ networkDescription enviroment (width, height) addKeyboard addMouse = do
   -- $(prettyR "upMatrix")
   -- $(prettyV "upAngle")
   -- let moveDeltaEvent = moveDelta <@ ekeyboard
-  $(prettyR "moveDelta")
+  -- $(prettyR "moveDelta")
   
-  viewPortChange <- liftA3 (\x y z -> {-moveAlongZ (-1/4) !*!-} x !*! y !*! z)  move rotate upMatrix  <@ viewPortChangeStream
-  let dist = fmap (\x -> distance origin (x !$ origin)) (viewPortChange)-- ::Event (M44 Double)) -- <@ ekeyboard
-  $(prettyV "dist")
-  let currp :: Event (Point a, Point a)
-      currp = fmap (\x -> ((x !$ origin), (over _v4  (*! x) origin))) (viewPortChange)-- ::Event (M44 Double)) -- <@ ekeyboard
-  $(prettyV "currp")
-  reactimate (fmap (\x -> display (mesh enviroment) (x)) viewPortChange)
-  reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  viewPortChange
+  let viewPort = liftA3 (\x y z -> {-moveAlongZ (-1/4) !*!-} x !*! {-y !*! -}z)  move rotate upMatrix  -- <@ viewPortChangeStream
+  idle <- viewPort <@ edisplay
+  -- let dist = fmap (\x -> distance origin (x !$ origin)) (idle)-- ::Event (M44 Double)) -- <@ ekeyboard
+  -- $(prettyV "dist")
+  -- let currp :: Event (Point a, Point a)
+      -- currp = fmap (\x -> ((x !$ origin), (over _v4  (*! x) origin))) (idle)-- ::Event (M44 Double)) -- <@ ekeyboard
+  -- $(prettyV "currp")
+  reactimate (fmap (\x -> display (mesh environment) (x)) idle)
+  -- reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  idle
 
 bound low high x 
   | x < low = low

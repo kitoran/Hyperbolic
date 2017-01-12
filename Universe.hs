@@ -2,7 +2,7 @@
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric,
              ScopedTypeVariables #-}
 module Universe (module Hyperbolic, points, {-cameraC, module Projection,
-                 viewSegment, module Camera,-}enviroment, tau, _ends, Segment(..),
+                 viewSegment, module Camera,-}environment, tau, _ends, Segment(..),
                   absoluteCircle, Environment(..), HyperEntity(..), parse, level, startPosMatrix,
                   Mesh(..), Obstacles, Obstacle(..)) where
 --import Projection
@@ -12,9 +12,8 @@ import Linear
 import Hyperbolic
 --import Camera
 import Control.Lens hiding (view)
-
-tau::Floating a => a
-tau = 2*pi 
+tau = 2 * pi
+macosh = acosh
 
 --camera :: Projector Double
 --camera = Projector  { projectorPosition = Point 0 0 (sinh 2) $ cosh 2,
@@ -59,8 +58,8 @@ tunnel = concatMap huy (take 100 $ iterate (!*! (moveAlongX (-0.09))) identity)
 spiral :: [Point Double]
 spiral = map (\m -> (Point 0 (sinh 1) 0 (cosh 1)) & _v4 %~ (*! m) ) 
                   $ take 300 $ iterate (!*!(moveAlongX (0.1) !*! rotateAroundX (tau/10)) ) identity
-enviroment :: [Segment Double]
-enviroment = map (\c -> case c of
+environment :: [Segment Double]
+environment = map (\c -> case c of
                           [a, b] -> Segment a b
                           [a] -> Segment a a) (chunksOf 2 tunnel)
 
@@ -86,28 +85,38 @@ octahedron = Env (Mesh $ zip (take 8 reds) [ HE f l u, ( HE f d l), HE f u r, HE
 --         l1 = Point 0 (sinh (-w)) 0 (cosh w)
 --         d1 = Point 0 0 (sinh (-w)) (cosh w)
 
-pentacles = zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX (cl - 0.05) !$ origin)
-pentatriangles c = Mesh $ fmap (\p -> (c, HE (rotateAroundZ (tau/5) !$ p) p origin)) pentacles
+pentacles = zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX (cl - 0.0) !$  moveAlongZ (-0.3) !$ origin)
+pentatriangles c = Mesh $ fmap (\p -> (c, HE (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0.3) !$ origin))) pentacles
 pentagon c = Env (pentatriangles c) ghost
 
 --pentagon
-levelF = pentagon (1, 0, 0) `unionEnv` 
-         (foldr unionEnv void $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat yellowPentagon)) `unionEnv`
-         (foldr unionEnv void $ zipWith (!$) (take 5 $ drop 1 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat redPentagon)) `unionEnv`
-         greenPentagon
+levelFOne =    pentagon (1, 0, 0) `unionEnv` 
+               (foldr unionEnv void $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat yellowPentagon)) `unionEnv`
+               (foldr unionEnv void $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat redPentagon)) `unionEnv`
+               (foldr unionEnv void $ zipWith (!$) (take 4 $ drop 1 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat greenPentagon)) `unionEnv`
+               bluePentagon
+         --(foldr unionEnv void $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat bluePentagon)) 
+levelF = let dia = (2*cl + 2*bl + 2*al) 
+             radi = cl + bl + al
+             levelMovedRadi = (moveAlongX dia !$ levelFOne) 
+             levelRotatedOnce = (moveAlongX (-radi) !*! rotateAroundZ (tau/5) !*! moveAlongX (radi)) !$ levelFOne
+             levelRotatedTwice = (moveAlongX (-radi) !*! rotateAroundZ (tau*2/5) !*! moveAlongX (radi)) !$ levelFOne
+         in levelFOne `unionEnv` 
+            (foldr unionEnv void $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat (levelRotatedOnce `unionEnv` levelRotatedTwice)))
 
-level = moveAlongZ (-0.3) !$ levelF
+level = levelF --(foldr unionEnv void $ zipWith (!$) (take 50 $ iterate (!*! moveAlongX (al + cl)) identity) (repeat (moveAlongZ (-0.3) !$ pentagon (0, 0, 1))))
 a, b, c, al, bl, cl :: Double
 a = tau/10
-b = tau/8
+b = tau/10
 c = tau/4
-al = acosh ( cos a / sin b )
-bl = acosh ( cos b / sin a )
-cl = acosh (cosh al * cosh bl)
+al = macosh ( cos a / sin b )
+bl = macosh ( cos b / sin a )
+cl = macosh (cosh al * cosh bl)
 
-yellowPentagon = (moveAlongX (cl) !*! rotateAroundZ (tau/4) !*! moveAlongX (-cl)) !$ pentagon (1, 1, 0)
-redPentagon = (moveAlongX (cl) !*! rotateAroundZ (tau/2) !*! moveAlongX (-cl)) !$ pentagon (1, 0, 0)
-greenPentagon = (moveAlongX (cl) !*! rotateAroundZ (tau/2) !*! moveAlongX (-cl)) !$ pentagon (0, 1, 0)
+yellowPentagon = (moveAlongX (cl) !*! rotateAroundZ (tau/5) !*! moveAlongX (-cl)) !$ pentagon (1, 1, 0)
+redPentagon = (moveAlongX (cl) !*! rotateAroundZ (tau*2/5) !*! moveAlongX (-cl)) !$ pentagon (1, 0, 0)
+greenPentagon = (moveAlongX (cl) !*! rotateAroundZ (tau*3/5) !*! moveAlongX (-cl)) !$ pentagon (0, 1, 0)
+bluePentagon = (moveAlongX (cl) !*! rotateAroundZ (tau*3/5) !*! moveAlongX (-cl)) !$ pentagon (0, 0, 1)
 
 instance Movable Environment where
   tr !$ Env (Mesh m) ob = Env (Mesh $ fmap (\(c, he) -> (c, tr !$ he)) m) (fmap (tr !$) ob)

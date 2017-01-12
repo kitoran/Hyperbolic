@@ -35,6 +35,7 @@ import Hyperbolic (Point, transposeMink, normalizeWass)
 import Linear hiding (perspective, lookAt, trace)
 import System.Random
 
+-- import Data.Coerce
 
 
 import Unsafe.Coerce
@@ -67,17 +68,19 @@ display (Mesh env) tran = do
   color $ Color3 0 0 (0::GLdouble)
   mapM_ (renderPrimitive Triangles .  toRaw) env
   color $ Color3 1 1 (1::GLdouble)
-  renderPrimitive Lines $ do
-     r <- randomIO
-     g <- randomIO
-     b <- randomIO
-     color $ Color3 r g (b::GLdouble)
-     -- let randC = do
-     --             r <- randomIO
-     --             g <- randomIO
-     --             b <- randomIO
-     --             color $ Color3 r g (b::GLdouble)
-     mapM_ ( transform ) $ toFrame (Mesh env)
+  -- renderPrimitive Lines $ do
+  --    let r = 1
+  --        g = 1
+  --        b = 1
+  --    -- g <- 1
+  --    -- b <- 1
+  --    color $ Color3 r g (b::GLdouble)
+  --    -- let randC = do
+  --    --             r <- randomIO
+  --    --             g <- randomIO
+  --    --             b <- randomIO
+  --    --             color $ Color3 r g (b::GLdouble)
+  --    mapM_ ( transform ) $ toFrame (Mesh env)
   swapBuffers
     where toRaw :: ((a, a, a), HyperEntity a) -> IO ()
           toRaw ((r, g, bl), (HE a b c)) = do
