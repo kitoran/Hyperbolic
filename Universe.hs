@@ -85,8 +85,8 @@ octahedron = Env (Mesh $ zip (take 8 reds) [ HE f l u, ( HE f d l), HE f u r, HE
 --         l1 = Point 0 (sinh (-w)) 0 (cosh w)
 --         d1 = Point 0 0 (sinh (-w)) (cosh w)
 
-pentacles = zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX (cl - 0.0) !$  moveAlongZ (-0.3) !$ origin)
-pentatriangles c = Mesh $ fmap (\p -> (c, HE (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0.3) !$ origin))) pentacles
+pentacles = zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX (cl - 0.0) !$  moveAlongZ (-0) !$ origin)
+pentatriangles c = Mesh $ fmap (\p -> (c, HE (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0) !$ origin))) pentacles
 pentagon c = Env (pentatriangles c) ghost
 
 --pentagon

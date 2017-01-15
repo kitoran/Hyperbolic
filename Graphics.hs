@@ -89,8 +89,8 @@ display (Mesh env) tran = do
                               transform b
                               transform c
           transform :: Point a -> IO ()--Vertex4 Double
-          transform p = let (V4 x y z t) = toV4 p *! tran in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
-                    {- when ((x/t)>0) -} (vertex $ Vertex3 (coerce $ x/t) (coerce $ (-y)/t) (coerce $ z/t))
+          transform p = let (V4 x y z t) = tran !* toV4 p  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+                    {- when ((x/t)>0) -} (vertex $ Vertex3 (coerce $ x/t) (coerce $ (y)/t) (coerce $ z/t))
           coerce :: a -> GLdouble
           coerce  = unsafeCoerce
           uncurry3 f (a,b,c)=f a b c
