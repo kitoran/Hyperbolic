@@ -123,6 +123,25 @@ rotateAroundZ a = V4 (V4 (cos a) (-sin a) 0 0) (V4 (sin a) (cos a) 0 0) (V4 0 0 
 rotateAroundY a = V4 (V4 (cos a) 0 (sin a) 0) (V4 0 1 0 0) (V4 (-sin a) 0 (cos a) 0) (V4 0 0 0 1)
 rotateAroundX a = V4 (V4 1 0 0 0) (V4 0 (cos a) (-sin a) 0) (V4 0 (sin a) (cos a) 0) (V4 0 0 0 1)
 
+rotate3 a = V3 (V3 (cos a) (-sin a) 0) (V3 (sin a) (cos a) 0) (V3 0 0 1)
+moveAlongY3 d = V3 (V3 1 0 0) (V3 0 (cosh d)  (sinh d)) (V3 0 (sinh d) (cosh d))
+moveAlongX3 d = V3 (V3 (cosh d) 0 (sinh d)) (V3 0 1 0) (V3 (sinh d) 0 (cosh d))
+
+moveToTangentVector :: RealFloat a => V3 a -> M44 a
+moveToTangentVector v@(V3 x y z) = moveRightTo $ Point (cosh x) (cosh y) (cosh z) (sinh (norm v))
+moveToTangentVector3 :: RealFloat a => V2 a -> M33 a
+moveToTangentVector3 v@(V2 x y) = moveTo3  (V3 (x) (y) (sqrt (x*x + y*y + 1))) (norm v) 
+
+origin3 = V3 0 0 1
+distance3 p1@(V3 x1 y1 z1) p2@(V3 x2 y2 z2) = acosh (form3 (normalizeWass3 p1) (normalizeWass3 p2))
+transposeMink3 (V3 (V3 q w e) (V3 r t y) (V3 u i o)) = V3 (V3 q r (-u)) (V3 w t (-i)) (V3 (-e) (-y) o)
+normalizeWass3 (V3 x y t) = V3 (x/d) (y/d) (t/d) where d = sqrt (t*t - y*y - x*x) * signum t
+
+form3 p1@(V3 x1 y1 z1) p2@(V3 x2 y2 z2) = z1*z2 - x1*x2 - y1*y2
+
+--moveRightTo3 p@(V3 x y t) = rotate3 ((atan2 y x)) !*! moveAlongX3 (distance3 origin3 p) !*! rotate3 (-(atan2 y x))
+moveTo3 :: RealFloat a =>  V3 a -> a -> M33 a
+moveTo3 (V3 x y z) d = rotate3 ((atan2 y x)) !*! moveAlongX3 (d) !*! rotate3 (-(atan2 y x))
 
 qr :: Floating a => M44 a -> M44 a
 qr (V4 (V4 a11 a12 a13 a14) 
@@ -243,6 +262,8 @@ turmPToOx  (Point x y z t) =  rotateAroundY (beta) !*! rotateAroundZ alpha
 -- тут сожно наверное всё сделать ДРАМАТИЧЕСКИ быстрее, если вставить rewrite rules
 
 --atan3 y x t = atan2 y x 
+m33_to_m44M (V3 (V3 q w e) (V3 r t y) (V3 u i o)) = V4 (V4 q w 0 e) (V4 r t 0 y) (V4 0 0 1 0) (V4 u i 0 o)
+
 
 getPointToOrigin = transposeMink . moveRightTo
 getPointToOxzAroundOz (Point x y z t) = rotateAroundZ $ -(atan2 (y/t) (x/t)) --  брать синус и косинус арктангенса очень весело, конечно
@@ -275,7 +296,7 @@ getTriangleToOxyD a b c = (t !$ a, t !$ b, t !$ c) where t = getTriangleToOxy a 
 
 class Movable p where
   (!$) :: (Num a) => M44 a -> p a -> p a 
-
+infixr 1 !$
 instance Movable Point where
   m !$ p = over _v4 (m!*) p
 --so much for agressive inlining... class methods dont get rewrited... class methods are harder to inline.. sad..
