@@ -3,7 +3,6 @@ module Main where
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Debug.Trace
-import Data.CReal
 import System.IO.Unsafe -- это так пока поиграться, потом уберу наверное
 import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
 import Control.Monad(when)
@@ -82,17 +81,9 @@ import Hyperbolic
 import Graphics as G (initialiseGraphics, display) 
 import DebugTH(prettyR, prettyV)
 --import Physics
-import Universe (level, startPosMatrix, Environment(..), tau)
+-- import Universe (level, startPosMatrix, Environment(..), tau)
 import Physics
 import GHC.TypeLits
-
-data State = State { _pos :: M33 Double
-                   , _height :: Double
-                   , _nod :: Double
-                   , _speed :: V3 Double
-                   } | Exceptionlol deriving Show
-
-$(makeLenses ''State)
 
 --the unsafePerformIO hack выглядит понятнее гораздо, чем FRP. Можно передавать состояние, конечно, параметрами, но мы этого делать не будем (пока, может потом)
 currentMatrix :: IORef (M44 Double)
@@ -109,7 +100,7 @@ startState :: State
 startState = State identity 0 0 (V3 0 0 0)
 
 tick :: State -> State
-tick = applyGravity . applySpeed
+tick = pushOut (obstacles level) . applyGravity . applySpeed
 
 matricesMoveInPlane :: Floating a => [(Char, a -> M33 a)]
 matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3 . negate), ('s', moveAlongX3 ), 

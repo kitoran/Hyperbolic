@@ -1,18 +1,59 @@
+{-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds, DuplicateRecordFields, DeriveFunctor #-}
 module Physics where
 
 import Hyperbolic
-import Universe
 import Unsafe.Coerce
 import qualified Debug.Trace
-import Linear(M44, (!*!), (!*), (*!), normalizePoint, V3(..))
+import Control.Lens
+import Linear(M44, (!*!), (!*), (*!), normalizePoint, V3(..), M33)
 
 --текущее положение  матрица куда надо пойти   результат (?) 
 -- correct :: M44 Double -> M44 Double -> M44 Double
 -- correct 
+data State = State { _pos :: M33 Double -- 
+                   , _height :: Double
+                   , _nod :: Double
+                   , _speed :: V3 Double
+                   } | Exceptionlol deriving Show
 
+$(makeLenses ''State)
+
+ourSize = 0.1
+
+type Obstacles a = [Obstacle a] 
+data Obstacle a = Sphere (Point a) a | Triangle (Point a) (Point a) (Point a) a deriving (Eq, Show,Functor)
+instance Movable Obstacle where
+  tr !$ (Sphere p r) = Sphere (tr !$ p) r
+  tr !$ (Triangle q w e r) = Triangle (tr !$ q) (tr !$ w) (tr !$ e) r
+
+-- data Obstacle = OHCQ HorizontalCoordinateQuadrilateral deriving (Eq, Show)
+data HorizontalCoordinateQuadrilateral = HCQ { _xtmin :: Double
+                                             , _xtmax :: Double
+                                             , _ytmin :: Double
+                                             , _ytmax :: Double
+                                             , _height :: Double }  deriving (Eq, Show)
+-- instance Movable Obstacle where
+--   tr !$ (HCQ _xtmin _xtmax _ytmin _ytmax _height) = Sphere (tr !$ p) r
+  --tr !$ (Triangle q w e r) = Triangle (tr !$ q) (tr !$ w) (tr !$ e) r
+   -- пока все будет твёрдое и со всеми видимыми рёбрами
+
+
+   -- пока все будет твёрдое и со всеми видимыми рёбрами
 --   старое положение    новое положение
-pushOut :: (RealFloat a, Eq a, Ord a) => Obstacles a -> M44 a -> M44 a
-pushOut a currentPos = foldr (\obstacle tr -> tr !*! pushOut obstacle
+-- pushOut :: (RealFloat a, Eq a, Ord a) => Obstacles a -> M44 a -> M44 a
+-- pushOut a currentPos = foldr (\obstacle tr -> tr !*! pushOut obstacle
+--                                                            ) currentPos a
+--             where pushOut (Sphere center radius) = ((transposeMink (pushOutSphereO (fromV4 $ (toV4 center) *! currentPos ) radius )))
+--                   pushOut (Triangle a b c r) = ((transposeMink (pushOutTriangleO (fromV4 $ (toV4 a) *! currentPos )
+--                                                                                  (fromV4 $ (toV4 b) *! currentPos )
+--                                                                                  (fromV4 $ (toV4 c) *! currentPos ) 
+--                                                                                  r )))
+
+decompose :: Point Double -> State -> State
+decompose p (State pos height nod speed) -> 
+
+pushOut :: Obstacles Double -> State -> State
+pushOut o s = foldr (\o tr -> tr !*! pushOut obstacle
                                                            ) currentPos a
             where pushOut (Sphere center radius) = ((transposeMink (pushOutSphereO (fromV4 $ (toV4 center) *! currentPos ) radius )))
                   pushOut (Triangle a b c r) = ((transposeMink (pushOutTriangleO (fromV4 $ (toV4 a) *! currentPos )
@@ -20,8 +61,28 @@ pushOut a currentPos = foldr (\obstacle tr -> tr !*! pushOut obstacle
                                                                                  (fromV4 $ (toV4 c) *! currentPos ) 
                                                                                  r )))
 
+-- pushOut :: Obstacles -> State -> State 
+-- pushOut o s = foldr (\(OHCQ a) -> pushOutHorizontalCoordinateQuadrilateral a) s o
 
+level = Env (Mesh [((0.0, 0.0, 1.0), (HE (Point 0.5 0.5 0 1) 
+                                         (Point 0.5 (-0.5) 0 1)
+                                         (Point (-0.5) 0.5 0 1))), 
+                   ((1.0, 0.0, 0.0), (HE (Point (-0.5) (-0.5) 0 1) 
+                                         (Point 0.5 (-0.5) 0 1)
+                                         (Point (-0.5) 0.5 0 1))),
+                   ((1.0, 1.0, 0.0), (HE (Point 0.5 0.5 (-0.5385283921883666) 1) 
+                                         (Point 0.5 (-0.5) (-0.5385283921883666) 1)
+                                         (Point (-0.5) 0.5 (-00.5385283921883666) 1))), 
+                   ((0.0, 1.0, 0.0), (HE (Point (-0.5) (-0.5) (-0.5385283921883666) 1) 
+                                         (Point 0.5 (-0.5) (-0.5385283921883666) 1)
+                                         (Point (-0.5) 0.5 (-0.5385283921883666) 1)))])
+            [OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 0), OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 (-1))]
 
+newtype Mesh a = Mesh [((a, a, a), HyperEntity a)] deriving (Eq, Show,Functor)
+data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor)
+
+data Environment  = Env { mesh :: Mesh Double,
+                          obstacles :: Obstacles } deriving (Eq, Show)
 
 -- pushOut :: (RealFloat a, Eq a, Ord a, Show a) => Obstacles a -> M44 a -> M44 a
 -- pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink (pushOutSphereO (fromV4 $ (toV4 center) *! currentPos ) radius )))
@@ -43,6 +104,14 @@ pushOut a currentPos = foldr (\obstacle tr -> tr !*! pushOut obstacle
 -- pushOutOne center radius pos = {-commute (transposeMink $ moveRightTo pos) $-} pushOutOneOrigin (moveRightTo pos !$ center) radius
 -- 1 - ((c+e-b-d)/(a - 2*b + c)) = (a - 2*b + c)/(a - 2*b + c) - ((c+e-b-d)/(a - 2*b + c)) = 
 -- a - b + d - e     
+pushOutHorizontalCoordinateQuadrilateral :: HorizontalCoordinateQuadrilateral -> State -> State
+pushOutHorizontalCoordinateQuadrilateral (HCQ xtmin xtmax ytmin ytmax z) s@(State pos height nod speed) 
+   = let (V3 x y t) = pos !* (V3 0 0 1)
+     in if abs (height + z ) <= ourSize && x/t > xtmin && x/t < xtmax && y/t > ytmin && y/t < ytmax
+        then if (-height) < (z) then State pos ( ourSize - z) nod (V3 0 0 0) else  State pos ((-ourSize) - z) nod (V3 0 0 0) 
+        else s-- podumay so znakami
+
+
 
 pushOutSphereO :: (RealFloat a, Eq a, Ord a) => Point a -> a -> M44 a
 pushOutSphereO m r = let 

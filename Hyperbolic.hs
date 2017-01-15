@@ -160,7 +160,7 @@ invAroundY (V4 (V4 a _ b _) _ _ _) = V4 (V4 a 0 (-b) 0) (V4 0 1 0 0) (V4 b 0 a 0
 transposeMink::Num a => M44 a -> M44 a
 transposeMink (V4 (V4 a b c d) (V4 e f g h) (V4 i j k l) (V4 m n o p))
   = (V4 (V4 a e i (-m)) (V4 b f j (-n)) (V4 c g k (-o)) (V4 (-d) (-h) (-l) p))
-
+tau = 2 * pi
 -- |4x4 matrix adjugate (inverse multiplied by det)
 -- for matrices with det 1 this is same as inv44 (modulo floating-point precision)
 -- (copied and patsed from linear package)

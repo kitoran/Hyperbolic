@@ -141,12 +141,6 @@ data Environment a = Env { mesh :: Mesh a,
                           obstacles :: Obstacles a } deriving (Eq, Show,Functor)
 newtype Mesh a = Mesh [((a, a, a), HyperEntity a)] deriving (Eq, Show,Functor)
 data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor)
-type Obstacles a = [Obstacle a] 
-data Obstacle a = Sphere (Point a) a | Triangle (Point a) (Point a) (Point a) a deriving (Eq, Show,Functor)
-instance Movable Obstacle where
-  tr !$ (Sphere p r) = Sphere (tr !$ p) r
-  tr !$ (Triangle q w e r) = Triangle (tr !$ q) (tr !$ w) (tr !$ e) r
-   -- пока все будет твёрдое и со всеми видимыми рёбрами
 ghost :: Obstacles a
 ghost =  []
 void :: Environment a

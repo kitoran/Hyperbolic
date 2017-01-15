@@ -30,11 +30,11 @@ import Graphics.UI.GLUT (($=),
                          Vertex3(Vertex3),
                          Vector3(..) )
 import Graphics.Rendering.OpenGL.GLU.Matrix (perspective, lookAt)
-import Universe (Mesh(..), HyperEntity(..), toV4)
-import Hyperbolic (Point, transposeMink, normalizeWass)
+import Physics (Mesh(..), HyperEntity(..))
+import Hyperbolic (Point, transposeMink, normalizeWass, _v4)
 import Linear hiding (perspective, lookAt, trace)
 import System.Random
-
+import Control.Lens
 -- import Data.Coerce
 
 
@@ -90,7 +90,7 @@ display (Mesh env) tran = do
                               transform c
           transform :: Point a -> IO ()--Vertex4 Double
 
-          transform p = let (V4 x y z t) = tran !* toV4 p  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+          transform p = let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -} (vertex $ Vertex3 (coerce $ x/t) (coerce $ (y)/t) (coerce $ z/t))
           coerce :: a -> GLdouble
           coerce  = unsafeCoerce
