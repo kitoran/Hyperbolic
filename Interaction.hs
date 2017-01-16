@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds #-}
+{-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds,DuplicateRecordFields #-}
 module Main where
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
@@ -97,14 +97,14 @@ bound low high x
   | otherwise = high
 
 startState :: State
-startState = State identity 0 0 (V3 0 0 0)
+startState = State identity 0.1 0 (V3 0.0 0 0)
 
 tick :: State -> State
-tick = pushOut (obstacles level) . applyGravity . applySpeed
+tick = (\s@(State pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (obstacles level) . applyGravity . applySpeed
 
 matricesMoveInPlane :: Floating a => [(Char, a -> M33 a)]
-matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3 . negate), ('s', moveAlongX3 ), 
-                           ('a', moveAlongY3 . negate), ('d', moveAlongY3)]
+matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3 ), ('s', moveAlongX3 . negate), 
+                           ('a', moveAlongY3 ), ('d', moveAlongY3 . negate)]
 
 main :: IO ()
 main = do
@@ -117,7 +117,7 @@ main = do
     (Size width' height') <- get screenSize 
     let width = fromIntegral width'
     let height = fromIntegral height' 
-    state <- newIORef $ startState {_speed = V3 0.01 0 0.000}
+    state <- newIORef $ startState {_speed = V3 0.0 0 0.000}
     -- let network = networkDescription level (width, height) addKeyboard addMouse addDisplay addTimer
     -- compile network >>= actuate 
     keyboardCallback $= (Just $ \a _ -> modifyIORef state $ processKeyboard a)
@@ -147,10 +147,10 @@ main = do
     mainLoop
 
 viewPort :: State -> M44 Double
-viewPort (State pos height nod _) = rotateAroundY nod !*! moveAlongZ height !*! (m33_to_m44M pos)
+viewPort (State pos height nod _) = rotateAroundY (-nod) !*! moveAlongZ (-height) !*! (m33_to_m44M $ transposeMink3 pos)
 
 processMove move = {-modifyIORef state-} (\(State pos height nod speed) -> State 
-                                                                                                  (move (0.1/cosh height) !*! pos)
+                                                                                                  (pos !*! move (0.1/cosh height) )
                                                                                                   height
                                                                                                   nod
                                                                                                   speed
@@ -165,7 +165,7 @@ processKeyboard c = case lookup c matricesMoveInPlane of
             Just a -> (height %~ (+ a))
             Nothing -> case c of
                     'r' -> reset
-                    ' ' -> (speed._z %~ (+ (-0.01)))
+                    ' ' -> (speed._z %~ (+ (0.01)))
                     'q' -> const Exceptionlol
                     _ -> id
 
@@ -181,7 +181,7 @@ processMouse width height (x, y) =
 applySpeed :: State -> State
 applySpeed (State pos height nod speed@(V3 x y z)) = State ((transposeMink3 $ moveToTangentVector3 (V2 x y)) !*! pos) (height+z) nod speed
 applyGravity :: State -> State
-applyGravity state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z + 0.0001/(cosh height)/(cosh height))}
+applyGravity state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - 0.0001/(cosh height)/(cosh height))}
 
 redraw mesh = readIORef currentMatrix >>= G.display mesh
 
@@ -202,14 +202,14 @@ reset state = startState
 processTurnUp angle     = {-modifyIORef state-} (\(State pos height nod speed) -> State 
                                                                                                  pos
                                                                                                  height
-                                                                                                 (bound (-tau/4) (tau/4) (nod - angle))
+                                                                                                 (bound (-tau/4) (tau/4) (nod + angle))
                                                                                                  speed
                                                                                             )
 processTurnLeft angle      = {-modifyIORef state-} (\(State pos height nod speed) -> State 
-                                                                                             ((rotate3  angle) !*! pos)
+                                                                                             (pos !*! (rotate3 (- angle)))
                                                                                              height
                                                                                              nod
-                                                                                             ((rotate3  (angle)) !* speed)
+                                                                                             ( speed ) -- Sudya po vsemu, skorost' nuzhno menyat' zdes' ili v processMove
                                                                                             )
 -- networkDescription :: forall a. (RealFloat a, Ord a, Show a, Real a) => Environment a -> 
 --                                                                         (Int, Int) -> 

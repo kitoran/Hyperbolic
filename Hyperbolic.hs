@@ -246,6 +246,8 @@ moveTo p dist =  transposeMink a !*! moveAlongX (dist) !*! a
     where a = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz)  p
 
 moveRightTo p = moveTo p (distance origin p) 
+
+moveRightTo3 p = moveTo3 p (distance3 origin3 p) 
     
 moveFromTo :: (Eq a, Ord a, RealFloat a) => Point a -> Point a -> a -> M44 a
 moveFromTo fr to dist =   a !*! moveTo (transposeMink a!$to) (dist) !*! transposeMink a

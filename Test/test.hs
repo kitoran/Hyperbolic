@@ -142,6 +142,7 @@ bToOxGetTr a b c = not (isNaN (newx/newt)) .&&. not (isNaN (newy/newt)) .&&. not
 cToOxyGetTr a b c = not (isNaN (newx/newt)) .&&. not (isNaN (newy/newt)) .&&. not (isNaN (newz/newt)) .&&. (newy/newt) >= 0 .&&. (newz/newt) =.= 0  where Point newx newy newz newt = getTriangleToOxy a b c !$ c
 
 getTr a b c = isometryGetTr a b c .&&. aToOGetTr a b c .&&. bToOxGetTr a b c .&&. cToOxyGetTr a b c 
+testDecompose p s = 
 
 main = verboseCheck (isometry . moveAlongX )
 

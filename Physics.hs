@@ -18,6 +18,7 @@ data State = State { _pos :: M33 Double --
 
 $(makeLenses ''State)
 
+currentPosition (State pos height _ _) =  m33_to_m44M pos !*! moveAlongZ height !$ origin
 ourSize = 0.1
 
 type Obstacles a = [Obstacle a] 
@@ -50,39 +51,42 @@ data HorizontalCoordinateQuadrilateral = HCQ { _xtmin :: Double
 --                                                                                  r )))
 
 decompose :: Point Double -> State -> State
-decompose p (State pos height nod speed) -> 
-
+decompose p (State pos height nod speed) = State (moveRightFromTo3 (pos !* (V3 0 0 1)) (projectToOxy p) !*! pos) (distanceFromOxy p) nod 0
+projectToOxy (Point q w e r) = V3 q w r
+distanceFromOxy p@(Point x y z t) = distance p (Point x y 0 t)
+moveRightFromTo3 :: V3 Double -> V3 Double -> M33 Double
+moveRightFromTo3 p1@(V3 x1 y1 t1) p2@(V3 x2 y2 t2) = moveRightTo3 p1 !*! moveRightTo3 (transposeMink3 (moveRightTo3 p1) !* p2) !*! transposeMink3 ( moveRightTo3 p1)
 pushOut :: Obstacles Double -> State -> State
-pushOut o s = foldr (\o tr -> tr !*! pushOut obstacle
-                                                           ) currentPos a
-            where pushOut (Sphere center radius) = ((transposeMink (pushOutSphereO (fromV4 $ (toV4 center) *! currentPos ) radius )))
-                  pushOut (Triangle a b c r) = ((transposeMink (pushOutTriangleO (fromV4 $ (toV4 a) *! currentPos )
-                                                                                 (fromV4 $ (toV4 b) *! currentPos )
-                                                                                 (fromV4 $ (toV4 c) *! currentPos ) 
-                                                                                 r )))
+pushOut o s = foldr (\o1 -> pushOutOne o1) s o
+            where pushOutOne :: Obstacle Double -> State -> State
+                  pushOutOne (Sphere center radius) = ((pushOutSphereO center radius ))
+                  pushOutOne (Triangle a b c r) = ((pushOutTriangleO a b c r))
 
 -- pushOut :: Obstacles -> State -> State 
 -- pushOut o s = foldr (\(OHCQ a) -> pushOutHorizontalCoordinateQuadrilateral a) s o
 
 level = Env (Mesh [((0.0, 0.0, 1.0), (HE (Point 0.5 0.5 0 1) 
                                          (Point 0.5 (-0.5) 0 1)
-                                         (Point (-0.5) 0.5 0 1))), 
-                   ((1.0, 0.0, 0.0), (HE (Point (-0.5) (-0.5) 0 1) 
-                                         (Point 0.5 (-0.5) 0 1)
                                          (Point (-0.5) 0.5 0 1))),
-                   ((1.0, 1.0, 0.0), (HE (Point 0.5 0.5 (-0.5385283921883666) 1) 
-                                         (Point 0.5 (-0.5) (-0.5385283921883666) 1)
-                                         (Point (-0.5) 0.5 (-00.5385283921883666) 1))), 
-                   ((0.0, 1.0, 0.0), (HE (Point (-0.5) (-0.5) (-0.5385283921883666) 1) 
-                                         (Point 0.5 (-0.5) (-0.5385283921883666) 1)
-                                         (Point (-0.5) 0.5 (-0.5385283921883666) 1)))])
-            [OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 0), OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 (-1))]
+                   ((1.0, 0.0,   0), (HE (Point (-0.5) (-0.5) 0 1) 
+                                         (Point 0.5 (-0.5) 0 1)
+                                         (Point (-0.5) 0.5 0 1)))])
+            [Triangle (Point 0.5 0.5 0 1) 
+                      (Point 0.5 (-0.5) 0 1)
+                      (Point (-0.5) 0.5 0 1) 0,
+            Triangle (Point (-0.5) (-0.5) 0 1) 
+                      (Point 0.5 (-0.5) 0 1)
+                      (Point (-0.5) 0.5 0 1) 0]--OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 0), OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 (-1))]
+
+triangle = pushOutTriangleO (Point 0.5 0.5 0 1) 
+                            (Point 0.25 (-0.5) 0 1)
+                            (Point (-0.5) 0.25 0 1) 0
 
 newtype Mesh a = Mesh [((a, a, a), HyperEntity a)] deriving (Eq, Show,Functor)
 data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor)
 
 data Environment  = Env { mesh :: Mesh Double,
-                          obstacles :: Obstacles } deriving (Eq, Show)
+                          obstacles :: Obstacles Double} deriving (Eq, Show)
 
 -- pushOut :: (RealFloat a, Eq a, Ord a, Show a) => Obstacles a -> M44 a -> M44 a
 -- pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink (pushOutSphereO (fromV4 $ (toV4 center) *! currentPos ) radius )))
@@ -113,10 +117,10 @@ pushOutHorizontalCoordinateQuadrilateral (HCQ xtmin xtmax ytmin ytmax z) s@(Stat
 
 
 
-pushOutSphereO :: (RealFloat a, Eq a, Ord a) => Point a -> a -> M44 a
-pushOutSphereO m r = let 
-                        diff = r - distance origin m
-                           in  if (trace ("diff:" ++ show (unsafeCoerce diff::Double)) diff) > 0 then moveTo m (-diff) else identityIm
+pushOutSphereO :: Point Double -> Double -> State -> State
+pushOutSphereO m r s = let 
+                        diff = r - distance origin (currentPosition s)
+                       in  if (trace ("diff:" ++ show (unsafeCoerce diff::Double)) diff) > 0 then decompose (moveFromTo m (currentPosition s) r !$m) s else s
 
 trace :: String -> a -> a
 trace s v = Debug.Trace.trace (s ++ show (unsafeCoerce s::Double)) v
@@ -127,19 +131,22 @@ traceP s v = Debug.Trace.trace (s ++ show (unsafeCoerce s::Point Double)) v
 -- nearestPoint :: (Floating a, Eq a, Ord a) => Point a -> Point a -> Point a -> Point a
 -- nearestPoint a b c = toV4 
 
-pushOutTriangleO :: (RealFloat a, Eq a, Ord a) => Point a -> Point a -> Point a -> a -> M44 a
-pushOutTriangleO a b c r = let 
+pushOutTriangleO :: Point Double -> Point Double -> Point Double -> Double -> State -> State
+pushOutTriangleO a b c r s = let 
                             -- newb = getTriangleToOxy a b c !$ b
-                            newO = getTriangleToOxy a b c !$ origin
-                            -- newc = getTriangleToOxy a b c !$ c
-                            projOfNewO = let (Point x y z t) = newO in  (Point (x/t) (y/t) 0 1)
-                            diff = r - distance newO projOfNewO 
-                            m = getTriangleToOxy a b c 
-                            inside = (-y2*x) +(x2-x1)*y+x1*y2 > 0 && y > 0 && x/y > x2/y2
-                            V3 x y _ = normalizePoint (toV4 projOfNewO)
-                            V3 x1 _ _ = normalizePoint (toV4 $ m !$ b)
-                            V3 x2 y2 _ = normalizePoint (toV4 $ m !$ c)
-                           in if inside && diff > 0 then (transposeMink m) !*! moveFromTo projOfNewO newO (trace "diff: " diff) !*! m else identityIm
+                                newO = m !$ currentPosition s
+                                -- newc = getTriangleToOxy a b c !$ c
+                                projOfNewO = let (Point x y z t) = newO in  (Point (x/t) (y/t) 0 1)
+                                diff = r - distance newO projOfNewO 
+                                m = getTriangleToOxy a b c 
+                                inside = (-y2*x) +(x2-x1)*y+x1*y2 > 0 && y > 0 && x/y > x2/y2
+                                V3 x y _ = normalizePoint (toV4 projOfNewO)
+                                V3 x1 _ _ = normalizePoint (toV4 $ m !$ b)
+                                V3 x2 y2 _ = normalizePoint (toV4 $ m !$ c)
+                                notm = transposeMink m
+                               in if inside && diff > (-ourSize) 
+                                  then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (trace "diff: " r + ourSize) !$ (notm !$ projOfNewO)) s 
+                                  else s
 
 --debug :: HasCallStack
 debug = pushOutTriangleO  (moveAlongX 0.3 !$ (Point 0 (-sinh 3) (-sinh 3) 14.202662994046431)) 
