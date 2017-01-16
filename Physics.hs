@@ -68,13 +68,13 @@ pushOut o s = foldr (\o1 -> pushOutOne o1) s o
 level = Env (Mesh [((0.0, 0.0, 1.0), (HE (Point 0.5 0.5 0 1) 
                                          (Point 0.5 (-0.5) 0 1)
                                          (Point (-0.5) 0.5 0 1))),
-                   ((1.0, 0.0,   0), (HE (Point (-0.5) (-0.5) 0 1) 
+                   ((1.0, 0.0,   0), (HE (Point (-0.5) (-sqrt(0.73)) 0.0 1) 
                                          (Point 0.5 (-0.5) 0 1)
                                          (Point (-0.5) 0.5 0 1)))])
             [Triangle (Point 0.5 0.5 0 1) 
                       (Point 0.5 (-0.5) 0 1)
                       (Point (-0.5) 0.5 0 1) 0,
-            Triangle (Point (-0.5) (-0.5) 0 1) 
+            Triangle (Point (-0.5) (-sqrt(0.73)) 0.0 1) 
                       (Point 0.5 (-0.5) 0 1)
                       (Point (-0.5) 0.5 0 1) 0]--OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 0), OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 (-1))]
 
@@ -145,7 +145,7 @@ pushOutTriangleO a b c r s = let
                                 V3 x2 y2 _ = normalizePoint (toV4 $ m !$ c)
                                 notm = transposeMink m
                                in if inside && diff > (-ourSize) 
-                                  then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (trace "diff: " r + ourSize) !$ (notm !$ projOfNewO)) s 
+                                  then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (trace "diff: " diff + ourSize) !$ (notm !$ newO)) s 
                                   else s
 
 --debug :: HasCallStack

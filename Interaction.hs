@@ -34,6 +34,7 @@ import Linear (
                , V2 (..)
                , identity
                , _z
+               , _x
                )
 import Control.Lens-- (over)
 -- import Reactive.Banana.Frameworks(newAddHandler,
@@ -159,9 +160,9 @@ matricesMoveZ = [('z', {-moveAlongZ-} (0.01)), ('c', {-moveAlongZ-} (-0.01))]
 
 
 processKeyboard :: Char -> (State -> State)
-processKeyboard c = case lookup c matricesMoveInPlane of
-    Just a -> processMove a
-    Nothing -> case lookup c matricesMoveZ of 
+processKeyboard c = case c of
+    'w' -> ((speed._x) %~ (+0.1))
+    _ -> case lookup c matricesMoveZ of 
             Just a -> (height %~ (+ a))
             Nothing -> case c of
                     'r' -> reset
@@ -179,7 +180,7 @@ processMouse width height (x, y) =
 --   let toGradi (x,y) = (ff x, ff y) where ff i = (fromIntegral i / 360*tau)
 --   let rotateDelta = fmap (\(p) -> rotate3 p) (fmap (fst) $ toGradi <$> mouseDelta)
 applySpeed :: State -> State
-applySpeed (State pos height nod speed@(V3 x y z)) = State ((transposeMink3 $ moveToTangentVector3 (V2 x y)) !*! pos) (height+z) nod speed
+applySpeed (State pos height nod speed@(V3 x y z)) = State (pos !*! ( moveToTangentVector3 (V2 x y)) ) (height+z) nod speed
 applyGravity :: State -> State
 applyGravity state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - 0.0001/(cosh height)/(cosh height))}
 
