@@ -161,7 +161,7 @@ matricesMoveZ = [('z', {-moveAlongZ-} (0.01)), ('c', {-moveAlongZ-} (-0.01))]
 
 processKeyboard :: Char -> (State -> State)
 processKeyboard c = case c of
-    'w' -> ((speed._x) %~ (+0.1))
+    'w' -> ((speed._x) %~ (+0.01))
     _ -> case lookup c matricesMoveZ of 
             Just a -> (height %~ (+ a))
             Nothing -> case c of

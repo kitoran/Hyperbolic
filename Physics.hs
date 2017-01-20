@@ -145,7 +145,7 @@ pushOutTriangleO a b c r s = let
                                 V3 x2 y2 _ = normalizePoint (toV4 $ m !$ c)
                                 notm = transposeMink m
                                in if inside && diff > (-ourSize) 
-                                  then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (trace "diff: " diff + ourSize) !$ (notm !$ newO)) s 
+                                  then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (trace "diff: " r + ourSize) !$ (notm !$ projOfNewO)) s 
                                   else s
 
 --debug :: HasCallStack

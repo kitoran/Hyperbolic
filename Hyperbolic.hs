@@ -113,7 +113,7 @@ x^2+y^2+z^2 > 0-}
 type ProjectiveMap a = V4 (V4 a)
 
 
-
+ 
 
 -- По дебильному решению кметта матрицы записываются по строкам :(
 moveAlongZ d = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 (cosh d) (sinh d)) (V4 0 0 (sinh d) (cosh d))
