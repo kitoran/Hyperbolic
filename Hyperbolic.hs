@@ -15,12 +15,11 @@ import Control.Lens
 import Control.Applicative
 import Data.Monoid
 import Data.Foldable
-import Data.List (intercalate)
+import Data.List (intercalate) 
 import GHC.Generics
 import Debug.Trace
-import Unsafe.Coerce
 toV4 (Point a b c d) = V4 a b c d {-FIMXE when learn lens-}
-
+{-# INLINE toV4 #-}
 {-|
 
 Этот модуль описывает гиперболическое пространство
@@ -55,7 +54,7 @@ projective 3-space is sheaf in 4-dimensional vector space.
 На самом деле пространство у нас трёхмерное, и для представления точки достаточно трёх координат x, y, z,
 если использовать проекцию Ганса, которая является глобальным диффеоморфизмом между R^3 и H^3. 
 При этом t считается как sqrt(1+x^2+y^2+z^2). К сожалению, такой подход потребует включения лишнего 
-констрейнта (Floating a) в большинство функций and overall inefficient.
+констрейнта (Floating  a) в большинство функций and overall inefficient.
 
 Уровни абстракции расположены так:
                 4-мерное пространство
@@ -73,7 +72,7 @@ projective 3-space is sheaf in 4-dimensional vector space.
 
 instance Additive Point where
 
-data Point a = Point !a !a !a !a deriving (Generic1, Show, Eq, Functor)
+data Point a = Point {-# UNPACK #-} !a {-# UNPACK #-} !a {-# UNPACK #-} !a {-# UNPACK #-} !a deriving (Generic1, Show, Eq, Functor, Read)
 {- ^ for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map 
   is not nearly injective, that's sad. However, sometimes i use improper points -}
 _v4::Lens' (Point a) (V4 a)
@@ -112,7 +111,7 @@ x^2+y^2+z^2 > 0-}
 
 type ProjectiveMap a = V4 (V4 a)
 
-
+reflectAboutOrigin = V4 (V4 (-1) 0 0 0) (V4 0 (-1) 0 0) (V4 0 0 (-1) 0) (V4 0 0 0 1)
  
 
 -- По дебильному решению кметта матрицы записываются по строкам :(
@@ -238,6 +237,10 @@ normalizeWass (Point x y z t) = Point (x/d) (y/d) (z/d) (t/d)
 So i can't find out how to do this properly and i'm too shy to go to mail lists so i'll just have to invent physics myself :(
 The only shape is (irregular) hexahedron. 
 -}
+
+rotate :: (RealFloat a) => Point a -> Point a -> a -> M44 a
+rotate a b x = commute ((getPointToOrigin a `andConsideringThat` turmPToOx) b) (rotateAroundX x)
+
 
 commute a b = (transposeMink a) !*! b !*! a
 

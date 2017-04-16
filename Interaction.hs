@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds,DuplicateRecordFields #-}
+{-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds,DuplicateRecordFields, BangPatterns, LambdaCase #-}
 module Main where
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
@@ -8,6 +8,8 @@ import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
 import Control.Monad(when)
 import Control.Applicative(liftA2, liftA3)
 import Data.List((++))
+import System.Environment
+import qualified Universe
 import Graphics.UI.GLUT as GL
     (    Size(Size)
     ,    get
@@ -82,10 +84,9 @@ import Hyperbolic
 import Graphics as G (initialiseGraphics, display) 
 import DebugTH(prettyR, prettyV)
 --import Physics
--- import Universe (level, startPosMatrix, Environment(..), tau)
 import Physics
 import GHC.TypeLits
-
+import System.Exit
 --the unsafePerformIO hack выглядит понятнее гораздо, чем FRP. Можно передавать состояние, конечно, параметрами, но мы этого делать не будем (пока, может потом)
 currentMatrix :: IORef (M44 Double)
 currentMatrix = unsafePerformIO $ newIORef (identityIm)
@@ -100,8 +101,8 @@ bound low high x
 startState :: State
 startState = State identity 0.1 0 (V3 0.0 0 0)
 
-tick :: State -> State
-tick = (\s@(State pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (obstacles level) . applyGravity . applySpeed
+tick :: Environment (Double, Double, Double) Double -> State -> State
+tick level = (\s@(State pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (obstacles level) . applyGravity . applySpeed
 
 matricesMoveInPlane :: Floating a => [(Char, a -> M33 a)]
 matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3 ), ('s', moveAlongX3 . negate), 
@@ -109,6 +110,10 @@ matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3
 
 main :: IO ()
 main = do
+
+    !level <- return Universe.dodecahedronEnv --fmap read $ getArgs >>= (\case
+     --   [] -> putStrLn "нужен аргумент - файл с уровнем" >> exitFailure 
+     --   a:_ -> return a ) >>= readFile
     initialiseGraphics
     -- (addKeyboard, fireKeyboard) <- (newAddHandler::IO (AddHandler Char, Handler Char))
     -- (addMouse, fireMouse) <- (newAddHandler::IO (AddHandler (Int, Int), Handler (Int, Int)))
@@ -134,8 +139,8 @@ main = do
     displayCallback $= (readIORef state >>= (display (mesh level) . viewPort))
     idleCallback $= (Just $ readIORef state >>= (display (mesh level) . viewPort))
     let timerCallback = do
-                            addTimerCallback 1 timerCallback
-                            modifyIORef state $ tick
+                            addTimerCallback 5 timerCallback
+                            modifyIORef state $ tick level
                             readIORef state >>= (putStrLn . show)
     addTimerCallback 0 timerCallback
     redraw (mesh level) 
@@ -160,8 +165,8 @@ matricesMoveZ = [('z', {-moveAlongZ-} (0.01)), ('c', {-moveAlongZ-} (-0.01))]
 
 
 processKeyboard :: Char -> (State -> State)
-processKeyboard c = case c of
-    'w' -> ((speed._x) %~ (+0.01))
+processKeyboard c = case lookup c matricesMoveInPlane of 
+    Just m -> ((pos) %~ (!*! m 0.01))
     _ -> case lookup c matricesMoveZ of 
             Just a -> (height %~ (+ a))
             Nothing -> case c of
@@ -182,7 +187,7 @@ processMouse width height (x, y) =
 applySpeed :: State -> State
 applySpeed (State pos height nod speed@(V3 x y z)) = State (pos !*! ( moveToTangentVector3 (V2 x y)) ) (height+z) nod speed
 applyGravity :: State -> State
-applyGravity state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - 0.0001/(cosh height)/(cosh height))}
+applyGravity = id--state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - 0.0001/(cosh height)/(cosh height))}
 
 redraw mesh = readIORef currentMatrix >>= G.display mesh
 

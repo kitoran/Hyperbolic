@@ -22,10 +22,24 @@ currentPosition (State pos height _ _) =  m33_to_m44M pos !*! moveAlongZ height 
 ourSize = 0.1
 
 type Obstacles a = [Obstacle a] 
-data Obstacle a = Sphere (Point a) a | Triangle (Point a) (Point a) (Point a) a deriving (Eq, Show,Functor)
+data Obstacle a = Sphere !(Point a) a | Triangle !(Point a) !(Point a) !(Point a) !a deriving (Eq, Show,Functor, Read)
 instance Movable Obstacle where
   tr !$ (Sphere p r) = Sphere (tr !$ p) r
   tr !$ (Triangle q w e r) = Triangle (tr !$ q) (tr !$ w) (tr !$ e) r
+
+domainRadius :: Double
+domainRadius = acosh (cosh al * cosh bl) 
+  where a, b, c, al, bl :: Double
+        a = tau/10
+        b = tau/10
+        c = tau/4
+        al = acosh ( cos a / sin b )
+        bl = acosh ( cos b / sin a )
+
+-- breakDown :: Obstacles Double -> 
+
+
+
 
 -- data Obstacle = OHCQ HorizontalCoordinateQuadrilateral deriving (Eq, Show)
 data HorizontalCoordinateQuadrilateral = HCQ { _xtmin :: Double
@@ -57,36 +71,46 @@ distanceFromOxy p@(Point x y z t) = distance p (Point x y 0 t)
 moveRightFromTo3 :: V3 Double -> V3 Double -> M33 Double
 moveRightFromTo3 p1@(V3 x1 y1 t1) p2@(V3 x2 y2 t2) = moveRightTo3 p1 !*! moveRightTo3 (transposeMink3 (moveRightTo3 p1) !* p2) !*! transposeMink3 ( moveRightTo3 p1)
 pushOut :: Obstacles Double -> State -> State
-pushOut o s = foldr (\o1 -> pushOutOne o1) s o
-            where pushOutOne :: Obstacle Double -> State -> State
-                  pushOutOne (Sphere center radius) = ((pushOutSphereO center radius ))
-                  pushOutOne (Triangle a b c r) = ((pushOutTriangleO a b c r))
+pushOut o = id--s = foldr (\o1 -> pushOutOne o1) s o
+--            where pushOutOne :: Obstacle Double -> State -> State
+--                  pushOutOne (Sphere center radius) = if far center (_pos s)  then id else ((pushOutSphereO center radius ))
+--                  pushOutOne (Triangle a b c r) = if far a (_pos s) then id else ((pushOutTriangleO a b c r))
+--                  far (Point x y _ t) (m::M33 Double) = let (V3 xr yr tr) = m !* V3 0 0 1 
+--                                          in abs ((x/t) - xr/tr)> 2 ||  abs ((y/t) - yr/tr)> 2
 
 -- pushOut :: Obstacles -> State -> State 
 -- pushOut o s = foldr (\(OHCQ a) -> pushOutHorizontalCoordinateQuadrilateral a) s o
 
-level = Env (Mesh [((0.0, 0.0, 1.0), (HE (Point 0.5 0.5 0 1) 
-                                         (Point 0.5 (-0.5) 0 1)
-                                         (Point (-0.5) 0.5 0 1))),
-                   ((1.0, 0.0,   0), (HE (Point (-0.5) (-sqrt(0.73)) 0.0 1) 
-                                         (Point 0.5 (-0.5) 0 1)
-                                         (Point (-0.5) 0.5 0 1)))])
-            [Triangle (Point 0.5 0.5 0 1) 
-                      (Point 0.5 (-0.5) 0 1)
-                      (Point (-0.5) 0.5 0 1) 0,
-            Triangle (Point (-0.5) (-sqrt(0.73)) 0.0 1) 
-                      (Point 0.5 (-0.5) 0 1)
-                      (Point (-0.5) 0.5 0 1) 0]--OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 0), OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 (-1))]
+-- level = Env (Mesh [((0.0, 0.0, 1.0), (HE (Point 0.5 0.5 0 1) 
+--                                          (Point 0.5 (-0.5) 0 1)
+--                                          (Point (-0.5) 0.5 0 1))),
+--                    ((1.0, 0.0,   0), (HE (Point (-0.5) (-sqrt(0.73)) 0.0 1) 
+--                                          (Point 0.5 (-0.5) 0 1)
+--                                          (Point (-0.5) 0.5 0 1)))])
+--             [Triangle (Point 0.5 0.5 0 1) 
+--                       (Point 0.5 (-0.5) 0 1)
+--                       (Point (-0.5) 0.5 0 1) 0,
+--             Triangle (Point (-0.5) (-sqrt(0.73)) 0.0 1) 
+--                       (Point 0.5 (-0.5) 0 1)
+--                       (Point (-0.5) 0.5 0 1) 0]--OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 0), OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 (-1))]
 
 triangle = pushOutTriangleO (Point 0.5 0.5 0 1) 
                             (Point 0.25 (-0.5) 0 1)
                             (Point (-0.5) 0.25 0 1) 0
 
-newtype Mesh a = Mesh [((a, a, a), HyperEntity a)] deriving (Eq, Show,Functor)
-data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor)
+newtype Mesh color coordinate = Mesh [(color, HyperEntity coordinate)] deriving (Eq, Show,Functor, Read)
+data HyperEntity a = TriangleMesh (Point a) (Point a) (Point a) 
+                   | Segment (Point a) (Point a) 
+                   | HPoint (Point a) {- fixme this constructor isnt needed -} deriving (Eq, Show,Functor, Read)
 
-data Environment  = Env { mesh :: Mesh Double,
-                          obstacles :: Obstacles Double} deriving (Eq, Show)
+instance Movable HyperEntity where
+  a !$ (TriangleMesh q w e) = TriangleMesh (a !$ q) (a !$ w) (a !$ e)
+  a !$ (Segment q w) = Segment (a !$ q) (a !$ w)
+
+data Environment c a = Env { mesh :: Mesh c a,
+                             obstacles :: Obstacles a} deriving (Eq, Show, Read)
+instance Movable (Environment c) where
+  tr !$ Env (Mesh m) ob = Env (Mesh $ fmap (\(c, he) -> (c, tr !$ he)) m) (fmap (tr !$) ob)
 
 -- pushOut :: (RealFloat a, Eq a, Ord a, Show a) => Obstacles a -> M44 a -> M44 a
 -- pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink (pushOutSphereO (fromV4 $ (toV4 center) *! currentPos ) radius )))

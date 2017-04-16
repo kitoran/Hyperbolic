@@ -3,17 +3,21 @@
              ScopedTypeVariables #-}
 module Universe (module Hyperbolic, points, {-cameraC, module Projection,
                  viewSegment, module Camera,-}environment, tau, _ends, Segment(..),
-                  absoluteCircle, Environment(..), HyperEntity(..), parse, level, startPosMatrix,
-                  Mesh(..), Obstacles, Obstacle(..)) where
+                  absoluteCircle, Environment(..), parse, level, startPosMatrix,
+                  Mesh(..), Obstacles, Obstacle(..), dodecahedronEnv) where
 --import Projection
 import Control.Applicative
 import Data.List.Split
-import Linear
+import Linear hiding (rotate)
+import System.IO 
 import Hyperbolic
+import qualified Physics as P
+import Physics hiding (Segment)
+
 --import Camera
 import Control.Lens hiding (view)
-tau = 2 * pi
-macosh = acosh
+
+import Graphics.Rendering.OpenGL.GL.VertexSpec (Color3(..))
 
 --camera :: Projector Double
 --camera = Projector  { projectorPosition = Point 0 0 (sinh 2) $ cosh 2,
@@ -33,7 +37,7 @@ macosh = acosh
 --                          projectorHorizontal = Point 1  0 (sinh 2) $ cosh 2 {-cosh 1-},
 --                          projectorVertical = Point 0 1 (sinh 2) $ cosh 2 }
 
-
+macosh = acosh
 data Segment a = Segment !(Point a) !(Point a) deriving (Eq, Show,Functor)
 _ends :: Traversal' (Segment a) (Point a)
 _ends f (Segment x y) = liftA2 Segment (f x) (f y)
@@ -67,9 +71,9 @@ colors = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1), (0, 0, 1), (0, 1, 0), (0, 
 reds = repeat (1,0,0)
 whites = repeat (1,1,1)
 
-octahedron :: Environment Double
-octahedron = Env (Mesh $ zip (take 8 reds) [ HE f l u, ( HE f d l), HE f u r, HE f r d,
-              HE b u l, HE b l d, HE b r u, HE b d r]) $ [ Sphere (Point (sinh 0) 0 0.00 (cosh 0)) (1/2)]
+octahedron :: P.Environment (Color3 Double) Double
+octahedron = Env (Mesh $ zip (take 8 $ map (\(x, y, z) -> Color3 x y z) reds) [ TriangleMesh f l u, ( TriangleMesh f d l), TriangleMesh f u r, TriangleMesh f r d,
+              TriangleMesh b u l, TriangleMesh b l d, TriangleMesh b r u, TriangleMesh b d r]) $ [ Sphere (Point (sinh 0) 0 0.00 (cosh 0)) (1/2)]
   where f, r, u, b, l, d :: Point Double
         f = (moveAlongX 0 !$) $ Point (sinh w) 0 0 (cosh w)
         r = (moveAlongX 0 !$) $ Point 0 (sinh w) 0 (cosh w)
@@ -85,9 +89,10 @@ octahedron = Env (Mesh $ zip (take 8 reds) [ HE f l u, ( HE f d l), HE f u r, HE
 --         l1 = Point 0 (sinh (-w)) 0 (cosh w)
 --         d1 = Point 0 0 (sinh (-w)) (cosh w)
 
-pentacles = zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX (cl - 0.0) !$  moveAlongZ (-0) !$ origin)
-pentatriangles c = Mesh $ fmap (\p -> (c, HE (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0) !$ origin))) pentacles
-pentagon c = Env (pentatriangles c) ghost
+pentacles = zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX (cl - 0.0) !$ 
+                                                                                            moveAlongZ (-0) !$ origin)
+pentagon c = Env (Mesh $ fmap (\p -> (c, TriangleMesh (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0) !$ origin))) pentacles)
+                 (fmap (\p ->  Triangle (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0) !$ origin) 0) pentacles)
 
 --pentagon
 levelFOne =    pentagon (1, 0, 0) `unionEnv` 
@@ -118,8 +123,6 @@ redPentagon = (moveAlongX (cl) !*! rotateAroundZ (tau*2/5) !*! moveAlongX (-cl))
 greenPentagon = (moveAlongX (cl) !*! rotateAroundZ (tau*3/5) !*! moveAlongX (-cl)) !$ pentagon (0, 1, 0)
 bluePentagon = (moveAlongX (cl) !*! rotateAroundZ (tau*3/5) !*! moveAlongX (-cl)) !$ pentagon (0, 0, 1)
 
-instance Movable Environment where
-  tr !$ Env (Mesh m) ob = Env (Mesh $ fmap (\(c, he) -> (c, tr !$ he)) m) (fmap (tr !$) ob)
 
 -- level :: Environment Double
 -- level = Env (Mesh [((0, 0.5, 1), square)]) $ [(\(HE q w e) -> Triangle q w e 1) square]
@@ -131,30 +134,27 @@ unionEnv (Env (Mesh l1) l2) (Env (Mesh m1) m2) = Env (Mesh (l1 ++ m1)) (l2 ++ m2
 
 startPosMatrix = identity --V4 (V4 0 0 0 1) (V4 0 1 0 0 ) (V4 0 0 1 0) (V4 1 0 0 (0))
 
-parallelAxiom = Env (Mesh $ zip colors [HE a b c, HE a b e]) ghost
+parallelAxiom = Env (Mesh $ zip colors [TriangleMesh a b c, TriangleMesh a b e]) ghost
           where a = Point 0 (-1)  0 1
                 b = Point  0 1 0 1
                 c = Point (sin (tau/12)) (cos (tau/12)) 0 1
                 e = Point (sin (tau*5/12)) (cos (tau*5/12)) 0 1
 
-data Environment a = Env { mesh :: Mesh a,
-                          obstacles :: Obstacles a } deriving (Eq, Show,Functor)
-newtype Mesh a = Mesh [((a, a, a), HyperEntity a)] deriving (Eq, Show,Functor)
-data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor)
+-- data Environment a = Env { mesh :: Mesh a,
+--                           obstacles :: Obstacles a } deriving (Eq, Show,Functor)
+-- newtype Mesh a = Mesh [((a, a, a), HyperEntity a)] deriving (Eq, Show,Functor)
+-- data HyperEntity a = HE (Point a) (Point a) (Point a) deriving (Eq, Show,Functor)
 ghost :: Obstacles a
 ghost =  []
-void :: Environment a
+void :: P.Environment a b
 void = Env (Mesh []) ghost
-instance Movable HyperEntity where
-  a !$ (HE q w e) = HE (a !$ q) (a !$ w) (a !$ e)
 
-
-parse::forall a. (Read a, Num a) => String -> Environment a
+parse::forall a b. (Read a, Num a, Num b) => String -> P.Environment (b, b, b) a
 parse = (`Env` ghost) . Mesh . f . (map (read::String -> a)) . words
-  where f :: Num a => [a] -> [((a,a,a) , HyperEntity a)]
+  where f :: Num a => [a] -> [((b,b,b) , HyperEntity a)]
         f [] = []
         f (a1:a2:a3:a4:b1:b2:b3:b4:c1:c2:c3:c4:xs) 
-               = ((0,0,0),HE (Point a1 a2 a3 a4) (Point b1 b2 b3 b4) (Point c1 c2 c3 c4) ) : f xs
+               = ((0,0,0),TriangleMesh (Point a1 a2 a3 a4) (Point b1 b2 b3 b4) (Point c1 c2 c3 c4) ) : f xs
         f _ = error "mesh is ill-formed"
     {-[Point t 0 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
          [Point 0 t 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
@@ -164,3 +164,69 @@ parse = (`Env` ghost) . Mesh . f . (map (read::String -> a)) . words
 {-[Point 0 0 0 1, Point 1 0 0 (sqrt 2), Point 0 1 0 (sqrt 2), 
                                   Point (-1) 0 0 (sqrt 2), Point 0 (-1) 0 (sqrt 2)]-}
 
+save :: (Show a, Show b) => FilePath -> P.Environment a b -> IO ()
+save a e = writeFile a $ show e
+
+dodecahedralValue :: Double
+dodecahedralValue = acosh $ ctgACos sinDIv * ctgASin ((cos gamma)/(sin (tau/6)))
+  where ctgACos a = a / (sqrt (1 - a*a)) 
+        ctgASin a = 1 / ctgACos a
+        gamma = asin (1/(2*(sin(tau/10))))
+
+sinDIv = sin (3*tau/20) / sin (tau/6)
+
+dodecahedralAngle :: Double
+dodecahedralAngle = 2 * acos sinDIv
+
+dodecahedralPointFront = moveAlongX dodecahedralValue !$ origin
+
+dodecahedralPointSecondUp = rotateAroundY dodecahedralAngle !$ dodecahedralPointFront
+
+dodecahedralPointsSecond = [rotateAroundX a !$ dodecahedralPointSecondUp | a <- [0, tau/3, negate tau/3]]
+
+dodecahedralPointThirdUpLeft = rotateAroundY dodecahedralAngle !$ (rotateAroundX (tau/6)) !$ dodecahedralPointSecondUp
+dodecahedralPointThirdUpRight = rotateAroundY dodecahedralAngle !$ (rotateAroundX (negate tau/6)) !$ dodecahedralPointSecondUp
+
+dodecahedralPointsThirdUp = [rotateAroundY dodecahedralAngle !$ rotateAroundX a !$ rotateAroundY (-dodecahedralAngle) !$ dodecahedralPointFront | a <- [tau/3, negate tau/3]]
+
+--dodecahedralPointsThirdUp = [rotateAroundY dodecahedralAngle !$ rotateAroundX a !$ dodecahedralPointSecondUp | a <- [tau/6, negate tau/6]]
+
+dodecahedralPointsThird = do
+  point <- dodecahedralPointsThirdUp
+  a <- [0, tau/3, negate tau/3]
+  return $ rotateAroundX a !$ point
+
+dodecahedralEdgeUpFirst = P.Segment dodecahedralPointFront dodecahedralPointSecondUp
+
+dodecahedralEdgesUpSecond = [P.Segment dodecahedralPointSecondUp a | a <- dodecahedralPointsThirdUp]
+ 
+dodecahedralEdgeDownThird = P.Segment (rotateAroundX (tau/3) !$ dodecahedralPointThirdUpLeft) (rotateAroundX (negate tau/3) !$ dodecahedralPointThirdUpRight)
+
+dodecahedralEdgeUpLeftFouth = P.Segment dodecahedralPointThirdUpLeft (reflectAboutOrigin !$ rotateAroundX (negate tau/3) !$ dodecahedralPointThirdUpRight)
+
+dodecahedron :: [HyperEntity Double]
+dodecahedron = do
+  edge <- sixth
+  involution <- [id, (reflectAboutOrigin !$)]
+  rotation <- [id, (rotateAroundX (tau/3) !$), (rotateAroundX (negate tau/3) !$)]
+  return $ involution $ rotation edge
+ where sixth = [dodecahedralEdgeUpFirst] ++ dodecahedralEdgesUpSecond ++ [dodecahedralEdgeDownThird, dodecahedralEdgeUpLeftFouth]
+
+-- dodecahedron = [dodecahedralEdgeUpFirst
+--                ,(head dodecahedralEdgesUpSecond)
+--                ,(rotateAroundX (tau/3) !$ dodecahedralEdgeDownThird)
+--                , rotateAroundX (negate tau/3) !$ (head $ tail dodecahedralEdgesUpSecond)
+--                , (rotateAroundX (negate tau/3) !$ dodecahedralEdgeUpFirst)]
+
+-- dodecahedron :: [HyperEntity Double]
+-- dodecahedron = [HPoint $ Point a b c 2 | let w = [1, -1] , a <- w, b<-w, c <- w] 
+
+dodecahedronEnv1 :: Environment (Double, Double, Double) Double
+dodecahedronEnv1 = Env (Mesh $ fmap (\a -> ((255/255, 171/255, 11/255), a)) dodecahedron) ghost
+
+
+dodecahedronEnv2 :: Environment (Double, Double, Double) Double
+dodecahedronEnv2 = rotate dodecahedralPointFront dodecahedralPointSecondUp (tau/5) !$ Env (Mesh $ fmap (\a -> ((0/255, 171/255, 255/255), a)) dodecahedron) ghost
+
+
+dodecahedronEnv = dodecahedronEnv2 `unionEnv` dodecahedronEnv1
