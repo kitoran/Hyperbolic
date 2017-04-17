@@ -67,9 +67,9 @@ data HorizontalCoordinateQuadrilateral = HCQ { _xtmin :: Double
 --                                                                                  r )))
 
 decompose :: Point Double -> State -> State
-decompose p (State pos height nod speed) = State (moveRightFromTo3 (pos !* (V3 0 0 1)) (projectToOxy p) !*! pos) (distanceFromOxy p) nod 0
+decompose p (State pos height nod speed) = State (moveRightFromTo3 (pos !* (V3 0 0 1)) (projectToOxy p) !*! pos) (signedDistanceFromOxy p) nod 0
 projectToOxy (Point q w e r) = V3 q w r
-distanceFromOxy p@(Point x y z t) = distance p (Point x y 0 t)
+signedDistanceFromOxy p@(Point x y z t) = distance p (Point x y 0 t) * signum z * signum t
 moveRightFromTo3 :: V3 Double -> V3 Double -> M33 Double
 moveRightFromTo3 p1@(V3 x1 y1 t1) p2@(V3 x2 y2 t2) = moveRightTo3 p1 !*! moveRightTo3 (transposeMink3 (moveRightTo3 p1) !* p2) !*! transposeMink3 ( moveRightTo3 p1)
 -- pushOut :: Obstacles Double -> State -> State
@@ -83,7 +83,7 @@ pushOut :: [RuntimeObstacle Double] -> State -> State
 pushOut o s = foldr (\o1 -> pushOutOne o1) s o
            where pushOutOne :: RuntimeObstacle Double -> State -> State
                  pushOutOne (SphereR center radius) = if far center (_pos s)  then id else ((pushOutSphereO center radius ))
-                 pushOutOne (TriangleR m x1 x2 y2 r) = {- far analysis could bw here -}((pushOutTriangleO m x1 x2 y2 r))
+                 pushOutOne (TriangleR m x1 x2 y2 r) = {- far analysis could bw here -}(pushOutTriangleO m x1 x2 y2 r)
                  far (Point x y _ t) (m::M33 Double) = let (V3 xr yr tr) = m !* V3 0 0 1 
                                          in abs ((x/t) - xr/tr)> 2 ||  abs ((y/t) - yr/tr)> 2
 
@@ -210,7 +210,7 @@ pushOutTriangleO !m !x1 !x2 !y2 !r !s = let
                                 let
                                   inside = (-y2*x) +(x2-x1)*y+x1*y2 > 0 && y > 0 && x/y > x2/y2
                                 in
-                                 if inside && diff > (-ourSize) 
+                                 if inside && diff > ((-ourSize) +0.00001)
                                   then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (trace "diff: " r + ourSize) !$ (notm !$ projOfNewO)) s 
                                   else s
                                   } 

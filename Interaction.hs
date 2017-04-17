@@ -90,8 +90,7 @@ import System.Exit
 import GHC.TypeLits
 import System.Exit
 --the unsafePerformIO hack выглядит понятнее гораздо, чем FRP. Можно передавать состояние, конечно, параметрами, но мы этого делать не будем (пока, может потом)
-currentMatrix :: IORef (M44 Double)
-currentMatrix = unsafePerformIO $ newIORef (identityIm)
+
 currentAngle :: IORef Double
 currentAngle = unsafePerformIO $ newIORef (0)
 
@@ -140,18 +139,18 @@ main = do
         when (now `diffUTCTime ` last' > 0.04)
             (do 
              writeIORef last now 
-             modifyIORef state $ processMouse width height (fromEnum x,fromEnum y)
-             pointerPosition $= (Position (width'`div`2) (height'`div`2)))
+             modifyIORef state $ processMouse width height (fromEnum x, fromEnum y)
+             pointerPosition $= (Position (width'`div`2) (height'`div`2))
+             readIORef state >>= (display (mesh level) . viewPort))
         ))
     displayCallback $= (readIORef state >>= (display (mesh level) . viewPort))
     idleCallback $= (Just $ readIORef state >>= (display (mesh level) . viewPort))
-    closeCallback $= (Just $  exitSuccess )
+    closeCallback $= (Just $ exitSuccess )
     let timerCallback = do
                             addTimerCallback 5 timerCallback
                             modifyIORef state $ tick runtimeObstacles
                             readIORef state >>= (putStrLn . show)
     addTimerCallback 0 timerCallback
-    redraw (mesh level) 
     -- fireMouse (width`div`2, height`div`2)
     -- fireMouse (width`div`2, height`div`2)
     -- fireMouse (width`div`2, height`div`2)
@@ -195,9 +194,7 @@ processMouse width height (x, y) =
 applySpeed :: State -> State
 applySpeed (State pos height nod speed@(V3 x y z)) = State (pos !*! ( moveToTangentVector3 (V2 x y)) ) (height+z) nod speed
 applyGravity :: State -> State
-applyGravity state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - 0.0001/(cosh height)/(cosh height))}
-
-redraw mesh = readIORef currentMatrix >>= G.display mesh
+applyGravity state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - 0.0002/(cosh height)/(cosh height))}
 
 
 -- processEvent :: Event a -> IO ()
