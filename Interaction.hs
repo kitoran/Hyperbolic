@@ -23,6 +23,7 @@ import Graphics.UI.GLUT as GL
     ,    idleCallback
     ,    mainLoop
     ,    addTimerCallback
+    ,    closeCallback
     )
 import Linear (
                (!*)
@@ -85,6 +86,7 @@ import Graphics as G (initialiseGraphics, display)
 import DebugTH(prettyR, prettyV)
 --import Physics
 import Physics
+import System.Exit
 import GHC.TypeLits
 import System.Exit
 --the unsafePerformIO hack выглядит понятнее гораздо, чем FRP. Можно передавать состояние, конечно, параметрами, но мы этого делать не будем (пока, может потом)
@@ -101,17 +103,20 @@ bound low high x
 startState :: State
 startState = State identity 0.1 0 (V3 0.0 0 0)
 
-tick :: Environment (Double, Double, Double) Double -> State -> State
-tick level = (\s@(State pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (obstacles level) . applyGravity . applySpeed
+tick :: [RuntimeObstacle Double] -> State -> State
+tick level = (\s@(State pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (level) . applyGravity . applySpeed
 
 matricesMoveInPlane :: Floating a => [(Char, a -> M33 a)]
 matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3 ), ('s', moveAlongX3 . negate), 
                            ('a', moveAlongY3 ), ('d', moveAlongY3 . negate)]
 
+runtimeObstacles :: [RuntimeObstacle Double]
+runtimeObstacles = computeObs (obstacles Universe.level)
+
 main :: IO ()
 main = do
 
-    !level <- return Universe.dodecahedronEnv --fmap read $ getArgs >>= (\case
+    !level <- return Universe.level --fmap read $ getArgs >>= (\case
      --   [] -> putStrLn "нужен аргумент - файл с уровнем" >> exitFailure 
      --   a:_ -> return a ) >>= readFile
     initialiseGraphics
@@ -126,7 +131,9 @@ main = do
     state <- newIORef $ startState {_speed = V3 0.0 0 0.000}
     -- let network = networkDescription level (width, height) addKeyboard addMouse addDisplay addTimer
     -- compile network >>= actuate 
-    keyboardCallback $= (Just $ \a _ -> modifyIORef state $ processKeyboard a)
+    keyboardCallback $= (Just $ \a _ -> case a of
+                       'q' -> exitSuccess 
+                       _   -> modifyIORef state $ processKeyboard a)
     passiveMotionCallback $= (Just $ (\(Position x y) -> do
         last' <- readIORef last
         now <- getCurrentTime
@@ -138,9 +145,10 @@ main = do
         ))
     displayCallback $= (readIORef state >>= (display (mesh level) . viewPort))
     idleCallback $= (Just $ readIORef state >>= (display (mesh level) . viewPort))
+    closeCallback $= (Just $  exitSuccess )
     let timerCallback = do
                             addTimerCallback 5 timerCallback
-                            modifyIORef state $ tick level
+                            modifyIORef state $ tick runtimeObstacles
                             readIORef state >>= (putStrLn . show)
     addTimerCallback 0 timerCallback
     redraw (mesh level) 
@@ -172,7 +180,7 @@ processKeyboard c = case lookup c matricesMoveInPlane of
             Nothing -> case c of
                     'r' -> reset
                     ' ' -> (speed._z %~ (+ (0.01)))
-                    'q' -> const Exceptionlol
+                    'q' -> id --const Exceptionlol
                     _ -> id
 
 processMouse :: Int -> Int -> (Int, Int) -> State -> State
@@ -187,7 +195,7 @@ processMouse width height (x, y) =
 applySpeed :: State -> State
 applySpeed (State pos height nod speed@(V3 x y z)) = State (pos !*! ( moveToTangentVector3 (V2 x y)) ) (height+z) nod speed
 applyGravity :: State -> State
-applyGravity = id--state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - 0.0001/(cosh height)/(cosh height))}
+applyGravity state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - 0.0001/(cosh height)/(cosh height))}
 
 redraw mesh = readIORef currentMatrix >>= G.display mesh
 

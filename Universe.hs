@@ -1,6 +1,6 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric,
-             ScopedTypeVariables #-}
+             ScopedTypeVariables, OverloadedLists #-}
 module Universe (module Hyperbolic, points, {-cameraC, module Projection,
                  viewSegment, module Camera,-}environment, tau, _ends, Segment(..),
                   absoluteCircle, Environment(..), parse, level, startPosMatrix,
@@ -10,6 +10,9 @@ import Control.Applicative
 import Data.List.Split
 import Linear hiding (rotate)
 import System.IO 
+import qualified Prelude as P
+import Prelude hiding (zip, take, drop, zipWith)
+import Data.Sequence
 import Hyperbolic
 import qualified Physics as P
 import Physics hiding (Segment)
@@ -55,24 +58,25 @@ absoluteCircle =
             [Point (sinh 1) (sin t ) (cos t)  (cosh 1) | t <- [0, tau/30 .. tau]]
 
 tunnel :: [Point Double]
-tunnel = concatMap huy (take 100 $ iterate (!*! (moveAlongX (-0.09))) identity)
+tunnel = concatMap huy (P.take 100 $ iterate (!*! (moveAlongX (-0.09))) identity)
     where huy :: M44 Double -> [Point Double]
           huy = (\m -> fmap (_v4 %~ (*! m)) circle)
           circle = [Point (sinh 1) (sin $ t*tau/4) (cos $ t*tau/4)  (cosh 3) | t <- [0..4]]
 spiral :: [Point Double]
 spiral = map (\m -> (Point 0 (sinh 1) 0 (cosh 1)) & _v4 %~ (*! m) ) 
-                  $ take 300 $ iterate (!*!(moveAlongX (0.1) !*! rotateAroundX (tau/10)) ) identity
+                  $ P.take 300 $ iterate (!*!(moveAlongX (0.1) !*! rotateAroundX (tau/10)) ) identity
 environment :: [Segment Double]
 environment = map (\c -> case c of
                           [a, b] -> Segment a b
                           [a] -> Segment a a) (chunksOf 2 tunnel)
 
+colors :: [(Double, Double, Double)]
 colors = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1), (0, 0, 1), (0, 1, 0), (0, 1, 1), (0.5, 0.5, 1)]
-reds = repeat (1,0,0)
-whites = repeat (1,1,1)
+reds = P.repeat (1,0,0)
+whites = P.repeat (1,1,1)
 
 octahedron :: P.Environment (Color3 Double) Double
-octahedron = Env (Mesh $ zip (take 8 $ map (\(x, y, z) -> Color3 x y z) reds) [ TriangleMesh f l u, ( TriangleMesh f d l), TriangleMesh f u r, TriangleMesh f r d,
+octahedron = Env (Mesh $ P.zip (P.take 8 $ P.map (\(x, y, z) -> Color3 x y z) reds) [ TriangleMesh f l u, ( TriangleMesh f d l), TriangleMesh f u r, TriangleMesh f r d,
               TriangleMesh b u l, TriangleMesh b l d, TriangleMesh b r u, TriangleMesh b d r]) $ [ Sphere (Point (sinh 0) 0 0.00 (cosh 0)) (1/2)]
   where f, r, u, b, l, d :: Point Double
         f = (moveAlongX 0 !$) $ Point (sinh w) 0 0 (cosh w)
@@ -89,16 +93,16 @@ octahedron = Env (Mesh $ zip (take 8 $ map (\(x, y, z) -> Color3 x y z) reds) [ 
 --         l1 = Point 0 (sinh (-w)) 0 (cosh w)
 --         d1 = Point 0 0 (sinh (-w)) (cosh w)
 
-pentacles = zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX (cl - 0.0) !$ 
+pentacles = P.zipWith (!$) (P.take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX (cl - 0.0) !$ 
                                                                                             moveAlongZ (-0) !$ origin)
 pentagon c = Env (Mesh $ fmap (\p -> (c, TriangleMesh (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0) !$ origin))) pentacles)
-                 (fmap (\p ->  Triangle (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0) !$ origin) 0) pentacles)
+                 (fmap (\p ->  Triangle (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0) !$ origin) 0) $ fromList pentacles)
 
 --pentagon
 levelFOne =    pentagon (1, 0, 0) `unionEnv` 
-               (foldr unionEnv void $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat yellowPentagon)) `unionEnv`
-               (foldr unionEnv void $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat redPentagon)) `unionEnv`
-               (foldr unionEnv void $ zipWith (!$) (take 4 $ drop 1 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat greenPentagon)) `unionEnv`
+               (foldr unionEnv void $ P.zipWith (!$) (P.take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat yellowPentagon)) `unionEnv`
+               (foldr unionEnv void $ P.zipWith (!$) (P.take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat redPentagon)) `unionEnv`
+               (foldr unionEnv void $ P.zipWith (!$) (P.take 4 $ P.drop 1 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat greenPentagon)) `unionEnv`
                bluePentagon
          --(foldr unionEnv void $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat bluePentagon)) 
 levelF = let dia = (2*cl + 2*bl + 2*al) 
@@ -107,8 +111,10 @@ levelF = let dia = (2*cl + 2*bl + 2*al)
              levelRotatedOnce = (moveAlongX (-radi) !*! rotateAroundZ (tau/5) !*! moveAlongX (radi)) !$ levelFOne
              levelRotatedTwice = (moveAlongX (-radi) !*! rotateAroundZ (tau*2/5) !*! moveAlongX (radi)) !$ levelFOne
          in levelFOne `unionEnv` 
-            (foldr unionEnv void $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat (levelRotatedOnce `unionEnv` levelRotatedTwice)))
-
+            (foldr unionEnv void $ P.zipWith (!$) (P.take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat (levelRotatedOnce `unionEnv` levelRotatedTwice)))
+myIterate 0 f i = i
+myIterate a f i = cons (fmap f $ myIterate (a-1) f i) i
+level :: Environment (Double, Double, Double) Double
 level = levelF --(foldr unionEnv void $ zipWith (!$) (take 50 $ iterate (!*! moveAlongX (al + cl)) identity) (repeat (moveAlongZ (-0.3) !$ pentagon (0, 0, 1))))
 a, b, c, al, bl, cl :: Double
 a = tau/10
@@ -130,11 +136,11 @@ bluePentagon = (moveAlongX (cl) !*! rotateAroundZ (tau*3/5) !*! moveAlongX (-cl)
         
 -- level = foldr unionEnv (Env (Mesh []) []) $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX 1 !$ octahedron)
 
-unionEnv (Env (Mesh l1) l2) (Env (Mesh m1) m2) = Env (Mesh (l1 ++ m1)) (l2 ++ m2) 
+unionEnv (Env (Mesh l1) l2) (Env (Mesh m1) m2) = Env (Mesh (l1 ++ m1)) (l2 >< m2) 
 
 startPosMatrix = identity --V4 (V4 0 0 0 1) (V4 0 1 0 0 ) (V4 0 0 1 0) (V4 1 0 0 (0))
 
-parallelAxiom = Env (Mesh $ zip colors [TriangleMesh a b c, TriangleMesh a b e]) ghost
+parallelAxiom = Env (Mesh $ P.zip colors [TriangleMesh a b c, TriangleMesh a b e]) ghost
           where a = Point 0 (-1)  0 1
                 b = Point  0 1 0 1
                 c = Point (sin (tau/12)) (cos (tau/12)) 0 1

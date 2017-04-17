@@ -1,5 +1,5 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
-             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables #-}
+             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables, BangPatterns #-}
 -- module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
 --                    rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
 --                    pretty, proper, distance, chDistance, adj44, moveTo, invAroundZ, invAroundY, fromV4, toV4 {-FIMXE when learn lens-}, 
@@ -8,7 +8,7 @@
 
 
 module Hyperbolic  where -- x=
-
+   
 
 import Linear hiding (transpose, distance, normalize)
 import Control.Lens
@@ -68,7 +68,7 @@ projective 3-space is sheaf in 4-dimensional vector space.
 Пространство Лобачевского (с идеальными элементами)
 
 В правой системе координат если Ox направлена  вперёд, а Oz вверх, то Oy направлена влево!
--}
+-} 
 
 instance Additive Point where
 
@@ -277,18 +277,25 @@ getPointOnOxToOrigin (Point x y z t) = moveAlongX $ asinh $ (  - x/ sqrt (( (t*t
 -- moveFromTo a b d = 
 
 andThen :: (Num a, Movable m) => (m a -> M44 a) -> (m a -> M44 a) -> m a -> M44 a -- может быть, это какой-нибудь arrows 
-(f `andThen` g) p = g ((f p) !$ p) !*! f p -- безумно неэффективно и вообще пиздец
+((!f) `andThen` (!g)) (!p) = g ((f p) !$ p) !*! f p -- безумно неэффективно и вообще пиздец
 
 andConsideringThat :: (Num a, Movable m) => M44 a -> (m a -> M44 a) -> m a -> M44 a 
-andConsideringThat m f p = f (m !$ p) !*! m
+andConsideringThat !m !f !p = f (m !$ p) !*! m
 
-getTriangleToOxy a b c = (   (   getPointToOxyAroundOx `andThen` 
+-- getTriangleToOxy !a !b !c = (   (   getPointToOxyAroundOx `andThen` 
+--                                  getPointToOxzAroundOz `andThen` 
+--                                  getPointOnOxToOrigin $ a) `andConsideringThat` 
+--                              (   getPointToOxyAroundOx `andThen` 
+--                                  getPointToOxzAroundOz ) ) b `andConsideringThat` 
+--                          getPointToOxyAroundOx $! c
+
+getTriangleToOxy !a !b !c = (   (   getPointToOxyAroundOx `andThen` 
                                  getPointToOxzAroundOz `andThen` 
                                  getPointOnOxToOrigin $ a) `andConsideringThat` 
                              (   getPointToOxyAroundOx `andThen` 
                                  getPointToOxzAroundOz ) ) b `andConsideringThat` 
-                         getPointToOxyAroundOx $ c
-getTriangleToOxyD a b c = (t !$ a, t !$ b, t !$ c) where t = getTriangleToOxy a b c 
+                         getPointToOxyAroundOx $! c
+getTriangleToOxyD !a !b !c = (t !$ a, t !$ b, t !$ c) where t = (getTriangleToOxy a b c) `seq` (getTriangleToOxy a b c)
 
 {- 
 Мы хотим сделать, чтобы все углы треугольника стали на од

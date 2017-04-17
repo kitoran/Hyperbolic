@@ -1,31 +1,33 @@
-{-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds, DuplicateRecordFields, DeriveFunctor #-}
+{-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds, DuplicateRecordFields, DeriveFunctor, BangPatterns #-}
 module Physics where
 
 import Hyperbolic
 import Unsafe.Coerce
 import qualified Debug.Trace
+import Data.Sequence
+import GHC.Exts
 import Control.Lens
 import Linear(M44, (!*!), (!*), (*!), normalizePoint, V3(..), M33)
 
 --текущее положение  матрица куда надо пойти   результат (?) 
 -- correct :: M44 Double -> M44 Double -> M44 Double
 -- correct 
-data State = State { _pos :: M33 Double -- 
-                   , _height :: Double
-                   , _nod :: Double
-                   , _speed :: V3 Double
-                   } | Exceptionlol deriving Show
+data State = State { _pos :: !(M33 Double )-- 
+                   , _height :: !Double
+                   , _nod :: !Double
+                   , _speed :: !(V3 Double)
+                   } deriving Show
 
 $(makeLenses ''State)
 
-currentPosition (State pos height _ _) =  m33_to_m44M pos !*! moveAlongZ height !$ origin
+currentPosition (State (!pos) (!height) _ _) =  m33_to_m44M pos !*! moveAlongZ height !$ origin
 ourSize = 0.1
 
-type Obstacles a = [Obstacle a] 
+type Obstacles a = Seq (Obstacle a)
 data Obstacle a = Sphere !(Point a) a | Triangle !(Point a) !(Point a) !(Point a) !a deriving (Eq, Show,Functor, Read)
 instance Movable Obstacle where
-  tr !$ (Sphere p r) = Sphere (tr !$ p) r
-  tr !$ (Triangle q w e r) = Triangle (tr !$ q) (tr !$ w) (tr !$ e) r
+  (!tr) !$ (Sphere !p !r) = Sphere (tr !$ p) r
+  (!tr) !$ (Triangle !q !w !e !r) = Triangle (tr !$ q) (tr !$ w) (tr !$ e) r
 
 domainRadius :: Double
 domainRadius = acosh (cosh al * cosh bl) 
@@ -70,13 +72,20 @@ projectToOxy (Point q w e r) = V3 q w r
 distanceFromOxy p@(Point x y z t) = distance p (Point x y 0 t)
 moveRightFromTo3 :: V3 Double -> V3 Double -> M33 Double
 moveRightFromTo3 p1@(V3 x1 y1 t1) p2@(V3 x2 y2 t2) = moveRightTo3 p1 !*! moveRightTo3 (transposeMink3 (moveRightTo3 p1) !* p2) !*! transposeMink3 ( moveRightTo3 p1)
-pushOut :: Obstacles Double -> State -> State
-pushOut o = id--s = foldr (\o1 -> pushOutOne o1) s o
+-- pushOut :: Obstacles Double -> State -> State
+-- pushOut o s = foldr (\o1 -> pushOutOne o1) s o
 --            where pushOutOne :: Obstacle Double -> State -> State
 --                  pushOutOne (Sphere center radius) = if far center (_pos s)  then id else ((pushOutSphereO center radius ))
 --                  pushOutOne (Triangle a b c r) = if far a (_pos s) then id else ((pushOutTriangleO a b c r))
 --                  far (Point x y _ t) (m::M33 Double) = let (V3 xr yr tr) = m !* V3 0 0 1 
 --                                          in abs ((x/t) - xr/tr)> 2 ||  abs ((y/t) - yr/tr)> 2
+pushOut :: [RuntimeObstacle Double] -> State -> State
+pushOut o s = foldr (\o1 -> pushOutOne o1) s o
+           where pushOutOne :: RuntimeObstacle Double -> State -> State
+                 pushOutOne (SphereR center radius) = if far center (_pos s)  then id else ((pushOutSphereO center radius ))
+                 pushOutOne (TriangleR m x1 x2 y2 r) = {- far analysis could bw here -}((pushOutTriangleO m x1 x2 y2 r))
+                 far (Point x y _ t) (m::M33 Double) = let (V3 xr yr tr) = m !* V3 0 0 1 
+                                         in abs ((x/t) - xr/tr)> 2 ||  abs ((y/t) - yr/tr)> 2
 
 -- pushOut :: Obstacles -> State -> State 
 -- pushOut o s = foldr (\(OHCQ a) -> pushOutHorizontalCoordinateQuadrilateral a) s o
@@ -94,23 +103,26 @@ pushOut o = id--s = foldr (\o1 -> pushOutOne o1) s o
 --                       (Point 0.5 (-0.5) 0 1)
 --                       (Point (-0.5) 0.5 0 1) 0]--OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 0), OHCQ (HCQ (-0.5) 0.5 (-0.5) 0.5 (-1))]
 
-triangle = pushOutTriangleO (Point 0.5 0.5 0 1) 
-                            (Point 0.25 (-0.5) 0 1)
-                            (Point (-0.5) 0.25 0 1) 0
+-- triangle = pushOutTriangleO (Point 0.5 0.5 0 1) 
+--                             (Point 0.25 (-0.5) 0 1)
+--                             (Point (-0.5) 0.25 0 1) 0
 
 newtype Mesh color coordinate = Mesh [(color, HyperEntity coordinate)] deriving (Eq, Show,Functor, Read)
-data HyperEntity a = TriangleMesh (Point a) (Point a) (Point a) 
-                   | Segment (Point a) (Point a) 
-                   | HPoint (Point a) {- fixme this constructor isnt needed -} deriving (Eq, Show,Functor, Read)
+data HyperEntity a = TriangleMesh !(Point a) !(Point a) !(Point a) 
+                   | Segment !(Point a) !(Point a) 
+                   | HPoint !(Point a) {- fixme this constructor isnt needed -} deriving (Eq, Show,Functor, Read)
 
 instance Movable HyperEntity where
   a !$ (TriangleMesh q w e) = TriangleMesh (a !$ q) (a !$ w) (a !$ e)
   a !$ (Segment q w) = Segment (a !$ q) (a !$ w)
 
-data Environment c a = Env { mesh :: Mesh c a,
-                             obstacles :: Obstacles a} deriving (Eq, Show, Read)
+data Environment c a = Env { mesh :: !(Mesh c a),
+                             obstacles :: !(Obstacles a) } deriving (Eq, Show, Read)
 instance Movable (Environment c) where
   tr !$ Env (Mesh m) ob = Env (Mesh $ fmap (\(c, he) -> (c, tr !$ he)) m) (fmap (tr !$) ob)
+
+
+data RuntimeObstacle a = SphereR !(Point a) a | TriangleR (M44 a) a a a a deriving (Eq, Show,Functor, Read)
 
 -- pushOut :: (RealFloat a, Eq a, Ord a, Show a) => Obstacles a -> M44 a -> M44 a
 -- pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink (pushOutSphereO (fromV4 $ (toV4 center) *! currentPos ) radius )))
@@ -139,8 +151,17 @@ pushOutHorizontalCoordinateQuadrilateral (HCQ xtmin xtmax ytmin ytmax z) s@(Stat
         then if (-height) < (z) then State pos ( ourSize - z) nod (V3 0 0 0) else  State pos ((-ourSize) - z) nod (V3 0 0 0) 
         else s-- podumay so znakami
 
-
-
+computeObs :: Obstacles Double -> [RuntimeObstacle Double]
+computeObs a = map tr $ toList a 
+  where
+    tr (Sphere q w) = SphereR q w
+    tr (Triangle a b c r) 
+     = TriangleR m x1 x2 y2 r
+      where
+        m = getTriangleToOxy a b c 
+        V3 x1 _ _ = normalizePoint (toV4 $ m !$ b)
+        V3 x2 y2 _ = normalizePoint (toV4 $ m !$ c) 
+--                                 
 pushOutSphereO :: Point Double -> Double -> State -> State
 pushOutSphereO m r s = let 
                         diff = r - distance origin (currentPosition s)
@@ -155,28 +176,51 @@ traceP s v = Debug.Trace.trace (s ++ show (unsafeCoerce s::Point Double)) v
 -- nearestPoint :: (Floating a, Eq a, Ord a) => Point a -> Point a -> Point a -> Point a
 -- nearestPoint a b c = toV4 
 
-pushOutTriangleO :: Point Double -> Point Double -> Point Double -> Double -> State -> State
-pushOutTriangleO a b c r s = let 
+-- pushOutTriangleO :: Point Double -> Point Double -> Point Double -> Double -> State -> State
+-- pushOutTriangleO !a !b !c !r !s = let 
+--                             -- newb = getTriangleToOxy a b c !$ b
+--                                 newO = m !$ currentPosition s
+--                                 -- newc = getTriangleToOxy a b c !$ c
+--                                 projOfNewO = let (Point x y z t) = newO in  (Point (x/t) (y/t) 0 1)
+--                                 diff = r - distance newO projOfNewO 
+--                                 m = getTriangleToOxy a b c 
+--                                 notm = transposeMink m
+--                                in
+--                                 case normalizePoint (toV4 projOfNewO) of { V3 x y _ ->
+--                                 case normalizePoint (toV4 $ m !$ b) of { V3 x1 _ _ ->
+--                                 case normalizePoint (toV4 $ m !$ c) of { V3 x2 y2 _ ->
+--                                 let
+--                                   inside = (-y2*x) +(x2-x1)*y+x1*y2 > 0 && y > 0 && x/y > x2/y2
+--                                 in
+--                                  if inside && diff > (-ourSize) 
+--                                   then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (trace "diff: " r + ourSize) !$ (notm !$ projOfNewO)) s 
+--                                   else s
+--                                   } } }
+
+pushOutTriangleO :: M44 Double -> Double -> Double -> Double -> Double -> State -> State
+pushOutTriangleO !m !x1 !x2 !y2 !r !s = let 
                             -- newb = getTriangleToOxy a b c !$ b
                                 newO = m !$ currentPosition s
                                 -- newc = getTriangleToOxy a b c !$ c
                                 projOfNewO = let (Point x y z t) = newO in  (Point (x/t) (y/t) 0 1)
                                 diff = r - distance newO projOfNewO 
-                                m = getTriangleToOxy a b c 
-                                inside = (-y2*x) +(x2-x1)*y+x1*y2 > 0 && y > 0 && x/y > x2/y2
-                                V3 x y _ = normalizePoint (toV4 projOfNewO)
-                                V3 x1 _ _ = normalizePoint (toV4 $ m !$ b)
-                                V3 x2 y2 _ = normalizePoint (toV4 $ m !$ c)
                                 notm = transposeMink m
-                               in if inside && diff > (-ourSize) 
+                               in
+                                case normalizePoint (toV4 projOfNewO) of { V3 x y _ ->
+                                let
+                                  inside = (-y2*x) +(x2-x1)*y+x1*y2 > 0 && y > 0 && x/y > x2/y2
+                                in
+                                 if inside && diff > (-ourSize) 
                                   then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (trace "diff: " r + ourSize) !$ (notm !$ projOfNewO)) s 
                                   else s
+                                  } 
+
 
 --debug :: HasCallStack
-debug = pushOutTriangleO  (moveAlongX 0.3 !$ (Point 0 (-sinh 3) (-sinh 3) 14.202662994046431)) 
-                          (moveAlongX 0.3 !$ (Point 0 (sinh 3) (-sinh 3) 14.202662994046431)) 
-                          (moveAlongX 0.3 !$ Point 0 0 (sinh 3) (cosh 3)) 
-                          3
+-- debug = pushOutTriangleO  (moveAlongX 0.3 !$ (Point 0 (-sinh 3) (-sinh 3) 14.202662994046431)) 
+--                           (moveAlongX 0.3 !$ (Point 0 (sinh 3) (-sinh 3) 14.202662994046431)) 
+--                           (moveAlongX 0.3 !$ Point 0 0 (sinh 3) (cosh 3)) 
+--                           3
 
 -- pushOutTriangle :: (Floating a, Eq a, Ord a, Show a) => Point a -> Point a -> Point a -> Point a -> M44 a
 -- pushOutTriangle b k r p = 
