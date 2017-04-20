@@ -79,7 +79,8 @@ executable Hyperbolic
                      , random
                      , OpenGL
                      , containers
-  
+                     , FTGL
+                     , console-program  
   -- Directories containing source files.
   -- hs-source-dirs:      
   

@@ -8,7 +8,7 @@ module Universe (module Hyperbolic, points, {-cameraC, module Projection,
 --import Projection
 import Control.Applicative
 import Data.List.Split
-import Linear hiding (rotate)
+import Linear hiding (rotate, distance)
 import System.IO 
 import qualified Prelude as P
 import Prelude hiding (zip, take, drop, zipWith)
@@ -182,39 +182,39 @@ sinDIv = sin (3*tau/20) / sin (tau/6)
 dodecahedralAngle :: Double
 dodecahedralAngle = 2 * acos sinDIv
 
-dodecahedralPointFront = moveAlongX dodecahedralValue !$ origin
+dodecahedralPointFront x = moveAlongX x !$ origin
 
-dodecahedralPointSecondUp = rotateAroundY dodecahedralAngle !$ dodecahedralPointFront
+dodecahedralPointSecondUp x = rotateAroundY dodecahedralAngle !$ dodecahedralPointFront x
 
-dodecahedralPointsSecond = [rotateAroundX a !$ dodecahedralPointSecondUp | a <- [0, tau/3, negate tau/3]]
+dodecahedralPointsSecond x = [rotateAroundX a !$ dodecahedralPointSecondUp x | a <- [0, tau/3, negate tau/3]]
 
-dodecahedralPointThirdUpLeft = rotateAroundY dodecahedralAngle !$ (rotateAroundX (tau/6)) !$ dodecahedralPointSecondUp
-dodecahedralPointThirdUpRight = rotateAroundY dodecahedralAngle !$ (rotateAroundX (negate tau/6)) !$ dodecahedralPointSecondUp
+dodecahedralPointThirdUpLeft x = rotateAroundY dodecahedralAngle !$ (rotateAroundX (tau/6)) !$ dodecahedralPointSecondUp x
+dodecahedralPointThirdUpRight x = rotateAroundY dodecahedralAngle !$ (rotateAroundX (negate tau/6)) !$ dodecahedralPointSecondUp x
 
-dodecahedralPointsThirdUp = [rotateAroundY dodecahedralAngle !$ rotateAroundX a !$ rotateAroundY (-dodecahedralAngle) !$ dodecahedralPointFront | a <- [tau/3, negate tau/3]]
+dodecahedralPointsThirdUp x = [rotateAroundY dodecahedralAngle !$ rotateAroundX a !$ rotateAroundY (-dodecahedralAngle) !$ dodecahedralPointFront x | a <- [tau/3, negate tau/3]]
 
 --dodecahedralPointsThirdUp = [rotateAroundY dodecahedralAngle !$ rotateAroundX a !$ dodecahedralPointSecondUp | a <- [tau/6, negate tau/6]]
 
-dodecahedralPointsThird = do
-  point <- dodecahedralPointsThirdUp
+dodecahedralPointsThird x = do
+  point <- dodecahedralPointsThirdUp x
   a <- [0, tau/3, negate tau/3]
   return $ rotateAroundX a !$ point
 
-dodecahedralEdgeUpFirst = P.Segment dodecahedralPointFront dodecahedralPointSecondUp
+dodecahedralEdgeUpFirst x = P.Segment (dodecahedralPointFront x) (dodecahedralPointSecondUp x)
 
-dodecahedralEdgesUpSecond = [P.Segment dodecahedralPointSecondUp a | a <- dodecahedralPointsThirdUp]
+dodecahedralEdgesUpSecond x = [P.Segment (dodecahedralPointSecondUp x) a | a <- (dodecahedralPointsThirdUp x)]
  
-dodecahedralEdgeDownThird = P.Segment (rotateAroundX (tau/3) !$ dodecahedralPointThirdUpLeft) (rotateAroundX (negate tau/3) !$ dodecahedralPointThirdUpRight)
+dodecahedralEdgeDownThird x = P.Segment (rotateAroundX (tau/3) !$ (dodecahedralPointThirdUpLeft x)) (rotateAroundX (negate tau/3) !$ (dodecahedralPointThirdUpRight x))
 
-dodecahedralEdgeUpLeftFouth = P.Segment dodecahedralPointThirdUpLeft (reflectAboutOrigin !$ rotateAroundX (negate tau/3) !$ dodecahedralPointThirdUpRight)
+dodecahedralEdgeUpLeftFouth x = P.Segment (dodecahedralPointThirdUpLeft x) (reflectAboutOrigin !$ rotateAroundX (negate tau/3) !$ (dodecahedralPointThirdUpRight x))
 
-dodecahedron :: [HyperEntity Double]
-dodecahedron = do
+dodecahedron  :: Double -> [HyperEntity Double]
+dodecahedron x = do
   edge <- sixth
   involution <- [id, (reflectAboutOrigin !$)]
   rotation <- [id, (rotateAroundX (tau/3) !$), (rotateAroundX (negate tau/3) !$)]
   return $ involution $ rotation edge
- where sixth = [dodecahedralEdgeUpFirst] ++ dodecahedralEdgesUpSecond ++ [dodecahedralEdgeDownThird, dodecahedralEdgeUpLeftFouth]
+ where sixth = [dodecahedralEdgeUpFirst x] ++ dodecahedralEdgesUpSecond x ++ [dodecahedralEdgeDownThird x, dodecahedralEdgeUpLeftFouth x]
 
 
 
@@ -228,39 +228,39 @@ dodecahedron = do
 -- dodecahedron :: [HyperEntity Double]
 -- dodecahedron = [HPoint $ Point a b c 2 | let w = [1, -1] , a <- w, b<-w, c <- w] 
 
-dodecahedronEnv1 :: (Double, Double, Double) -> Environment (Double, Double, Double) Double
-dodecahedronEnv1 (r, g, b) = Env (Mesh $ fmap (\a -> ((r, g, b), a)) dodecahedron) ghost
+dodecahedronEnv1 :: Double -> (Double, Double, Double) -> Environment (Double, Double, Double) Double
+dodecahedronEnv1 x (r, g, b) = Env (Mesh $ fmap (\a -> ((r, g, b), a)) (dodecahedron x)) ghost
 -- (255/255, 171/255, 11/255)
 
-dodecahedronEnv2 :: Environment (Double, Double, Double) Double
-dodecahedronEnv2 = rotate dodecahedralPointFront dodecahedralPointSecondUp (tau/5) !$ Env (Mesh $ fmap (\a -> ((0/255, 171/255, 255/255), a)) dodecahedron) ghost
+dodecahedronEnv2 :: Double -> Environment (Double, Double, Double) Double
+dodecahedronEnv2 x = rotate (dodecahedralPointFront x) (dodecahedralPointSecondUp x) (tau/5) !$ Env (Mesh $ fmap (\a -> ((0/255, 171/255, 255/255), a)) (dodecahedron x)) ghost
 
-dodecahedronEnv = dodecahedronEnv2 `unionEnv` (dodecahedronEnv1 (255/255, 171/255, 11/255))
+dodecahedronEnv x = dodecahedronEnv2 x `unionEnv` (dodecahedronEnv1 x (255/255, 171/255, 11/255))
 
-dodecahedronSolid :: [Obstacle Double]
-dodecahedronSolid = do
+dodecahedronSolid :: Double -> [Obstacle Double]
+dodecahedronSolid x = do
   triangle <- sixth
   involution <- [id , (reflectAboutOrigin !$)]
   rotation <- [id , (rotateAroundX (tau/3) !$), (rotateAroundX (negate tau/3) !$)]
   return $ involution $ rotation triangle
  where pentagon :: [Obstacle Double]
        pentagon = [
-                     Triangle dodecahedralPointFront dodecahedralPointSecondUp dodecahedralPointThirdUpLeft 0.01
-                   , Triangle dodecahedralPointFront dodecahedralPointThirdUpLeft point 0.01
-                   , Triangle dodecahedralPointFront point (rotateAroundX (tau/3) !$ dodecahedralPointSecondUp) 0.01
+                     Triangle (dodecahedralPointFront x) (dodecahedralPointSecondUp x) (dodecahedralPointThirdUpLeft x) 0.01
+                   , Triangle (dodecahedralPointFront x) (dodecahedralPointThirdUpLeft x) point 0.01
+                   , Triangle (dodecahedralPointFront x) point (rotateAroundX (tau/3) !$ (dodecahedralPointSecondUp x)) 0.01
                    ]
-       sixth = pentagon ++ fmap (rotate origin dodecahedralPointSecondUp (negate tau/3) !$) pentagon
-       point = (rotateAroundX (tau/3) !$ dodecahedralPointThirdUpRight)
+       sixth = pentagon ++ fmap (rotate origin (dodecahedralPointSecondUp x) (negate tau/3) !$) pentagon
+       point = (rotateAroundX (tau/3) !$ (dodecahedralPointThirdUpRight x)) 
 
-dodecahedronSolidEnv = Env (Mesh $ fmap (\(Triangle q w e _) -> ((205/255, 121/255, 0/255), TriangleMesh q w e)) dodecahedronSolid)
-                           (fromList dodecahedronSolid)
+dodecahedronSolidEnv x = Env (Mesh $ fmap (\(Triangle q w e _) -> ((205/255, 121/255, 0/255), TriangleMesh q w e)) (dodecahedronSolid x))
+                           (fromList (dodecahedronSolid x))
 
 
 instance Monoid (Environment a b) where
   mempty = Env (Mesh []) []
   mappend = unionEnv
 
-spiralCase = foldMap (\a -> moveAlongZ (a/160) !$ rotateAroundZ (tau*a/39.7) !$ triangle) ([-40..40] :: [Double]) 
+spiralCase = foldMap (\a -> moveAlongZ (a/160) !$ rotateAroundZ (tau*a/39.7) !$ triangle) ([260..(350)] :: [Double]) 
   where triangle = Env (Mesh [((255/255, 171/255, 11/255), TriangleMesh p0 p1 p2), 
                               ((255/255, 171/255, 11/255), TriangleMesh p3 p1 p2), 
                               ((0, 0, 0), P.Segment p0 p1),
@@ -273,5 +273,13 @@ spiralCase = foldMap (\a -> moveAlongZ (a/160) !$ rotateAroundZ (tau*a/39.7) !$ 
         p1 = moveAlongX 0.6 !$ origin
         p2 = rotateAroundZ (tau/39.7) !$ p0
         p3 = rotateAroundZ (tau/39.7) !$ p1
+motion = moveAlongX (-value) !*! rotateAroundZ (-angle) !*! toO
+  where 
+    toO = getTriangleToOxy (dodecahedralPointSecondUp dodecahedralValue) (dodecahedralPointFront dodecahedralValue) (dodecahedralPointThirdUpLeft dodecahedralValue)  
+    value = distance (origin) (Point x1 y1 0 t1)
+    Point x1 y1 _ t1 = (toO !$ origin)
+    angle = (atan2 y x)/2
+    Point x y _ _ = toO !$ (dodecahedralPointThirdUpLeft dodecahedralValue)  
+
 level :: Environment (Double, Double, Double) Double
-level = spiralCase `unionEnv` dodecahedronEnv1 (0,0,0) `unionEnv` dodecahedronSolidEnv --(foldr unionEnv void $ zipWith (!$) (take 50 $ iterate (!*! moveAlongX (al + cl)) identity) (repeat (moveAlongZ (-0.3) !$ pentagon (0, 0, 1))))
+level = spiralCase `unionEnv` (motion !$ dodecahedronEnv1 (dodecahedralValue - 0.01) (0,0,0)) `unionEnv` (motion !$ dodecahedronEnv1 (dodecahedralValue + 0.01) (0,0,0)) `unionEnv` (motion !$ dodecahedronSolidEnv dodecahedralValue) --(foldr unionEnv void $ zipWith (!$) (take 50 $ iterate (!*! moveAlongX (al + cl)) identity) (repeat (moveAlongZ (-0.3) !$ pentagon (0, 0, 1))))

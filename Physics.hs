@@ -165,7 +165,7 @@ computeObs a = map tr $ toList a
 pushOutSphereO :: Point Double -> Double -> State -> State
 pushOutSphereO m r s = let 
                         diff = r - distance origin (currentPosition s)
-                       in  if (trace ("diff:" ++ show (unsafeCoerce diff::Double)) diff) > 0 then decompose (moveFromTo m (currentPosition s) r !$m) s else s
+                       in  if diff > 0 then decompose (moveFromTo m (currentPosition s) r !$m) s else s
 
 trace :: String -> a -> a
 trace s v = Debug.Trace.trace (s ++ show (unsafeCoerce s::Double)) v
@@ -211,7 +211,7 @@ pushOutTriangleO !m !x1 !x2 !y2 !r !s = let
                                   inside = (-y2*x) +(x2-x1)*y+x1*y2 > 0 && y > 0 && x/y > x2/y2
                                 in
                                  if inside && diff > ((-ourSize) +0.00001)
-                                  then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (trace "diff: " r + ourSize) !$ (notm !$ projOfNewO)) s 
+                                  then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (r + ourSize) !$ (notm !$ projOfNewO)) s 
                                   else s
                                   } 
 

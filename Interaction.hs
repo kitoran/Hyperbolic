@@ -9,8 +9,13 @@ import Control.Monad(when)
 import Control.Applicative(liftA2, liftA3)
 import Data.List((++))
 import System.Environment
+import System.Console.Program
+import System.Console.Argument
+import System.Console.Command
 import qualified Universe
+import Control.Concurrent
 import Graphics.UI.GLUT as GL
+import Graphics.UI.GLUT
     (    Size(Size)
     ,    get
     ,    screenSize
@@ -24,6 +29,7 @@ import Graphics.UI.GLUT as GL
     ,    mainLoop
     ,    addTimerCallback
     ,    closeCallback
+    ,    leaveMainLoop
     )
 import Linear (
                (!*)
@@ -82,18 +88,15 @@ import Hyperbolic
         -- , m33_to_m44M
         -- )
 -- import Behaviour
-import Graphics as G (initialiseGraphics, display) 
+import Graphics as G (initialiseGraphics, displayGame, displayConsole) 
 import DebugTH(prettyR, prettyV)
 --import Physics
 import Physics
 import System.Exit
 import GHC.TypeLits
 import System.Exit
---the unsafePerformIO hack выглядит понятнее гораздо, чем FRP. Можно передавать состояние, конечно, параметрами, но мы этого делать не будем (пока, может потом)
 
-currentAngle :: IORef Double
-currentAngle = unsafePerformIO $ newIORef (0)
-
+bound :: Double -> Double -> Double -> Double
 bound low high x 
   | x < low = low
   | x < high = x
@@ -102,8 +105,8 @@ bound low high x
 startState :: State
 startState = State identity 0.1 0 (V3 0.0 0 0)
 
-tick :: [RuntimeObstacle Double] -> State -> State
-tick level = (\s@(State pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (level) . applyGravity . applySpeed
+tick :: Double -> [RuntimeObstacle Double] -> State -> State
+tick gravity level = (\s@(State pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (level) . applyGravity gravity . applySpeed
 
 matricesMoveInPlane :: Floating a => [(Char, a -> M33 a)]
 matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3 ), ('s', moveAlongX3 . negate), 
@@ -119,19 +122,23 @@ main = do
      --   [] -> putStrLn "нужен аргумент - файл с уровнем" >> exitFailure 
      --   a:_ -> return a ) >>= readFile
     initialiseGraphics
-    -- (addKeyboard, fireKeyboard) <- (newAddHandler::IO (AddHandler Char, Handler Char))
-    -- (addMouse, fireMouse) <- (newAddHandler::IO (AddHandler (Int, Int), Handler (Int, Int)))
-    -- (addDisplay, fireDisplay) <- (newAddHandler::IO (AddHandler (), Handler ()))
-    -- (addTimer, fireTimer) <- (newAddHandler::IO (AddHandler (), Handler ()))
+    GL.actionOnWindowClose $= GL.MainLoopReturns
     last <- newIORef $ UTCTime (toEnum 0) 1
     (Size width' height') <- get screenSize 
     let width = fromIntegral width'
     let height = fromIntegral height' 
     state <- newIORef $ startState {_speed = V3 0.0 0 0.000}
-    -- let network = networkDescription level (width, height) addKeyboard addMouse addDisplay addTimer
-    -- compile network >>= actuate 
+    consoleShown <- newIORef $ False
     keyboardCallback $= (Just $ \a _ -> case a of
-                       'q' -> exitSuccess 
+                       'q' -> leaveMainLoop 
+                       'c' -> do
+                               con <- readIORef consoleShown
+                               print con
+                               if con then displayCallback $= displayConsole else displayCallback $= do
+                                                                                                        state' <- readIORef state
+                                                                                                        con <- readIORef consoleShown
+                                                                                                        displayGame (mesh level) (viewPort state') 
+                               modifyIORef consoleShown not
                        _   -> modifyIORef state $ processKeyboard a)
     passiveMotionCallback $= (Just $ (\(Position x y) -> do
         last' <- readIORef last
@@ -141,23 +148,35 @@ main = do
              writeIORef last now 
              modifyIORef state $ processMouse width height (fromEnum x, fromEnum y)
              pointerPosition $= (Position (width'`div`2) (height'`div`2))
-             readIORef state >>= (display (mesh level) . viewPort))
+             state' <- readIORef state
+             con <- readIORef consoleShown
+             displayGame (mesh level) (viewPort state') )
         ))
-    displayCallback $= (readIORef state >>= (display (mesh level) . viewPort))
-    idleCallback $= (Just $ readIORef state >>= (display (mesh level) . viewPort))
+    displayCallback $= do
+        state' <- readIORef state
+        con <- readIORef consoleShown
+        displayGame (mesh level) (viewPort state') 
+    idleCallback $= (Just $ do
+        state' <- readIORef state
+        con <- readIORef consoleShown
+        displayGame (mesh level) (viewPort state') )
     closeCallback $= (Just $ exitSuccess )
+    graviryVar <- newIORef 0.0002
     let timerCallback = do
                             addTimerCallback 5 timerCallback
-                            modifyIORef state $ tick runtimeObstacles
-                            readIORef state >>= (putStrLn . show)
+                            gravity <- readIORef graviryVar
+                            modifyIORef state $ tick gravity runtimeObstacles
+--                            readIORef state >>= (putStrLn . show)
     addTimerCallback 0 timerCallback
-    -- fireMouse (width`div`2, height`div`2)
-    -- fireMouse (width`div`2, height`div`2)
-    -- fireMouse (width`div`2, height`div`2)
-    -- fireMouse (width`div`2, height`div`2)
-
     pointerPosition $= (Position (width'`div`2) (height'`div`2))
+    forkIO (interactive (Node ( Command "" "" (io (return ())) True) [Node (setGravity graviryVar) []]))
     mainLoop
+    return () 
+
+setGravity :: IORef Double -> Command IO
+setGravity graviryVar = command "setGravity" "setGravity set gravity" action 
+    where
+        action = withNonOption string (\s -> io (writeIORef graviryVar (read s)))
 
 viewPort :: State -> M44 Double
 viewPort (State pos height nod _) = rotateAroundY (-nod) !*! moveAlongZ (-height) !*! (m33_to_m44M $ transposeMink3 pos)
@@ -179,7 +198,6 @@ processKeyboard c = case lookup c matricesMoveInPlane of
             Nothing -> case c of
                     'r' -> reset
                     ' ' -> (speed._z %~ (+ (0.01)))
-                    'q' -> id --const Exceptionlol
                     _ -> id
 
 processMouse :: Int -> Int -> (Int, Int) -> State -> State
@@ -193,8 +211,8 @@ processMouse width height (x, y) =
 --   let rotateDelta = fmap (\(p) -> rotate3 p) (fmap (fst) $ toGradi <$> mouseDelta)
 applySpeed :: State -> State
 applySpeed (State pos height nod speed@(V3 x y z)) = State (pos !*! ( moveToTangentVector3 (V2 x y)) ) (height+z) nod speed
-applyGravity :: State -> State
-applyGravity state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - 0.0002/(cosh height)/(cosh height))}
+applyGravity :: Double -> State -> State
+applyGravity gravity state@(State pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - gravity/(cosh height)/(cosh height))}
 
 
 -- processEvent :: Event a -> IO ()

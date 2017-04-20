@@ -38,15 +38,19 @@ import Data.Coerce
 import System.Random
 import Control.Lens
 -- import Data.Coerce
+import Graphics.Rendering.FTGL
 
-
+import Graphics.Rendering.OpenGL.GL.CoordTrans (loadIdentity)
 import Unsafe.Coerce
 --import DebugTH
 --import Control.Lens
 -- --import Debug.Trace 
+--В этом модуле находится столько всякой нефункциональности, что от двух маленьких unsafeperformio вреда не будет особого
 
-initialiseGraphics :: IO ()
+
+initialiseGraphics ::  IO ()
 initialiseGraphics = do
+
     _ <- getArgsAndInitialize
     _window <- createWindow "Hyperbolic"
     initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered]
@@ -58,6 +62,11 @@ initialiseGraphics = do
     -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) 
     -- colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
     fullScreen
+    mainLoopEvent
+    (Size x y) <- get screenSize
+    print (Size x y)
+    -- consoleSubWindow <- createSubWindow _window (Position 0 (y-300)) (Size x 300)
+    currentWindow $= Just _window
     depthFunc $= Just Lequal
     depthBounds $= Nothing
     lineSmooth $= Enabled
@@ -65,32 +74,39 @@ initialiseGraphics = do
     cursor $= None
     perspective 45 (1024/600) (0.01) 1
     lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
-
+ --   return (displayGame _window, 
 
 toFrame::Floating a => Mesh c a -> [Point a]
 toFrame (Mesh []) = []
 toFrame (Mesh ((_, TriangleMesh x y z):xs) ) = x:y:y:z:z:x:(toFrame (Mesh xs ))
 toFrame (Mesh ((_, Segment x y):xs) ) = x:y:(toFrame (Mesh xs ))
 
-display ::forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a) =>  Mesh (c, c, c) a -> M44 a -> DisplayCallback
-display (Mesh env) tran = do
+displayConsole = do
+  clear [ColorBuffer, DepthBuffer]
+  loadIdentity
+  ortho2D 0 1024 0 600
+  color $ Color3 0 0 (0::GLdouble)
+  renderPrimitive Quads $ do
+    vertex $ Vertex2 (0::GLdouble) 0
+    vertex $ Vertex2 (0::GLdouble) 200
+    vertex $ Vertex2 1024 (200::GLdouble)
+    vertex $ Vertex2 1024 (0::GLdouble)
+  font <- createTextureFont "UbuntuMono-R.ttf"  
+  setFontFaceSize font 24 72
+  color $ Color3 1 1 (1::GLdouble)
+  renderFont font "Hrkko" Graphics.Rendering.FTGL.Front 
+  loadIdentity
+  perspective 45 (1024/600) (0.01) 1
+  lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
+  swapBuffers
+
+displayGame :: forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a)
+                                         =>  Mesh (c, c, c) a -> M44 a -> IO ()
+displayGame (Mesh env) tran = do
   clear [ColorBuffer, DepthBuffer]
   color $ Color3 0 0 (0::GLdouble)
   mapM_ ( toRaw) env
   color $ Color3 1 1 (1::GLdouble)
-  -- renderPrimitive Lines $ do
-  --    let r = 1
-  --        g = 1
-  --        b = 1
-  --    -- g <- 1
-  --    -- b <- 1
-  --    color $ Color3 r g (b::GLdouble)
-  --    -- let randC = do
-  --    --             r <- randomIO
-  --    --             g <- randomIO
-  --    --             b <- randomIO
-  --    --             color $ Color3 r g (b::GLdouble)
-  --    mapM_ ( transform ) $ toFrame (Mesh env)
   swapBuffers
     where toRaw :: ((c, c, c), HyperEntity a) -> IO ()
           toRaw (col, (TriangleMesh a b c)) = do
