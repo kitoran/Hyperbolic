@@ -114,6 +114,7 @@ executable Hyperbolic-prof
       -fprof-auto
       -rtsopts
       "-with-rtsopts=-N -p -s -i0.1"
+ -- -fno-state-hack 
   -- {- -fdefer-type-errors -} 
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.8 
@@ -127,6 +128,7 @@ executable Hyperbolic-prof
                      , random
                      , OpenGL
                      , containers
+                     , console-program
   
   -- Directories containing source files.
   -- hs-source-dirs:      

@@ -38,7 +38,7 @@ import Data.Coerce
 import System.Random
 import Control.Lens
 -- import Data.Coerce
-import Graphics.Rendering.FTGL
+-- import Graphics.Rendering.FTGL
 
 import Graphics.Rendering.OpenGL.GL.CoordTrans (loadIdentity)
 import Unsafe.Coerce
@@ -81,24 +81,24 @@ toFrame (Mesh []) = []
 toFrame (Mesh ((_, TriangleMesh x y z):xs) ) = x:y:y:z:z:x:(toFrame (Mesh xs ))
 toFrame (Mesh ((_, Segment x y):xs) ) = x:y:(toFrame (Mesh xs ))
 
-displayConsole = do
-  clear [ColorBuffer, DepthBuffer]
-  loadIdentity
-  ortho2D 0 1024 0 600
-  color $ Color3 0 0 (0::GLdouble)
-  renderPrimitive Quads $ do
-    vertex $ Vertex2 (0::GLdouble) 0
-    vertex $ Vertex2 (0::GLdouble) 200
-    vertex $ Vertex2 1024 (200::GLdouble)
-    vertex $ Vertex2 1024 (0::GLdouble)
-  font <- createTextureFont "UbuntuMono-R.ttf"  
-  setFontFaceSize font 24 72
-  color $ Color3 1 1 (1::GLdouble)
-  renderFont font "Hrkko" Graphics.Rendering.FTGL.Front 
-  loadIdentity
-  perspective 45 (1024/600) (0.01) 1
-  lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
-  swapBuffers
+-- displayConsole = do
+--   clear [ColorBuffer, DepthBuffer]
+--   loadIdentity
+--   ortho2D 0 1024 0 600
+--   color $ Color3 0 0 (0::GLdouble)
+--   renderPrimitive Quads $ do
+--     vertex $ Vertex2 (0::GLdouble) 0
+--     vertex $ Vertex2 (0::GLdouble) 200
+--     vertex $ Vertex2 1024 (200::GLdouble)
+--     vertex $ Vertex2 1024 (0::GLdouble)
+--   font <- createTextureFont "UbuntuMono-R.ttf"  
+--   setFontFaceSize font 24 72
+--   color $ Color3 1 1 (1::GLdouble)
+--   renderFont font "Hrkko" Graphics.Rendering.FTGL.Front 
+--   loadIdentity
+--   perspective 45 (1024/600) (0.01) 1
+--   lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
+--   swapBuffers
 
 displayGame :: forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a)
                                          =>  Mesh (c, c, c) a -> M44 a -> IO ()

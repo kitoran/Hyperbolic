@@ -202,7 +202,7 @@ pushOutTriangleO !m !x1 !x2 !y2 !r !s = let
                             -- newb = getTriangleToOxy a b c !$ b
                                 newO = m !$ currentPosition s
                                 -- newc = getTriangleToOxy a b c !$ c
-                                projOfNewO = let (Point x y z t) = newO in  (Point (x/t) (y/t) 0 1)
+                                projOfNewO = let (Point x y z t) = newO in  (Point (x) (y) 0 t)
                                 diff = r - distance newO projOfNewO 
                                 notm = transposeMink m
                                in

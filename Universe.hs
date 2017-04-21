@@ -281,5 +281,26 @@ motion = moveAlongX (-value) !*! rotateAroundZ (-angle) !*! toO
     angle = (atan2 y x)/2
     Point x y _ _ = toO !$ (dodecahedralPointThirdUpLeft dodecahedralValue)  
 
-level :: Environment (Double, Double, Double) Double
-level = spiralCase `unionEnv` (motion !$ dodecahedronEnv1 (dodecahedralValue - 0.01) (0,0,0)) `unionEnv` (motion !$ dodecahedronEnv1 (dodecahedralValue + 0.01) (0,0,0)) `unionEnv` (motion !$ dodecahedronSolidEnv dodecahedralValue) --(foldr unionEnv void $ zipWith (!$) (take 50 $ iterate (!*! moveAlongX (al + cl)) identity) (repeat (moveAlongZ (-0.3) !$ pentagon (0, 0, 1))))
+-- level :: Environment (Double, Double, Double) Double
+-- level = spiralCase `unionEnv` (motion !$ dodecahedronEnv1 (dodecahedralValue - 0.01) (0,0,0)) `unionEnv` (motion !$ dodecahedronEnv1 (dodecahedralValue + 0.01) (0,0,0)) `unionEnv` (motion !$ dodecahedronSolidEnv dodecahedralValue) --(foldr unionEnv void $ zipWith (!$) (take 50 $ iterate (!*! moveAlongX (al + cl)) identity) (repeat (moveAlongZ (-0.3) !$ pentagon (0, 0, 1))))
+
+level  :: Environment (Double, Double, Double) Double
+level = Env (Mesh [(red, TriangleMesh p0 p1 p2)]) ([Triangle p0 p1 p2 0.01])
+  where p0 = Point 1.0 0.0 0.0 2.0
+        p1 = rotateAroundZ (tau/3) !$ p0
+        p2 = rotateAroundZ (-tau/3) !$ p0
+        red = (1.0, 0.0, 0.0)
+
+square = Env (Mesh [(red, TriangleMesh p0 p1 p2), (red, TriangleMesh p0 p2 p3)]) ([Triangle p0 p1 p2 0.01, Triangle p0 p2 p3 0.01])
+  where p = Point 1.0 0.0 0.0 2.0
+        p0 = rotateAroundZ (tau/8) !$ p
+        p1 = rotateAroundZ (tau/4) !$ p0
+        p2 = rotateAroundZ (tau/2) !$ p0
+        p3 = rotateAroundZ (-tau/4) !$ p0
+        red = (1.0, 0.0, 0.0)
+
+line ::  Environment (Double, Double, Double) Double
+line = foldMap (\a -> moveAlongX (len*a) !$ square ) ([0..200] :: [Double])
+    where p0 = Point 1.0 0.0 0.0 2.0
+          p1 = rotateAroundZ (tau/4) !$ p0
+          len = distance p0 p1
