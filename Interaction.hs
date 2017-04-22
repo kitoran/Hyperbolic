@@ -91,7 +91,6 @@ import Hyperbolic
         -- )
 -- import Behaviour
 import Graphics as G (initialiseGraphics, displayGame, {-displayConsole-}) 
-import DebugTH(prettyR, prettyV)
 --import Physics
 import Physics
 import System.Exit
@@ -177,11 +176,11 @@ main = do
 --                            readIORef state >>= (putStrLn . show)
     addTimerCallback 0 timerCallback
     pointerPosition $= (Position (width'`div`2) (height'`div`2))
-    forkIO (interactive (Node ( Command "" "" (io (return ())) True) [Node (setGravity graviryVar) [], 
-                                                                      Node (loadLevel obsRef meshRef) [], 
-                                                                      Node (setStep stepRef) [], 
-                                                                      Node (setJump jumpRef) []
-                                                                      ]))
+    -- forkIO (interactive (Node ( Command "" "" (io (return ())) True) [Node (setGravity graviryVar) [], 
+    --                                                                   Node (loadLevel obsRef meshRef) [], 
+    --                                                                   Node (setStep stepRef) [], 
+    --                                                                   Node (setJump jumpRef) []
+    --                                                                   ]))
     mainLoop
     return () 
 

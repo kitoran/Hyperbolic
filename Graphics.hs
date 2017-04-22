@@ -62,9 +62,9 @@ initialiseGraphics = do
     -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) 
     -- colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
     fullScreen
-    mainLoopEvent
-    (Size x y) <- get screenSize
-    print (Size x y)
+    -- mainLoopEvent
+  --  (Size x y) <- get screenSize
+    --print (Size x y)
     -- consoleSubWindow <- createSubWindow _window (Position 0 (y-300)) (Size x 300)
     currentWindow $= Just _window
     depthFunc $= Just Lequal
