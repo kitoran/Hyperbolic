@@ -95,7 +95,7 @@ import Graphics as G (initialiseGraphics, displayGame, {-displayConsole-})
 import Physics
 import System.Exit
 import GHC.TypeLits
-import System.Exit
+import System.Exit 
 
 bound :: Double -> Double -> Double -> Double
 bound low high x 
