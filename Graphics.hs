@@ -51,9 +51,9 @@ import Unsafe.Coerce
 initialiseGraphics ::  IO ()
 initialiseGraphics = do
 
+    initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered]
     _ <- getArgsAndInitialize
     _window <- createWindow "Hyperbolic"
-    initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered]
     -- light (Light 0)    $= Enabled
     -- lighting           $= Enabled 
     -- lightModelAmbient  $= Color4 0.5 0.5 0.5 1 
@@ -66,7 +66,6 @@ initialiseGraphics = do
   --  (Size x y) <- get screenSize
     --print (Size x y)
     -- consoleSubWindow <- createSubWindow _window (Position 0 (y-300)) (Size x 300)
-    currentWindow $= Just _window
     depthFunc $= Just Lequal
     depthBounds $= Nothing
     lineSmooth $= Enabled
@@ -74,7 +73,8 @@ initialiseGraphics = do
     cursor $= None
     perspective 45 (1024/600) (0.01) 1
     lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
- --   return (displayGame _window, 
+ --   return (displayGame _window,
+
 
 toFrame::Floating a => Mesh c a -> [Point a]
 toFrame (Mesh []) = []
@@ -104,10 +104,11 @@ displayGame :: forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coerc
                                          =>  Mesh (c, c, c) a -> M44 a -> IO ()
 displayGame (Mesh env) tran = do
   clear [ColorBuffer, DepthBuffer]
-  color $ Color3 0 0 (0::GLdouble)
+  -- color $ Color3 0 0 (0::GLdouble)
   mapM_ ( toRaw) env
-  color $ Color3 1 1 (1::GLdouble)
-  swapBuffers
+  -- color $ Color3 1 1 (1::GLdouble)
+  swapBuffers-- swapBuffers
+  return ()
     where toRaw :: ((c, c, c), HyperEntity a) -> IO ()
           toRaw (col, (TriangleMesh a b c)) = do
                               renderPrimitive Triangles $ do

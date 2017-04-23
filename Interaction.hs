@@ -149,7 +149,7 @@ main = do
     passiveMotionCallback $= (Just $ (\(Position x y) -> do
         last' <- readIORef last
         now <- getCurrentTime
-        when (now `diffUTCTime ` last' > 0.04)
+        when (now `diffUTCTime ` last' > 0.03)
             (do 
              writeIORef last now 
              modifyIORef state $ processMouse width height (fromEnum x, fromEnum y)
@@ -166,21 +166,21 @@ main = do
         state' <- readIORef state
         mesh <- readIORef meshRef
         displayGame (mesh) (viewPort state') )
-    closeCallback $= (Just $ exitSuccess )
+    closeCallback $= Just (return ())
     graviryVar <- newIORef 0.0002
     let timerCallback = do
-                            addTimerCallback 5 timerCallback
+                            addTimerCallback 16 timerCallback
                             gravity <- readIORef graviryVar
                             obs <- readIORef obsRef
                             modifyIORef state $ tick gravity obs
 --                            readIORef state >>= (putStrLn . show)
     addTimerCallback 0 timerCallback
     pointerPosition $= (Position (width'`div`2) (height'`div`2))
-    -- forkIO (interactive (Node ( Command "" "" (io (return ())) True) [Node (setGravity graviryVar) [], 
-    --                                                                   Node (loadLevel obsRef meshRef) [], 
-    --                                                                   Node (setStep stepRef) [], 
-    --                                                                   Node (setJump jumpRef) []
-    --                                                                   ]))
+    forkIO (interactive (Node ( Command "" "" (io (return ())) True) [Node (setGravity graviryVar) [], 
+                                                                      Node (loadLevel obsRef meshRef) [], 
+                                                                      Node (setStep stepRef) [], 
+                                                                      Node (setJump jumpRef) []
+                                                                      ]))
     mainLoop
     return () 
 

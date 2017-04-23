@@ -141,7 +141,7 @@ form3 p1@(V3 x1 y1 z1) p2@(V3 x2 y2 z2) = z1*z2 - x1*x2 - y1*y2
 --moveRightTo3 p@(V3 x y t) = rotate3 ((atan2 y x)) !*! moveAlongX3 (distance3 origin3 p) !*! rotate3 (-(atan2 y x))
 moveTo3 :: RealFloat a =>  V3 a -> a -> M33 a
 moveTo3 (V3 x y z) d = rotate3 ((atan2 y x)) !*! moveAlongX3 (d) !*! rotate3 (-(atan2 y x))
-
+ 
 qr :: Floating a => M44 a -> M44 a
 qr (V4 (V4 a11 a12 a13 a14) 
        (V4 a21 a22 a23 a24) 

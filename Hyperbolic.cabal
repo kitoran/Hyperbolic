@@ -58,7 +58,6 @@ executable Hyperbolic
 
   ghc-options: 
     -Wall
-    -optc-march=pentium4
     -optc-mfpmath=sse
     -Odph
     -fdicts-strict
@@ -66,6 +65,9 @@ executable Hyperbolic
     -flate-dmd-anal 
     -fregs-iterative
     -funbox-strict-fields 
+    -threaded
+    -rtsopts
+    "-with-rtsopts=-N -threaded"
   -- {- -fdefer-type-errors -} 
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.8 
