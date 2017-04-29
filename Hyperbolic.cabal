@@ -81,7 +81,12 @@ executable Hyperbolic
                      , random
                      , OpenGL
                      , containers
-                     , console-program  
+                     , console-program 
+                     , wavefront
+                     , vector == 0.11.0.0
+                     -- because wavefront uses this version
+                     , pretty-show
+  
   -- Directories containing source files.
   -- hs-source-dirs:      
   
@@ -130,7 +135,7 @@ executable Hyperbolic-prof
                      , OpenGL
                      , containers
                      , console-program
-  
+
   -- Directories containing source files.
   -- hs-source-dirs:      
   

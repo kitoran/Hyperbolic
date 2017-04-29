@@ -3,7 +3,7 @@
 module Graphics where
 
 import Control.Monad(when)
-import Graphics.UI.GLUT 
+import Graphics.UI.GLUT as GL
 {-(($=), 
                          lineSmooth, 
                          initialDisplayMode, 
@@ -30,21 +30,20 @@ import Graphics.UI.GLUT
                          vertex,
                          Vertex3(Vertex3),
                          Vector3(..) )-}
-import Graphics.Rendering.OpenGL.GLU.Matrix (perspective, lookAt)
-import Physics (Mesh(..), HyperEntity(..))
-import Hyperbolic (Point, transposeMink, normalizeWass, _v4)
+import qualified Graphics.Rendering.OpenGL.GLU.Matrix (perspective, lookAt)
+import Physics  as P (Mesh(..), HyperEntity(..))
+import Hyperbolic as H (Point(..), transposeMink, normalizeWass, _v4)
 import Linear hiding (perspective, lookAt, trace)
 import Data.Coerce
-import System.Random
-import Control.Lens
--- import Data.Coerce
--- import Graphics.Rendering.FTGL
+import qualified System.Random
+import qualified Control.Lens
+-- import qualified Data.Coerce
+-- import qualified Graphics.Rendering.FTGL
 
-import Graphics.Rendering.OpenGL.GL.CoordTrans (loadIdentity)
-import Unsafe.Coerce
---import DebugTH
---import Control.Lens
--- --import Debug.Trace 
+import qualified Graphics.Rendering.OpenGL.GL.CoordTrans (loadIdentity)
+--import qualified DebugTH
+--import qualified Control.Lens
+-- --import qualified Debug.Trace 
 --В этом модуле находится столько всякой нефункциональности, что от двух маленьких unsafeperformio вреда не будет особого
 
 
@@ -73,13 +72,10 @@ initialiseGraphics = do
     cursor $= None
     perspective 45 (1024/600) (0.01) 1
     lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
+
  --   return (displayGame _window,
 
 
-toFrame::Floating a => Mesh c a -> [Point a]
-toFrame (Mesh []) = []
-toFrame (Mesh ((_, TriangleMesh x y z):xs) ) = x:y:y:z:z:x:(toFrame (Mesh xs ))
-toFrame (Mesh ((_, Segment x y):xs) ) = x:y:(toFrame (Mesh xs ))
 
 -- displayConsole = do
 --   clear [ColorBuffer, DepthBuffer]
@@ -100,22 +96,29 @@ toFrame (Mesh ((_, Segment x y):xs) ) = x:y:(toFrame (Mesh xs ))
 --   lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
 --   swapBuffers
 
+
+
+ -- fixme use DisplayLists
 displayGame :: forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a)
-                                         =>  Mesh (c, c, c) a -> M44 a -> IO ()
-displayGame (Mesh env) tran = do
+                                         =>  Mesh (c, c, c) a -> Bool -> M44 a -> IO ()
+displayGame (Mesh env) drawFrame tran = do
   clear [ColorBuffer, DepthBuffer]
   -- color $ Color3 0 0 (0::GLdouble)
-  mapM_ ( toRaw) env
+  preservingMatrix $ do
+    matrixx <- (newMatrix RowMajor $ m44toList tran :: IO (GLmatrix GLdouble))
+    multMatrix matrixx
+    mapM_ ( toRaw) env
+    when drawFrame $ do
+      color $ Color3 0 0 (0::GLdouble)
+      mapM_ (frame.snd) env
   -- color $ Color3 1 1 (1::GLdouble)
   swapBuffers-- swapBuffers
   return ()
     where toRaw :: ((c, c, c), HyperEntity a) -> IO ()
-          toRaw (col, (TriangleMesh a b c)) = do
-                              renderPrimitive Triangles $ do
+          toRaw (col, (P.Polygon list)) = do
+                              renderPrimitive GL.Polygon $ do
                                 color $ curry3 Color3 $ mapTuple coerceG col
-                                transform a
-                                transform b
-                                transform c
+                                mapM_ transform list
           toRaw (col, (Segment a b)) = do
                               renderPrimitive Lines $ do
                                 color $ curry3 (Color3) $ mapTuple coerceG col
@@ -127,12 +130,19 @@ displayGame (Mesh env) tran = do
                                 transform a
           transform :: Point a -> IO ()--Vertex4 Double
 
-          transform p = let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
-                    {- when ((x/t)>0) -} (vertex $ Vertex3 (coerceG $ x/t) (coerceG $ (y)/t) (coerceG $ z/t))
+          transform (H.Point x y z t) = -- let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+                    {- when ((x/t)>0) -} (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
           coerceG a = (coerce a) :: GLdouble
           curry3 f (a,b,c)=f a b c
           uncurry3  f a b c=f (a,b,c)
           mapTuple f (a, b, c) = (f a, f  b, f c)
+          m44toList (V4 (V4 a b c d)
+                        (V4 e f g h)
+                        (V4 i j k l)
+                        (V4 m n o p)) = [coerceG a,coerceG  b,coerceG  c,coerceG  d,coerceG  e,coerceG  f,coerceG  g,coerceG  h,coerceG  i,coerceG  j,coerceG  k ,coerceG  l,coerceG  m,coerceG  n,coerceG  o,coerceG  p]
+          frame (P.Polygon list) = 
+              renderPrimitive LineLoop $ mapM_ transform list
+          frame (Segment a b) = return ()
 
 -- display :: forall a. (Floating a, Ord a, Real a) =>  Mesh a -> Point a -> a -> a -> DisplayCallback
 -- display (Mesh env) tran = do

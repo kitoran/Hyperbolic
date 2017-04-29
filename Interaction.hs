@@ -3,7 +3,6 @@ module Main where
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Debug.Trace
-import System.IO.Unsafe -- это так пока поиграться, потом уберу наверное
 import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
 import Control.Monad(when)
 import Control.Applicative(liftA2, liftA3)
@@ -14,9 +13,9 @@ import System.Console.Program
 import System.Console.Argument
 import System.Console.Command
 import qualified Text.Read as TR
-import qualified Universe
-import Control.Concurrent
-import Graphics.UI.GLUT as GL
+import qualified Universe as U
+import  Control.Concurrent
+import qualified Graphics.UI.GLUT as GL
 import Graphics.UI.GLUT
     (    Size(Size)
     ,    get
@@ -48,7 +47,7 @@ import Linear (
                , _x
                )
 import Control.Lens-- (over)
--- import Reactive.Banana.Frameworks(newAddHandler,
+-- import qualified Reactive.Banana.Frameworks(newAddHandler,
 --                                   fromAddHandler, 
 --                                   AddHandler, 
 --                                   Handler, 
@@ -56,7 +55,7 @@ import Control.Lens-- (over)
 --                                   actuate,
 --                                   MomentIO,
 --                                   reactimate)
--- import Reactive.Banana.Combinators  
+-- import qualified Reactive.Banana.Combinators  
 --     (
 --       accumE
 --     , Event
@@ -89,12 +88,10 @@ import Hyperbolic
         -- , transposeMink
         -- , m33_to_m44M
         -- )
--- import Behaviour
-import Graphics as G (initialiseGraphics, displayGame, {-displayConsole-}) 
---import Physics
+-- import qualified Behaviour
+import  Graphics as G (initialiseGraphics, displayGame, {-displayConsole-}) 
+--import qualified Physics
 import Physics
-import System.Exit
-import GHC.TypeLits
 import System.Exit 
 
 bound :: Double -> Double -> Double -> Double
@@ -114,81 +111,93 @@ matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3
                            ('a', moveAlongY3 ), ('d', moveAlongY3 . negate)]
 
 runtimeObstacles :: [RuntimeObstacle Double]
-runtimeObstacles = computeObs (obstacles Universe.level)
-level = Universe.level
+runtimeObstacles = computeObs (obstacles U.level)
+level = U.level
 main :: IO ()
-main = do
+main = do 
+        thId <- myThreadId 
+        !meshRef <- newIORef (mesh U.level) 
+        obsRef <- newIORef runtimeObstacles
+        stepRef <- newIORef 0.01
+        jumpRef <- newIORef 0.01
+        gravityRef <- newIORef 0.0002
+        frameRef <- newIORef True
+        forkIO (glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef)
+        console obsRef meshRef stepRef jumpRef gravityRef frameRef
+  where glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef = 
+          do
+            initialiseGraphics
+            GL.actionOnWindowClose $= GL.MainLoopReturns
+            (Size width' height') <- get screenSize 
+            let width = fromIntegral width'
+            let height = fromIntegral height' 
+            state <- newIORef $ startState {_speed = V3 0.0 0 0.000}
+            keyboardCallback $= (Just $ (\a _ -> do
+                               step <- readIORef stepRef
+                               jump <- readIORef jumpRef
+                               modifyIORef state $ processKeyboard step jump a)) 
+                               -- \a _ -> case a of
+                               -- 'q' -> leaveMainLoop 
+                               -- 'c' -> do
+                               --         displayCallback $= do
+                               --                                                                                  state' <- readIORef state
+                               --                                                                                  mesh <- readIORef meshRef
+                               -- --                                                                                  displayGame (mesh) (viewPort state') 
+                               --         modifyIORef consoleShown not
+                               -- _   -> modifyIORef state $ processKeyboard a)
 
-    !meshRef <- newIORef (mesh Universe.level) --fmap read $ getArgs >>= (\case
-     --   [] -> putStrLn "нужен аргумент - файл с уровнем" >> exitFailure 
-     --   a:_ -> return a ) >>= readFile
+            last <- newIORef $ UTCTime (toEnum 0) 1
+            let display = do
+                            state' <- readIORef state
+                            mesh <- readIORef meshRef
+                            frame <- readIORef frameRef
+                            displayGame (mesh ) frame (viewPort state') 
+            passiveMotionCallback $= (Just $ (\(Position x y) -> do
+                last' <- readIORef last
+                now <- getCurrentTime
+                when (now `diffUTCTime ` last' > 0.03)
+                    (do 
+                     writeIORef last now 
+                     modifyIORef state $ processMouse width height (fromEnum x, fromEnum y)
+                     pointerPosition $= (Position (width'`div`2) (height'`div`2))
+                     display)
+                ))
+            displayCallback $= display
+            idleCallback $= (Just display)
+            closeCallback $= Just (killThread thId)
+            let timerCallback = do
+                                    addTimerCallback 16 timerCallback
+                                    gravity <- readIORef gravityRef
+                                    obs <- readIORef obsRef
+                                    modifyIORef state $ tick gravity obs
+        --                            readIORef state >>= (putStrLn . show)
+            addTimerCallback 0 timerCallback
+            pointerPosition $= (Position (width'`div`2) (height'`div`2))
+            mainLoop
+        console obsRef meshRef stepRef jumpRef gravityRef frameRef =
+          (interactive commands)
+         where commands = (Node ( Command "" "" (io (return ())) True) [Node (setGravity gravityRef) [], 
+                                                                         Node (loadLevel obsRef meshRef) [], 
+                                                                         Node (loadObj obsRef meshRef) [], 
+                                                                         Node (setStep stepRef) [], 
+                                                                         Node (setJump jumpRef) [],
+                                                                         Node (quit) [],
+                                                                         Node (toggleFrame frameRef) [],
+                                                                         Node (help commands) []
+                                                                        ])
 
-    initialiseGraphics
-    GL.actionOnWindowClose $= GL.MainLoopReturns
-    (Size width' height') <- get screenSize 
-    let width = fromIntegral width'
-    let height = fromIntegral height' 
-    state <- newIORef $ startState {_speed = V3 0.0 0 0.000}
-    obsRef <- newIORef runtimeObstacles
-    stepRef <- newIORef 0.01
-    jumpRef <- newIORef 0.01
-    keyboardCallback $= (Just $ (\a _ -> do
-                       step <- readIORef stepRef
-                       jump <- readIORef jumpRef
-                       modifyIORef state $ processKeyboard step jump a)) 
-                       -- \a _ -> case a of
-                       -- 'q' -> leaveMainLoop 
-                       -- 'c' -> do
-                       --         displayCallback $= do
-                       --                                                                                  state' <- readIORef state
-                       --                                                                                  mesh <- readIORef meshRef
-                       -- --                                                                                  displayGame (mesh) (viewPort state') 
-                       --         modifyIORef consoleShown not
-                       -- _   -> modifyIORef state $ processKeyboard a)
-    last <- newIORef $ UTCTime (toEnum 0) 1
-    passiveMotionCallback $= (Just $ (\(Position x y) -> do
-        last' <- readIORef last
-        now <- getCurrentTime
-        when (now `diffUTCTime ` last' > 0.03)
-            (do 
-             writeIORef last now 
-             modifyIORef state $ processMouse width height (fromEnum x, fromEnum y)
-             pointerPosition $= (Position (width'`div`2) (height'`div`2))
-             state' <- readIORef state
-             mesh <- readIORef meshRef
-             displayGame (mesh ) (viewPort state') )
-        ))
-    displayCallback $= do
-        state' <- readIORef state
-        mesh <- readIORef meshRef
-        displayGame (mesh ) (viewPort state') 
-    idleCallback $= (Just $ do
-        state' <- readIORef state
-        mesh <- readIORef meshRef
-        displayGame (mesh) (viewPort state') )
-    closeCallback $= Just (return ())
-    graviryVar <- newIORef 0.0002
-    let timerCallback = do
-                            addTimerCallback 16 timerCallback
-                            gravity <- readIORef graviryVar
-                            obs <- readIORef obsRef
-                            modifyIORef state $ tick gravity obs
---                            readIORef state >>= (putStrLn . show)
-    addTimerCallback 0 timerCallback
-    pointerPosition $= (Position (width'`div`2) (height'`div`2))
-    forkIO (interactive (Node ( Command "" "" (io (return ())) True) [Node (setGravity graviryVar) [], 
-                                                                      Node (loadLevel obsRef meshRef) [], 
-                                                                      Node (setStep stepRef) [], 
-                                                                      Node (setJump jumpRef) []
-                                                                      ]))
-    mainLoop
-    return () 
+
+toggleFrame :: IORef Bool -> Command IO
+toggleFrame frameVar = command "toggleFrame" "toggleFrame toggles something" action 
+    where
+        action =  io (modifyIORef frameVar not)
+                  
 
 setGravity :: IORef Double -> Command IO
-setGravity graviryVar = command "setGravity" "setGravity sets gravity" action 
+setGravity gravityVar = command "setGravity" "setGravity sets gravity" action 
     where
         action = withNonOption string (\s -> io (case TR.readEither s of
-            Right num -> writeIORef graviryVar num
+            Right num -> writeIORef gravityVar num
             Left error -> putStrLn error))
 
 loadLevel :: IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command IO
@@ -202,6 +211,18 @@ loadLevel obsVar meshVar = command "load" "load <filename> loads enviromment fro
                                 Left error -> putStrLn error
                 Left () -> return ())
 
+loadObj :: IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command IO
+loadObj obsVar meshVar = command "loadObj" "loadObj <filename> loads enviromment from .obj file <filename>\n\
+        \user can specify mesh file and osctacles files separately\n\
+        \there shouldn't be any non-triangle faces in obstacle file" action 
+  where
+    action = withNonOption file (\path -> withNonOption (optional "" file)  
+          (\pathObj -> io $ do
+                    env <- U.loadObj path (if pathObj==""then path else pathObj)
+                    case env of 
+                      Right (Env mesh slowObs) -> writeIORef meshVar mesh >> writeIORef obsVar (computeObs slowObs)
+                      Left s -> putStrLn s)) 
+
 setStep :: IORef Double -> Command IO
 setStep stepVar = command "setStep" "setStep sets step length" action 
     where
@@ -212,6 +233,14 @@ setJump :: IORef Double -> Command IO
 setJump jumpVar = command "setJump" "setJump sets jump velocity" action 
     where
         action = withNonOption string (\s -> io (writeIORef jumpVar (read s)))
+
+quit ::  Command IO
+quit  = command "quit" "" action
+    where 
+        action = io (exitSuccess)
+
+help :: Commands n -> Command IO 
+help cnds = command "help" "shows this usage text" (io $ showUsage cnds)
 
 window :: Command IO
 window = command "window" "" action 

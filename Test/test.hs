@@ -1,14 +1,14 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables #-}
 
-import Test.QuickCheck
-import Test.QuickCheck.Property
+import qualified Test.QuickCheck
+import qualified Test.QuickCheck.Property
 
-import Debug.Trace
-import Linear hiding (distance, trace, normalize)
+import qualified Debug.Trace
+import qualified Linear hiding (distance, trace, normalize)
 
-import Hyperbolic
-import Control.Lens
+import qualified Hyperbolic
+import qualified Control.Lens
 
 instance (Arbitrary a,  Ord a, Fractional a) => Arbitrary (Point a) where
     arbitrary = fmap (\[a, b, c,d] ->  head $ dropWhile (not.proper) $ iterate (& (_v4._w) %~ (+1)) $ Point a b c d) $ vectorOf 4 arbitrary 

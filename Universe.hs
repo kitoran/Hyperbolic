@@ -1,27 +1,29 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric,
-             ScopedTypeVariables, OverloadedLists #-}
+             ScopedTypeVariables, OverloadedLists, MonadFailDesugaring, PackageImports #-}
 module Universe (module Hyperbolic, points, {-cameraC, module Projection,
-                 viewSegment, module Camera,-}environment, tau, _ends, Segment(..),
+                 viewSegment, module Camera,-}environment,
                   absoluteCircle, Environment(..), parse, level, startPosMatrix,
-                  Mesh(..), Obstacles, Obstacle(..), dodecahedronEnv) where
---import Projection
+                  Mesh(..), Obstacles, Obstacle(..), dodecahedronEnv, loadObj) where
+--import qualified Projection
 import Control.Applicative
 import Data.List.Split
+import Data.Function ((&))
+import qualified Data.Vector as V
 import Linear hiding (rotate, distance)
 import System.IO 
 import qualified Prelude as P
 import Prelude hiding (zip, take, drop, zipWith)
-import Data.Sequence
 import Hyperbolic
 import qualified Physics as P
 import Physics hiding (Segment)
-
---import Camera
-import Control.Lens hiding (view)
-
-import Graphics.Rendering.OpenGL.GL.VertexSpec (Color3(..))
-
+import Codec.Wavefront hiding (Point, Triangle)
+import qualified Codec.Wavefront
+import Text.Show.Pretty
+--import qualified Camera
+import qualified Control.Lens as Lens
+import qualified Graphics.Rendering.OpenGL.GL.VertexSpec (Color3(..))
+import GHC.Float 
 --camera :: Projector Double
 --camera = Projector  { projectorPosition = Point 0 0 (sinh 2) $ cosh 2,
 --                      projectorDirection = Point 0 0 0 1,
@@ -41,9 +43,7 @@ import Graphics.Rendering.OpenGL.GL.VertexSpec (Color3(..))
 --                          projectorVertical = Point 0 1 (sinh 2) $ cosh 2 }
 
 macosh = acosh
-data Segment a = Segment !(Point a) !(Point a) deriving (Eq, Show,Functor)
-_ends :: Traversal' (Segment a) (Point a)
-_ends f (Segment x y) = liftA2 Segment (f x) (f y)
+
 --viewSegment :: Floating a => Camera a -> Segment a -> [(a, a)]
 --viewSegment c@(Camera p0' d' v') s@(Segment a b) = [view c a, view c b]
 
@@ -60,24 +60,24 @@ absoluteCircle =
 tunnel :: [Point Double]
 tunnel = concatMap huy (P.take 100 $ iterate (!*! (moveAlongX (-0.09))) identity)
     where huy :: M44 Double -> [Point Double]
-          huy = (\m -> fmap (_v4 %~ (*! m)) circle)
+          huy = (\m -> fmap (_v4 Lens.%~ (*! m)) circle)
           circle = [Point (sinh 1) (sin $ t*tau/4) (cos $ t*tau/4)  (cosh 3) | t <- [0..4]]
 spiral :: [Point Double]
-spiral = map (\m -> (Point 0 (sinh 1) 0 (cosh 1)) & _v4 %~ (*! m) ) 
+spiral = map (\m -> (Point 0 (sinh 1) 0 (cosh 1)) & _v4 Lens.%~ (*! m) ) 
                   $ P.take 300 $ iterate (!*!(moveAlongX (0.1) !*! rotateAroundX (tau/10)) ) identity
-environment :: [Segment Double]
-environment = map (\c -> case c of
-                          [a, b] -> Segment a b
-                          [a] -> Segment a a) (chunksOf 2 tunnel)
+environment :: Mesh (Double, Double, Double) Double
+environment = Mesh $ map (\c -> case c of
+                          [a, b] -> ((0,0,0), P.Segment a b)
+                          [a] -> ((0,0,0), P.Segment a a)) (chunksOf 2 tunnel)
 
 colors :: [(Double, Double, Double)]
 colors = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1), (0, 0, 1), (0, 1, 0), (0, 1, 1), (0.5, 0.5, 1)]
 reds = P.repeat (1,0,0)
 whites = P.repeat (1,1,1)
 
-octahedron :: P.Environment (Color3 Double) Double
-octahedron = Env (Mesh $ P.zip (P.take 8 $ P.map (\(x, y, z) -> Color3 x y z) reds) [ TriangleMesh f l u, ( TriangleMesh f d l), TriangleMesh f u r, TriangleMesh f r d,
-              TriangleMesh b u l, TriangleMesh b l d, TriangleMesh b r u, TriangleMesh b d r]) $ [ Sphere (Point (sinh 0) 0 0.00 (cosh 0)) (1/2)]
+octahedron :: P.Environment (Double, Double, Double) Double
+octahedron = Env (Mesh $ P.zip (P.take 8 reds) [ Polygon [f, l, u], ( Polygon [f, d, l]), Polygon [f, u, r], Polygon [f, r, d],
+              Polygon [b, u, l], Polygon [b, l, d], Polygon [b, r, u], Polygon [b, d, r]]) $ [ Sphere (Point (sinh 0) 0 0.00 (cosh 0)) (1/2)]
   where f, r, u, b, l, d :: Point Double
         f = (moveAlongX 0 !$) $ Point (sinh w) 0 0 (cosh w)
         r = (moveAlongX 0 !$) $ Point 0 (sinh w) 0 (cosh w)
@@ -95,8 +95,8 @@ octahedron = Env (Mesh $ P.zip (P.take 8 $ P.map (\(x, y, z) -> Color3 x y z) re
 
 pentacles = P.zipWith (!$) (P.take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX (cl - 0.0) !$ 
                                                                                             moveAlongZ (-0) !$ origin)
-pentagon c = Env (Mesh $ fmap (\p -> (c, TriangleMesh (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0) !$ origin))) pentacles)
-                 (fmap (\p ->  Triangle (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0) !$ origin) 0.05) $ fromList pentacles)
+pentagon c = Env (Mesh $ fmap (\p -> (c, Polygon [(rotateAroundZ (tau/5) !$ p), p, ( moveAlongZ (-0) !$ origin)])) pentacles)
+                 (fmap (\p ->  Triangle (rotateAroundZ (tau/5) !$ p) p ( moveAlongZ (-0) !$ origin) 0.05) pentacles)
 
 --pentagon
 levelFOne =    pentagon (1, 0, 0) `unionEnv` 
@@ -112,8 +112,7 @@ levelF = let dia = (2*cl + 2*bl + 2*al)
              levelRotatedTwice = (moveAlongX (-radi) !*! rotateAroundZ (tau*2/5) !*! moveAlongX (radi)) !$ levelFOne
          in levelFOne `unionEnv` 
             (foldr unionEnv void $ P.zipWith (!$) (P.take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat (levelRotatedOnce `unionEnv` levelRotatedTwice)))
-myIterate 0 f i = i
-myIterate a f i = cons (fmap f $ myIterate (a-1) f i) i
+
 a, b, c, al, bl, cl :: Double
 a = tau/10
 b = tau/10
@@ -134,11 +133,11 @@ bluePentagon = (moveAlongX (cl) !*! rotateAroundZ (tau*3/5) !*! moveAlongX (-cl)
         
 -- level = foldr unionEnv (Env (Mesh []) []) $ zipWith (!$) (take 5 $ iterate (!*! rotateAroundZ (tau/5)) identity) (repeat $ moveAlongX 1 !$ octahedron)
 
-unionEnv (Env (Mesh l1) l2) (Env (Mesh m1) m2) = Env (Mesh (l1 ++ m1)) (l2 >< m2) 
+unionEnv (Env (Mesh l1) l2) (Env (Mesh m1) m2) = Env (Mesh (l1 ++ m1)) (l2 ++ m2) 
 
 startPosMatrix = identity --V4 (V4 0 0 0 1) (V4 0 1 0 0 ) (V4 0 0 1 0) (V4 1 0 0 (0))
 
-parallelAxiom = Env (Mesh $ P.zip colors [TriangleMesh a b c, TriangleMesh a b e]) ghost
+parallelAxiom = Env (Mesh $ P.zip colors [Polygon [a, b, c], Polygon [a, b, e]]) ghost
           where a = Point 0 (-1)  0 1
                 b = Point  0 1 0 1
                 c = Point (sin (tau/12)) (cos (tau/12)) 0 1
@@ -158,7 +157,7 @@ parse = (`Env` ghost) . Mesh . f . (map (read::String -> a)) . words
   where f :: Num a => [a] -> [((b,b,b) , HyperEntity a)]
         f [] = []
         f (a1:a2:a3:a4:b1:b2:b3:b4:c1:c2:c3:c4:xs) 
-               = ((0,0,0),TriangleMesh (Point a1 a2 a3 a4) (Point b1 b2 b3 b4) (Point c1 c2 c3 c4) ) : f xs
+               = ((0,0,0), Polygon [(Point a1 a2 a3 a4), (Point b1 b2 b3 b4), (Point c1 c2 c3 c4)] ) : f xs
         f _ = error "mesh is ill-formed"
     {-[Point t 0 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
          [Point 0 t 0 (sqrt (t+1)) | t <- [-10, -9.9..10]] ++
@@ -169,7 +168,7 @@ parse = (`Env` ghost) . Mesh . f . (map (read::String -> a)) . words
                                   Point (-1) 0 0 (sqrt 2), Point 0 (-1) 0 (sqrt 2)]-}
 
 save :: (Show a, Show b) => FilePath -> P.Environment a b -> IO ()
-save a e = writeFile a $ show e
+save a e = writeFile a $ ppShow e
 
 dodecahedralValue :: Double
 dodecahedralValue = acosh $ ctgACos sinDIv * ctgASin ((cos gamma)/(sin (tau/6)))
@@ -252,8 +251,8 @@ dodecahedronSolid x = do
        sixth = pentagon ++ fmap (rotate origin (dodecahedralPointSecondUp x) (negate tau/3) !$) pentagon
        point = (rotateAroundX (tau/3) !$ (dodecahedralPointThirdUpRight x)) 
 
-dodecahedronSolidEnv x = Env (Mesh $ fmap (\(Triangle q w e _) -> ((205/255, 121/255, 0/255), TriangleMesh q w e)) (dodecahedronSolid x))
-                           (fromList (dodecahedronSolid x))
+dodecahedronSolidEnv x = Env (Mesh $ fmap (\(Triangle q w e _) -> ((205/255, 121/255, 0/255), Polygon [q, w, e])) (dodecahedronSolid x))
+                           ( (dodecahedronSolid x))
 
 
 instance Monoid (Environment a b) where
@@ -261,8 +260,8 @@ instance Monoid (Environment a b) where
   mappend = unionEnv
 
 spiralCase = foldMap (\a -> moveAlongZ (a/160) !$ rotateAroundZ (tau*a/39.7) !$ triangle) ([260..(350)] :: [Double]) 
-  where triangle = Env (Mesh [((255/255, 171/255, 11/255), TriangleMesh p0 p1 p2), 
-                              ((255/255, 171/255, 11/255), TriangleMesh p3 p1 p2), 
+  where triangle = Env (Mesh [((255/255, 171/255, 11/255), Polygon [p0, p1, p2]), 
+                              ((255/255, 171/255, 11/255), Polygon [p3, p1, p2]), 
                               ((0, 0, 0), P.Segment p0 p1),
                               ((0, 0, 0), P.Segment p1 p3),
                               ((0, 0, 0), P.Segment p3 p2),
@@ -285,13 +284,13 @@ motion = moveAlongX (-value) !*! rotateAroundZ (-angle) !*! toO
 -- level = spiralCase `unionEnv` (motion !$ dodecahedronEnv1 (dodecahedralValue - 0.01) (0,0,0)) `unionEnv` (motion !$ dodecahedronEnv1 (dodecahedralValue + 0.01) (0,0,0)) `unionEnv` (motion !$ dodecahedronSolidEnv dodecahedralValue) --(foldr unionEnv void $ zipWith (!$) (take 50 $ iterate (!*! moveAlongX (al + cl)) identity) (repeat (moveAlongZ (-0.3) !$ pentagon (0, 0, 1))))
 
 level  :: Environment (Double, Double, Double) Double
-level = Env (Mesh [(red, TriangleMesh p0 p1 p2)]) ([Triangle p0 p1 p2 0.01])
+level = Env (Mesh [(red, Polygon [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01])
   where p0 = Point 1.0 0.0 0.0 2.0
         p1 = rotateAroundZ (tau/3) !$ p0
         p2 = rotateAroundZ (-tau/3) !$ p0
         red = (1.0, 0.0, 0.0)
 
-square = Env (Mesh [(red, TriangleMesh p0 p1 p2), (red, TriangleMesh p0 p2 p3)]) ([Triangle p0 p1 p2 0.01, Triangle p0 p2 p3 0.01])
+square = Env (Mesh [(red, Polygon [p0, p1, p2]), (red, Polygon [p0, p2, p3])]) ([Triangle p0 p1 p2 0.01, Triangle p0 p2 p3 0.01])
   where p = Point 1.0 0.0 0.0 2.0
         p0 = rotateAroundZ (tau/8) !$ p
         p1 = rotateAroundZ (tau/4) !$ p0
@@ -304,3 +303,45 @@ line = foldMap (\a -> moveAlongX (len*a) !$ square ) ([0..200] :: [Double])
     where p0 = Point 1.0 0.0 0.0 2.0
           p1 = rotateAroundZ (tau/4) !$ p0
           len = distance p0 p1
+-- не ебу я как с трансформерами работать и вообще пишут в интернете что IO (Either x y) - это зло
+loadObj :: FilePath -> FilePath -> IO (Either String (Environment (Double, Double, Double) Double))
+loadObj pathMesh pathObs = do
+  meshE <- fromFile pathMesh
+  obsE <- fromFile pathObs
+  return $ do
+    meshObj <- meshE
+    obsObj <- obsE
+    mesh <- (parseMesh meshObj:: Either String (Mesh (Double, Double, Double) Double))
+    obs <- parseObstacles obsObj
+    return $ Env mesh obs
+
+parseMesh :: WavefrontOBJ -> Either String (Mesh (Double, Double, Double) Double)
+parseMesh obj = fmap Mesh $ mapM toPolygon $ map (elValue) $ V.toList $ objFaces obj
+  where 
+    toPolygon :: Face -> Either String ((Double, Double, Double), HyperEntity Double)
+    toPolygon (Face i1 i2 i3 is) = do
+      p1 <- toPoint i1
+      p2 <- toPoint i2
+      p3 <- toPoint i3
+      ps <- mapM toPoint is
+      Right $ ((0.5, 0.5, 0.5), Polygon ((p1): (p2): (p3):ps))
+    toPoint :: FaceIndex -> Either String (Point Double)
+    toPoint i = do
+      (Location lx ly lz lw) <- maybe (Left $ "index out of range:" ++ ppShow i ++ "\n" ++ ppShow (objLocations obj)) Right (objLocations obj V.!? (faceLocIndex i-1))
+      return $ Point (float2Double lx) (float2Double ly) (float2Double lz) (float2Double lw)
+
+parseObstacles :: WavefrontOBJ -> Either String (Obstacles Double)
+parseObstacles obj = mapM toTriangle $ map (elValue) $ V.toList $ objFaces obj
+  where 
+    toTriangle :: Face -> Either String (Obstacle Double)
+    toTriangle (Codec.Wavefront.Triangle i1 i2 i3) = do
+      p1 <- toPoint i1
+      p2 <- toPoint i2
+      p3 <- toPoint i3
+      Right $ ( Triangle (p1) (p2) (p3) 0.01)
+    toTriangle _ = Left "non-triangle face"
+    toPoint :: FaceIndex -> Either String (Point Double)
+    toPoint i = do
+      (Location lx ly lz lw) <- maybe (Left $ "index out of range:" ++ ppShow i ++ "\n" ++ ppShow (objLocations obj)) Right (objLocations obj V.!? (faceLocIndex i-1))
+      return $ Point (float2Double lx) (float2Double ly) (float2Double lz) (float2Double lw)
+

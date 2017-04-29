@@ -1,12 +1,12 @@
 {-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds, DuplicateRecordFields, DeriveFunctor, BangPatterns #-}
 module Physics where
 
-import Hyperbolic
-import Unsafe.Coerce
+import qualified Hyperbolic as H
+import Hyperbolic (Point(Point), (!$), tau)
+import qualified Unsafe.Coerce
 import qualified Debug.Trace
-import Data.Sequence
-import GHC.Exts
-import Control.Lens
+import qualified GHC.Exts
+import qualified Control.Lens as Lens
 import Linear(M44, (!*!), (!*), (*!), normalizePoint, V3(..), M33)
 
 --текущее положение  матрица куда надо пойти   результат (?) 
@@ -18,14 +18,14 @@ data State = State { _pos :: !(M33 Double )--
                    , _speed :: !(V3 Double)
                    } deriving Show
 
-$(makeLenses ''State)
+$(Lens.makeLenses ''State)
 
-currentPosition (State (!pos) (!height) _ _) =  m33_to_m44M pos !*! moveAlongZ height !$ origin
+currentPosition (State (!pos) (!height) _ _) =  H.m33_to_m44M pos !*! H.moveAlongZ height !$ H.origin
 ourSize = 0.1
 
-type Obstacles a = Seq (Obstacle a)
+type Obstacles a = [Obstacle a]
 data Obstacle a = Sphere !(Point a) a | Triangle !(Point a) !(Point a) !(Point a) !a deriving (Eq, Show,Functor, Read)
-instance Movable Obstacle where
+instance H.Movable Obstacle where
   (!tr) !$ (Sphere !p !r) = Sphere (tr !$ p) r
   (!tr) !$ (Triangle !q !w !e !r) = Triangle (tr !$ q) (tr !$ w) (tr !$ e) r
 
@@ -67,11 +67,8 @@ data HorizontalCoordinateQuadrilateral = HCQ { _xtmin :: Double
 --                                                                                  r )))
 
 decompose :: Point Double -> State -> State
-decompose p (State pos height nod speed) = State (moveRightFromTo3 (pos !* (V3 0 0 1)) (projectToOxy p) !*! pos) (signedDistanceFromOxy p) nod 0
+decompose p (State pos height nod speed) = State (H.moveRightFromTo3 (pos !* (V3 0 0 1)) (projectToOxy p) !*! pos) (H.signedDistanceFromOxy p) nod 0
 projectToOxy (Point q w e r) = V3 q w r
-signedDistanceFromOxy p@(Point x y z t) = distance p (Point x y 0 t) * signum z * signum t
-moveRightFromTo3 :: V3 Double -> V3 Double -> M33 Double
-moveRightFromTo3 p1@(V3 x1 y1 t1) p2@(V3 x2 y2 t2) = moveRightTo3 p1 !*! moveRightTo3 (transposeMink3 (moveRightTo3 p1) !* p2) !*! transposeMink3 ( moveRightTo3 p1)
 -- pushOut :: Obstacles Double -> State -> State
 -- pushOut o s = foldr (\o1 -> pushOutOne o1) s o
 --            where pushOutOne :: Obstacle Double -> State -> State
@@ -108,17 +105,17 @@ pushOut o s = foldr (\o1 -> pushOutOne o1) s o
 --                             (Point (-0.5) 0.25 0 1) 0
 
 newtype Mesh color coordinate = Mesh [(color, HyperEntity coordinate)] deriving (Eq, Show,Functor, Read)
-data HyperEntity a = TriangleMesh !(Point a) !(Point a) !(Point a) 
+data HyperEntity a = Polygon [Point a] -- как всегда, для нормального отображения многоугольник должен быть выпуклым, и точки должны идти в порядке
                    | Segment !(Point a) !(Point a) 
                    | HPoint !(Point a) {- fixme this constructor isnt needed -} deriving (Eq, Show,Functor, Read)
 
-instance Movable HyperEntity where
-  a !$ (TriangleMesh q w e) = TriangleMesh (a !$ q) (a !$ w) (a !$ e)
+instance H.Movable HyperEntity where
+  a !$ (Polygon list) = Polygon $ map (a !$) list
   a !$ (Segment q w) = Segment (a !$ q) (a !$ w)
 
 data Environment c a = Env { mesh :: !(Mesh c a),
                              obstacles :: !(Obstacles a) } deriving (Eq, Show, Read)
-instance Movable (Environment c) where
+instance H.Movable (Environment c) where
   tr !$ Env (Mesh m) ob = Env (Mesh $ fmap (\(c, he) -> (c, tr !$ he)) m) (fmap (tr !$) ob)
 
 
@@ -145,34 +142,34 @@ data RuntimeObstacle a = SphereR !(Point a) a | TriangleR (M44 a) a a a a derivi
 -- 1 - ((c+e-b-d)/(a - 2*b + c)) = (a - 2*b + c)/(a - 2*b + c) - ((c+e-b-d)/(a - 2*b + c)) = 
 -- a - b + d - e     
 pushOutHorizontalCoordinateQuadrilateral :: HorizontalCoordinateQuadrilateral -> State -> State
-pushOutHorizontalCoordinateQuadrilateral (HCQ xtmin xtmax ytmin ytmax z) s@(State pos height nod speed) 
+pushOutHorizontalCoordinateQuadrilateral (HCQ xtmin xtmax ytmin ytmax z) s@(State pos height nod _) 
    = let (V3 x y t) = pos !* (V3 0 0 1)
      in if abs (height + z ) <= ourSize && x/t > xtmin && x/t < xtmax && y/t > ytmin && y/t < ytmax
         then if (-height) < (z) then State pos ( ourSize - z) nod (V3 0 0 0) else  State pos ((-ourSize) - z) nod (V3 0 0 0) 
         else s-- podumay so znakami
 
 computeObs :: Obstacles Double -> [RuntimeObstacle Double]
-computeObs a = map tr $ toList a 
+computeObs = map tr 
   where
     tr (Sphere q w) = SphereR q w
     tr (Triangle a b c r) 
      = TriangleR m x1 x2 y2 r
       where
-        m = getTriangleToOxy a b c 
-        V3 x1 _ _ = normalizePoint (toV4 $ m !$ b)
-        V3 x2 y2 _ = normalizePoint (toV4 $ m !$ c) 
+        m = H.getTriangleToOxy a b c 
+        V3 x1 _ _ = normalizePoint (H.toV4 $ m !$ b)
+        V3 x2 y2 _ = normalizePoint (H.toV4 $ m !$ c) 
 --                                 
 pushOutSphereO :: Point Double -> Double -> State -> State
 pushOutSphereO m r s = let 
-                        diff = r - distance origin (currentPosition s)
-                       in  if diff > 0 then decompose (moveFromTo m (currentPosition s) r !$m) s else s
+                        diff = r - H.distance H.origin (currentPosition s)
+                       in  if diff > 0 then decompose (H.moveFromTo m (currentPosition s) r !$m) s else s
 
 trace :: String -> a -> a
-trace s v = Debug.Trace.trace (s ++ show (unsafeCoerce s::Double)) v
+trace s v = Debug.Trace.trace (s ++ show (Unsafe.Coerce.unsafeCoerce s::Double)) v
 traceM :: String -> a -> a
-traceM s v = Debug.Trace.trace (s ++ show (unsafeCoerce s::M44 Double)) v
+traceM s v = Debug.Trace.trace (s ++ show (Unsafe.Coerce.unsafeCoerce s::M44 Double)) v
 traceP :: String -> a -> a
-traceP s v = Debug.Trace.trace (s ++ show (unsafeCoerce s::Point Double)) v
+traceP s v = Debug.Trace.trace (s ++ show (Unsafe.Coerce.unsafeCoerce s::Point Double)) v
 -- nearestPoint :: (Floating a, Eq a, Ord a) => Point a -> Point a -> Point a -> Point a
 -- nearestPoint a b c = toV4 
 
@@ -202,16 +199,16 @@ pushOutTriangleO !m !x1 !x2 !y2 !r !s = let
                             -- newb = getTriangleToOxy a b c !$ b
                                 newO = m !$ currentPosition s
                                 -- newc = getTriangleToOxy a b c !$ c
-                                projOfNewO = let (Point x y z t) = newO in  (Point (x) (y) 0 t)
-                                diff = r - distance newO projOfNewO 
-                                notm = transposeMink m
+                                projOfNewO = let (Point x y _ t) = newO in  (Point (x) (y) 0 t)
+                                diff = r - H.distance newO projOfNewO 
+                                notm = H.transposeMink m
                                in
-                                case normalizePoint (toV4 projOfNewO) of { V3 x y _ ->
+                                case normalizePoint (H.toV4 projOfNewO) of { V3 x y _ ->
                                 let
                                   inside = (-y2*x) +(x2-x1)*y+x1*y2 > 0 && y > 0 && x/y > x2/y2
                                 in
                                  if inside && diff > ((-ourSize) +0.00001)
-                                  then decompose (moveFromTo (notm !$ projOfNewO) (notm !$ newO) (r + ourSize) !$ (notm !$ projOfNewO)) s 
+                                  then decompose (H.moveFromTo (notm !$ projOfNewO) (notm !$ newO) (r + ourSize) !$ (notm !$ projOfNewO)) s 
                                   else s
                                   } 
 
