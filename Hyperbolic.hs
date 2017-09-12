@@ -1,5 +1,5 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
-             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables, BangPatterns #-}
+             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables, BangPatterns, Strict #-}
 -- module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
 --                    rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
 --                    pretty, proper, distance, chDistance, adj44, moveTo, invAroundZ, invAroundY, fromV4, toV4 {-FIMXE when learn lens-}, 
@@ -92,19 +92,31 @@ instance Applicative Point where --stupid instance, don't use it
   pure a = Point a a a a
   (Point a b c d) <*> (Point e f g h) = Point (a e) (b f) (c g) (d h)
 
+tau :: Floating a => a
+tau = 2 * pi
+
+-- |4x4 matrix transpose with respect to minkowski form
+-- for hyperbolic space isometries this is same as inL.V44 (modulo floating-point precision)
+transposeMink::Num a => L.M44 a -> L.M44 a
+transposeMink (L.V4 (L.V4 a b c d) (L.V4 e f g h) (L.V4 i j k l) (L.V4 m n o p))
+  = (L.V4 (L.V4 a e i (-m)) (L.V4 b f j (-n)) (L.V4 c g k (-o)) (L.V4 (-d) (-h) (-l) p))
+
 sanity :: Num a => L.M44 a -> L.M44 a
 sanity a = a !*! transposeMink a
+
 insanity::Num a => L.M44 a -> a
 insanity a = getSum $ fold $ fmap (foldMap (\x->Sum $ x*x)) (sanity a L.^-^ L.identity)
+
 form :: Num a => Point a -> Point a -> a {- fundamental minkowski form, она зависит от координатного
 представления точки, то есть не однозначна для точек гиперболического пространства, 
 её стоит использовать с осторожностью -}
 form (Point x1 y1 z1 t1) (Point x2 y2 z2 t2) = x1*x2 + y1*y2 + z1*z2 - t1*t2 
+
 formV :: Num a => L.V4 a -> L.V4 a -> a
 formV (L.V4 x1 y1 z1 t1) (L.V4 x2 y2 z2 t2) = x1*x2 + y1*y2 + z1*z2 - t1*t2 
 
 -- next three datatypes represent things in hyperbolic space
-data Line a = Line (Point a) (Point a) {- ^ if one of the points is proper, the line is proper -}
+-- data Line a = Line (Point a) (Point a) {- ^ if one of the points is proper, the line is proper -}
 
 data Plane a = Plane (Point a) (Point a) (Point a) {- ^ if one of the points is proper,
                                                           the plane is proper -}
@@ -130,11 +142,19 @@ rotateAroundZ a = L.V4 (L.V4 (cos a) (-sin a) 0 0) (L.V4 (sin a) (cos a) 0 0) (L
 rotateAroundY a = L.V4 (L.V4 (cos a) 0 (sin a) 0) (L.V4 0 1 0 0) (L.V4 (-sin a) 0 (cos a) 0) (L.V4 0 0 0 1)
 rotateAroundX a = L.V4 (L.V4 1 0 0 0) (L.V4 0 (cos a) (-sin a) 0) (L.V4 0 (sin a) (cos a) 0) (L.V4 0 0 0 1)
 
-rotate3 :: Floating a => a -> L.M33 a
-rotate3 a = L.V3 (L.V3 (cos a) (-sin a) 0) (L.V3 (sin a) (cos a) 0) (L.V3 0 0 1)
 moveAlongX3, moveAlongY3 :: Floating a => a -> L.M33 a
 moveAlongY3 d = L.V3 (L.V3 1 0 0) (L.V3 0 (cosh d)  (sinh d)) (L.V3 0 (sinh d) (cosh d))
 moveAlongX3 d = L.V3 (L.V3 (cosh d) 0 (sinh d)) (L.V3 0 1 0) (L.V3 (sinh d) 0 (cosh d))
+rotate3 :: Floating a => a -> L.M33 a
+rotate3 a = L.V3 (L.V3 (cos a) (-sin a) 0) (L.V3 (sin a) (cos a) 0) (L.V3 0 0 1)
+rotateAround3 :: RealFloat a => L.V3 a -> a -> L.M33 a
+rotateAround3 p a = commute3 (transposeMink3 $ moveRightTo3 p) (rotate3 a)
+reflectOnX3 :: Num a => L.M33 a
+reflectOnX3 = L.V3 (L.V3 (-1) (0) 0) (L.V3 (0) (1) 0) (L.V3 0 0 1)
+reflectOnY3 :: Num a => L.M33 a
+reflectOnY3 = L.V3 (L.V3 (1) (0) 0) (L.V3 (0) (-1) 0) (L.V3 0 0 1)
+reflect3 :: RealFloat a => L.V3 a -> L.V3 a -> L.M33 a
+reflect3 p1 p2 = commute3 (getSegmentToOx3 p1 p2) reflectOnX3 
 
 moveToTangentVector :: RealFloat a => L.V3 a -> L.M44 a
 moveToTangentVector v@(L.V3 x y z) = moveRightTo $ Point (cosh x) (cosh y) (cosh z) (sinh (L.norm v))
@@ -149,13 +169,12 @@ transposeMink3 :: Num a => L.M33 a -> L.M33 a
 transposeMink3 (L.V3 (L.V3 q w e) (L.V3 r t y) (L.V3 u i o)) = L.V3 (L.V3 q r (-u)) (L.V3 w t (-i)) (L.V3 (-e) (-y) o)
 normalizeWass3 :: Floating a => L.V3 a -> L.V3 a
 normalizeWass3 (L.V3 x y t) = L.V3 (x/d) (y/d) (t/d) where d = sqrt (t*t - y*y - x*x) * signum t
+normalizeKlein3 :: Floating a => L.V3 a -> L.V3 a
+normalizeKlein3 (L.V3 x y t) = L.V3 (x/t) (y/t) 1
 
 form3 :: Num a => L.V3 a -> L.V3 a -> a
 form3 (L.V3 x1 y1 z1) (L.V3 x2 y2 z2) = z1*z2 - x1*x2 - y1*y2
 
---moveRightTo3 p@(L.V3 x y t) = rotate3 ((atan2 y x)) !*! moveAlongX3 (distance3 origin3 p) !*! rotate3 (-(atan2 y x))
-moveTo3 :: RealFloat a =>  L.V3 a -> a -> L.M33 a
-moveTo3 (L.V3 x y _) d = rotate3 ((atan2 y x)) !*! moveAlongX3 (d) !*! rotate3 (-(atan2 y x))
 
 moveRightFromTo3 :: RealFloat a => L.V3 a -> L.V3 a -> L.M33 a
 moveRightFromTo3 p1 p2 = moveRightTo3 p1 !*! moveRightTo3 (transposeMink3 (moveRightTo3 p1) L.!* p2) !*! transposeMink3 ( moveRightTo3 p1)
@@ -173,13 +192,6 @@ invAroundY, invAroundZ :: (Num a) => L.M44 a -> L.M44 a
 invAroundZ (L.V4 (L.V4 a b _ _) _ _ _) = L.V4 (L.V4 a (-b) 0 0) (L.V4 b a 0 0) (L.V4 0 0 1 0) (L.V4 0 0 0 1)
 invAroundY (L.V4 (L.V4 a _ b _) _ _ _) = L.V4 (L.V4 a 0 (-b) 0) (L.V4 0 1 0 0) (L.V4 b 0 a 0) (L.V4 0 0 0 1)
 
--- |4x4 matrix transpose with respect to minkowski form
--- for hyperbolic space isometries this is same as inL.V44 (modulo floating-point precision)
-transposeMink::Num a => L.M44 a -> L.M44 a
-transposeMink (L.V4 (L.V4 a b c d) (L.V4 e f g h) (L.V4 i j k l) (L.V4 m n o p))
-  = (L.V4 (L.V4 a e i (-m)) (L.V4 b f j (-n)) (L.V4 c g k (-o)) (L.V4 (-d) (-h) (-l) p))
-tau :: Floating a => a
-tau = 2 * pi
 -- |4x4 matrix adjugate (inverse multiplied by det)
 -- for matrices with det 1 this is same as inL.V44 (modulo floating-point precision)
 -- (copied and patsed from linear package)
@@ -233,6 +245,13 @@ distance a b
   | (chDistance a b) > 1 = acosh (chDistance a b)
   | otherwise = 0 
 
+
+legByAdjacentAndOppositeAngles :: (Floating a) => a -> a -> a
+legByAdjacentAndOppositeAngles a b = acosh $ cos b / sin a
+
+hypotenuseByAngles :: (Floating a) => a -> a -> a
+hypotenuseByAngles a b = acosh $ recip $ tan a * tan b
+
 chDistance :: Floating a => Point a -> Point a -> a
 chDistance a b = negate (form (normalizeWass a) (normalizeWass b)) --let diff = a ^-^ b in form diff diff
 signedDistanceFromOxy :: (Floating a, Ord a) => Point a -> a
@@ -253,20 +272,20 @@ normalizeWass :: Floating a => Point a -> Point a
 normalizeWass (Point x y z t) = Point (x/d) (y/d) (z/d) (t/d)
     where d = sqrt ((-(x*x)) - y*y - z*z + t*t) * signum t
 
-{-
-So i can't find out how to do this properly and i'm too shy to go to mail lists so i'll just have to invent physics myself :(
-The only shape is (irregular) hexahedron. 
--}
-
 rotate :: (RealFloat a) => Point a -> Point a -> a -> L.M44 a
 rotate a b x = commute ((getPointToOrigin a `andConsideringThat` turmPToOx) b) (rotateAroundX x)
 
 commute :: Num a => L.M44 a -> L.V4 (L.V4 a) -> L.V4 (L.V4 a)
 commute a b = (transposeMink a) !*! b !*! a
+commute3 :: Num a => L.M33 a -> L.V3 (L.V3 a) -> L.V3 (L.V3 a)
+commute3 a b = (transposeMink3 a) !*! b !*! a
 
 moveTo :: (RealFloat a) => Point a -> a -> L.M44 a
 moveTo p dist =  transposeMink a !*! moveAlongX (dist) !*! a
     where a = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz)  p
+--moveRightTo3 p@(L.V3 x y t) = rotate3 ((atan2 y x)) !*! moveAlongX3 (distance3 origin3 p) !*! rotate3 (-(atan2 y x))
+moveTo3 :: RealFloat a =>  L.V3 a -> a -> L.M33 a
+moveTo3 (L.V3 x y _) d = rotate3 ((atan2 y x)) !*! moveAlongX3 (d) !*! rotate3 (-(atan2 y x))
 
 moveRightTo :: RealFloat a => Point a -> L.M44 a
 moveRightTo p = moveTo p (distance origin p) 
@@ -303,8 +322,12 @@ getPointOnOxToOrigin (Point x _ _ t) = moveAlongX $ asinh $ (  - x/ sqrt (( (t*t
 andThen :: (Num a, Movable m) => (m a -> L.M44 a) -> (m a -> L.M44 a) -> m a -> L.M44 a -- может быть, это какой-нибудь arrows 
 ((!f) `andThen` (!g)) (!p) = g ((f p) !$ p) !*! f p -- безумно неэффективно и вообще пиздец
 
+((!f) `andThen3` (!g)) (!p) = g ((f p) L.!* p) L.!*! f p
+
 andConsideringThat :: (Num a, Movable m) => L.M44 a -> (m a -> L.M44 a) -> m a -> L.M44 a 
 andConsideringThat !m !f !p = f (m !$ p) !*! m
+
+andConsideringThat3 !m !f !p = f (m L.!* p) L.!*! m
 
 -- getTriangleToOxy !a !b !c = (   (   getPointToOxyAroundOx `andThen` 
 --                                  getPointToOxzAroundOz `andThen` 
@@ -326,6 +349,10 @@ getTriangleToOxyD :: forall a.
                            Point a -> Point a -> Point a -> (Point a, Point a, Point a)
 getTriangleToOxyD !a !b !c = (t !$ a, t !$ b, t !$ c) where t = (getTriangleToOxy a b c) `seq` (getTriangleToOxy a b c)
 
+getSegmentToOx3 :: RealFloat a => L.V3 a -> L.V3 a -> L.M33 a
+getSegmentToOx3 a b = getPointToOrigin3 a `andConsideringThat3` getPointToOxAroundO3 $ b
+getPointToOrigin3 = transposeMink3 . moveRightTo3
+getPointToOxAroundO3 (L.V3 x y t) = rotate3 $ -(atan2 (y/t) (x/t))
 {- 
 Мы хотим сделать, чтобы все углы треугольника стали на од
 

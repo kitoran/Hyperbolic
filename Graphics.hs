@@ -68,6 +68,8 @@ initialiseGraphics = do
     depthFunc $= Just Lequal
     depthBounds $= Nothing
     lineSmooth $= Enabled
+    polygonOffsetFill $= Enabled
+    polygonOffset $= (-0.2, 1) 
     lineWidth $= 2
     cursor $= None
     perspective 45 (1024/600) (0.01) 1

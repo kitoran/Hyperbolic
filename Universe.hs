@@ -345,3 +345,15 @@ parseObstacles obj = mapM toTriangle $ map (elValue) $ V.toList $ objFaces obj
       (Location lx ly lz lw) <- maybe (Left $ "index out of range:" ++ ppShow i ++ "\n" ++ ppShow (objLocations obj)) Right (objLocations obj V.!? (faceLocIndex i-1))
       return $ Point (float2Double lx) (float2Double ly) (float2Double lz) (float2Double lw)
 
+cube = Env (Mesh car) ghost
+  where
+    delta = legByAdjacentAndOppositeAngles (tau/8) (tau/12)
+    gamma = legByAdjacentAndOppositeAngles (tau/12) (tau/8)
+    finite = delta-0.1
+    l = [1.0::Double, -1]::[Double]
+
+    car1 = [((1.0, 1, 1), P.Segment (Point (-1.0::Double) x y 2) (Point (1) x y 2)) | x <- l, y <- l] ++
+           [((1.0, 1, 1), P.Segment (Point x (-1) y 2) (Point x (1) y 2)) | x <- l, y <- l] ++
+           [((1.0, 1, 1), P.Segment (Point x y (-1) 2) (Point x y (1) 2)) | x <- l, y <- l]
+    car2 = concat [map (\(c, h) -> (c, commute (moveAlongY gamma !*! moveAlongX delta) (rotateAroundZ x) !$ h)) car1 | x <- [0, tau/6..tau]]
+    car = car2 ++ map (\(c, h) -> (c, moveAlongZ (delta*2) !$ h)) car2 ++ map (\(c, h) -> (c, moveAlongZ (delta*(-2)) !$ h)) car2
