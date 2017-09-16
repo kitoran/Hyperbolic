@@ -88,6 +88,9 @@ _t f (Point a b c d) = Point a b c <$> f d
 fromV4 :: L.V4 a -> Point a
 fromV4 (L.V4 a s d f) = Point a s d f
 
+klein :: Fractional a => Point a -> L.V3 a
+klein (Point x y z t) = L.V3 (x/t) (y/t) (z/t) 
+
 instance Applicative Point where --stupid instance, don't use it
   pure a = Point a a a a
   (Point a b c d) <*> (Point e f g h) = Point (a e) (b f) (c g) (d h)
@@ -157,7 +160,7 @@ reflect3 :: RealFloat a => L.V3 a -> L.V3 a -> L.M33 a
 reflect3 p1 p2 = commute3 (getSegmentToOx3 p1 p2) reflectOnX3 
 
 moveToTangentVector :: RealFloat a => L.V3 a -> L.M44 a
-moveToTangentVector v@(L.V3 x y z) = moveRightTo $ Point (cosh x) (cosh y) (cosh z) (sinh (L.norm v))
+moveToTangentVector v@(L.V3 x y z) = moveRightTo $ Point (cosh x) (cosh y) (cosh z) (sinh (L.norm v)) -- fixme это вроде неправильно
 moveToTangentVector3 :: RealFloat a => L.V2 a -> L.M33 a
 moveToTangentVector3 v@(L.V2 x y) = moveTo3  (L.V3 (x) (y) (sqrt (x*x + y*y + 1))) (L.norm v) 
  

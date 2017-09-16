@@ -58,7 +58,6 @@ executable Hyperbolic
 
   ghc-options: 
     -Wall
-    -optc-mfpmath=sse
     -Odph
     -fdicts-strict
     -fexpose-all-unfoldings 
@@ -67,6 +66,8 @@ executable Hyperbolic
     -funbox-strict-fields 
     -threaded
     -rtsopts
+    -Wno-name-shadowing
+    -Wcompat 
     "-with-rtsopts=-N -threaded"
   -- {- -fdefer-type-errors -} 
   -- Other library packages from which modules are imported.
@@ -116,7 +117,6 @@ executable Hyperbolic-prof
       -fregs-iterative
       -fdicts-strict
       -optc-march=pentium4
-      -optc-mfpmath=sse
       -threaded
       -fprof-auto
       -rtsopts

@@ -7,13 +7,17 @@ import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
 import Control.Monad(when)
 import Control.Applicative(liftA2, liftA3)
 import Data.List((++))
+import qualified Data.Vector as V
+import Codec.Wavefront hiding (Point, Triangle)
+import qualified Codec.Wavefront
+import GHC.Float 
+import Text.Show.Pretty
 import System.Environment
 import System.IO.Error
 import System.Console.Program
 import System.Console.Argument
 import System.Console.Command
 import qualified Text.Read as TR
-import qualified Universe as U
 import  Control.Concurrent
 import qualified Graphics.UI.GLUT as GL
 import Graphics.UI.GLUT
@@ -111,31 +115,78 @@ matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3
                            ('a', moveAlongY3 ), ('d', moveAlongY3 . negate)]
 
 runtimeObstacles :: [RuntimeObstacle Double]
-runtimeObstacles = computeObs (obstacles U.level)
-level = U.level
+runtimeObstacles = computeObs (obstacles level)
+level  :: Environment (Double, Double, Double) Double
+level = Env (Mesh [(red, Polygon [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01])
+  where p0 = Point 1.0 0.0 0.0 2.0
+        p1 = rotateAroundZ (tau/3) !$ p0
+        p2 = rotateAroundZ (-tau/3) !$ p0
+        red = (1.0, 0.0, 0.0)
+-- не ебу я как с трансформерами работать и вообще пишут в интернете что IO (Either x y) - это зло
+loadObj' :: FilePath -> FilePath -> IO (Either String (Environment (Double, Double, Double) Double))
+loadObj' pathMesh pathObs = do
+  meshE <- fromFile pathMesh
+  obsE <- fromFile pathObs
+  return $ do
+    meshObj <- meshE
+    obsObj <- obsE
+    mesh <- (parseMesh meshObj:: Either String (Mesh (Double, Double, Double) Double))
+    obs <- parseObstacles obsObj
+    return $ Env mesh obs
+
+parseMesh :: WavefrontOBJ -> Either String (Mesh (Double, Double, Double) Double)
+parseMesh obj = fmap Mesh $ mapM toPolygon $ map (elValue) $ V.toList $ objFaces obj
+  where 
+    toPolygon :: Face -> Either String ((Double, Double, Double), HyperEntity Double)
+    toPolygon (Face i1 i2 i3 is) = do
+      p1 <- toPoint i1
+      p2 <- toPoint i2
+      p3 <- toPoint i3
+      ps <- mapM toPoint is
+      Right $ ((0.5, 0.5, 0.5), Polygon ((p1): (p2): (p3):ps))
+    toPoint :: FaceIndex -> Either String (Point Double)
+    toPoint i = do
+      (Location lx ly lz lw) <- maybe (Left $ "index out of range:" ++ ppShow i ++ "\n" ++ ppShow (objLocations obj)) Right (objLocations obj V.!? (faceLocIndex i-1))
+      return $ Point (float2Double lx) (float2Double ly) (float2Double lz) (float2Double lw)
+
+parseObstacles :: WavefrontOBJ -> Either String (Obstacles Double)
+parseObstacles obj = mapM toTriangle $ map (elValue) $ V.toList $ objFaces obj
+  where 
+    toTriangle :: Face -> Either String (Obstacle Double)
+    toTriangle (Codec.Wavefront.Triangle i1 i2 i3) = do
+      p1 <- toPoint i1
+      p2 <- toPoint i2
+      p3 <- toPoint i3
+      Right $ ( Triangle (p1) (p2) (p3) 0.01)
+    toTriangle _ = Left "non-triangle face"
+    toPoint :: FaceIndex -> Either String (Point Double)
+    toPoint i = do
+      (Location lx ly lz lw) <- maybe (Left $ "index out of range:" ++ ppShow i ++ "\n" ++ ppShow (objLocations obj)) Right (objLocations obj V.!? (faceLocIndex i-1))
+      return $ Point (float2Double lx) (float2Double ly) (float2Double lz) (float2Double lw)
+
 main :: IO ()
 main = do 
         thId <- myThreadId 
-        !meshRef <- newIORef (mesh U.level) 
+        !meshRef <- newIORef (mesh level) 
         obsRef <- newIORef runtimeObstacles
         stepRef <- newIORef 0.01
         jumpRef <- newIORef 0.01
         gravityRef <- newIORef 0.0002
         frameRef <- newIORef True
-        forkIO (glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef)
-        console obsRef meshRef stepRef jumpRef gravityRef frameRef
-  where glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef = 
+        stateRef <- newIORef $ startState {_speed = V3 0.0 0 0.000}
+        forkIO (glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef)
+        console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef
+  where glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef = 
           do
             initialiseGraphics
             GL.actionOnWindowClose $= GL.MainLoopReturns
             (Size width' height') <- get screenSize 
             let width = fromIntegral width'
             let height = fromIntegral height' 
-            state <- newIORef $ startState {_speed = V3 0.0 0 0.000}
             keyboardCallback $= (Just $ (\a _ -> do
                                step <- readIORef stepRef
                                jump <- readIORef jumpRef
-                               modifyIORef state $ processKeyboard step jump a)) 
+                               modifyIORef stateRef $ processKeyboard step jump a)) 
                                -- \a _ -> case a of
                                -- 'q' -> leaveMainLoop 
                                -- 'c' -> do
@@ -148,17 +199,17 @@ main = do
 
             last <- newIORef $ UTCTime (toEnum 0) 1
             let display = do
-                            state' <- readIORef state
+                            state' <- readIORef stateRef
                             mesh <- readIORef meshRef
                             frame <- readIORef frameRef
-                            displayGame (mesh ) frame (viewPort state') 
+                            displayGame (mesh :: Mesh (Double, Double, Double) Double) frame (viewPort state') 
             passiveMotionCallback $= (Just $ (\(Position x y) -> do
                 last' <- readIORef last
                 now <- getCurrentTime
                 when (now `diffUTCTime ` last' > 0.03)
                     (do 
                      writeIORef last now 
-                     modifyIORef state $ processMouse width height (fromEnum x, fromEnum y)
+                     modifyIORef stateRef $ processMouse width height (fromEnum x, fromEnum y)
                      pointerPosition $= (Position (width'`div`2) (height'`div`2))
                      display)
                 ))
@@ -169,12 +220,12 @@ main = do
                                     addTimerCallback 16 timerCallback
                                     gravity <- readIORef gravityRef
                                     obs <- readIORef obsRef
-                                    modifyIORef state $ tick gravity obs
+                                    modifyIORef stateRef $ tick gravity obs
         --                            readIORef state >>= (putStrLn . show)
             addTimerCallback 0 timerCallback
             pointerPosition $= (Position (width'`div`2) (height'`div`2))
             mainLoop
-        console obsRef meshRef stepRef jumpRef gravityRef frameRef =
+        console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef =
           (interactive commands)
          where commands = (Node ( Command "" "" (io (return ())) True) [Node (setGravity gravityRef) [], 
                                                                          Node (loadLevel obsRef meshRef) [], 
@@ -183,7 +234,8 @@ main = do
                                                                          Node (setJump jumpRef) [],
                                                                          Node (quit) [],
                                                                          Node (toggleFrame frameRef) [],
-                                                                         Node (help commands) []
+                                                                         Node (help commands) [],
+                                                                         Node (state stateRef) []
                                                                         ])
 
 
@@ -218,7 +270,7 @@ loadObj obsVar meshVar = command "loadObj" "loadObj <filename> loads enviromment
   where
     action = withNonOption file (\path -> withNonOption (optional "" file)  
           (\pathObj -> io $ do
-                    env <- U.loadObj path (if pathObj==""then path else pathObj)
+                    env <- loadObj' path (if pathObj==""then path else pathObj)
                     case env of 
                       Right (Env mesh slowObs) -> writeIORef meshVar mesh >> writeIORef obsVar (computeObs slowObs)
                       Left s -> putStrLn s)) 
@@ -251,6 +303,14 @@ fullscreen :: Command IO
 fullscreen = command "fullscreen" "" action 
     where
         action = io (GL.fullScreen)
+
+state :: IORef State -> Command IO
+state stateVar = command "state" "query current position etc" action 
+    where
+        action =  io $ do
+          s'@(State m _ _ _) <- readIORef stateVar
+          print s'
+          putStrLn $ "current xy position is " ++ show (m !* V3 0 0 1)
 
 viewPort :: State -> M44 Double
 viewPort (State pos height nod _) = rotateAroundY (-nod) !*! moveAlongZ (-height) !*! (m33_to_m44M $ transposeMink3 pos)
