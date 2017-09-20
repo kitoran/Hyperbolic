@@ -86,7 +86,7 @@ executable Hyperbolic
                      , containers
                      , console-program 
                      , wavefront
-                     , vector == 0.11.0.0
+                     , vector
                      -- because wavefront uses this version
                      , pretty-show
                      , bytestring
