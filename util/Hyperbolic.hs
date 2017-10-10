@@ -153,9 +153,9 @@ rotate3 a = L.V3 (L.V3 (cos a) (-sin a) 0) (L.V3 (sin a) (cos a) 0) (L.V3 0 0 1)
 rotateAround3 :: RealFloat a => L.V3 a -> a -> L.M33 a
 rotateAround3 p a = commute3 (transposeMink3 $ moveRightTo3 p) (rotate3 a)
 reflectOnX3 :: Num a => L.M33 a
-reflectOnX3 = L.V3 (L.V3 (-1) (0) 0) (L.V3 (0) (1) 0) (L.V3 0 0 1)
+reflectOnX3 = L.V3 (L.V3 (1) (0) 0) (L.V3 (0) (-1) 0) (L.V3 0 0 1)
 reflectOnY3 :: Num a => L.M33 a
-reflectOnY3 = L.V3 (L.V3 (1) (0) 0) (L.V3 (0) (-1) 0) (L.V3 0 0 1)
+reflectOnY3 = L.V3 (L.V3 (-1) (0) 0) (L.V3 (0) (1) 0) (L.V3 0 0 1)
 reflect3 :: RealFloat a => L.V3 a -> L.V3 a -> L.M33 a
 reflect3 p1 p2 = commute3 (getSegmentToOx3 p1 p2) reflectOnX3 
 

@@ -178,6 +178,7 @@ dodecahedralValue = acosh $ ctgACos sinDIv * ctgASin ((cos gamma)/(sin (tau/6)))
 
 sinDIv = sin (3*tau/20) / sin (tau/6)
 
+
 dodecahedralAngle :: Double
 dodecahedralAngle = 2 * acos sinDIv
 
@@ -236,6 +237,16 @@ dodecahedronEnv2 x = rotate (dodecahedralPointFront x) (dodecahedralPointSecondU
 
 dodecahedronEnv x = dodecahedronEnv2 x `unionEnv` (dodecahedronEnv1 x (255/255, 171/255, 11/255))
 
+octacles = P.zipWith (!$) (P.take 8 $ iterate (!*! rotateAroundZ (tau/8)) identity) (repeat $ moveAlongX (hypotenuseByAngles (tau/16) (tau/16)) !$ 
+                                                                                                  origin)
+octagon ::  Environment (Double, Double, Double) Double
+octagon = Env (Mesh [((1.0,0.0,0.0), Polygon octacles)])
+                 (fmap (\p ->  Triangle (rotateAroundZ (tau/8) !$ p) p ( moveAlongZ (-0) !$ origin) 0.05) octacles)
+-- Env (Mesh [(red, Polygon [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01])
+--   where p0 = Point 1.0 0.0 0.0 2.0
+--         p1 = rotateAroundZ (tau/3) !$ p0
+--         p2 = rotateAroundZ (-tau/3) !$ p0
+--         red = (1.0, 0.0, 0.0)
 dodecahedronSolid :: Double -> [Obstacle Double]
 dodecahedronSolid x = do
   triangle <- sixth

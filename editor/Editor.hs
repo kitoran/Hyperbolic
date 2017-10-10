@@ -20,8 +20,22 @@ import Data.IORef
 import qualified Graphics.UI.Gtk as Gtk
 import Graphics.UI.Gtk (AttrOp((:=)))
 import qualified Graphics.UI.Gtk.OpenGL as GtkGL
-
+import qualified Graphics.UI.Gtk.Gdk.Events as Gtk
 import Graphics.Rendering.OpenGL as GL
+
+import Graphics
+import Control.Monad
+import Hyperbolic as H
+import Physics as P
+import qualified Linear as L
+
+level  :: Environment (Double, Double, Double) Double
+level = Env (Mesh [(red, P.Polygon [p0, p1, p2])]) ([P.Triangle p0 p1 p2 0.01])
+  where p0 = H.Point 1.0 0.0 0.0 2.0
+        p1 = rotateAroundZ (tau/3) !$ p0
+        p2 = rotateAroundZ (-tau/3) !$ p0
+        red = (1.0, 0.0, 0.0)
+
 
 main :: IO ()
 main = do
@@ -39,116 +53,65 @@ main = do
 
   -- Create an OpenGL drawing area widget
   canvas <- GtkGL.glDrawingAreaNew glconfig
-
-  Gtk.widgetSetSizeRequest canvas 350 350
+  Gtk.widgetSetSizeRequest canvas 300 300
 
   -- Initialise some GL setting just before the canvas first gets shown
   -- (We can't initialise these things earlier since the GL resources that
   -- we are using wouldn't heve been setup yet)
-  Gtk.onRealize canvas $ GtkGL.withGLDrawingArea canvas $ \_ -> do
-    clearColor $= (Color4 0.0 0.0 0.0 0.0)
-    matrixMode $= Projection
-    loadIdentity
-    ortho 0.0 1.0 0.0 1.0 (-1.0) 1.0
-    depthFunc $= Just Less
-    drawBuffer $= BackBuffers
+  Gtk.onRealize canvas $ GtkGL.withGLDrawingArea canvas $ \_ -> initialiseGraphics 
+  -- do
+  --   clearColor $= (Color4 0.0 0.0 0.0 0.0)
+  --   matrixMode $= Projection
+  --   loadIdentity
+  --   ortho 0.0 1.0 0.0 1.0 (-1.0) 1.0
+  --   depthFunc $= Just Less
+  --   drawBuffer $= BackBuffers
 
   ref <- newIORef (0, 0, 0)
-
+  pos <- newIORef L.identity
+  last <- newIORef Nothing
+  realized <- newIORef False
+  -- Gtk.onRsize canvas
   -- Set the repaint handler
   Gtk.onExpose canvas $ \_ -> do
     GtkGL.withGLDrawingArea canvas $ \glwindow -> do
-      (r_x, r_y, r_z) <- readIORef ref
-      GL.clear [GL.DepthBuffer, GL.ColorBuffer]
-      drawCube (r_x, r_y, r_z)
+      p <- readIORef pos
+      displayGame (mesh level) $ p L.!*! moveAlongZ (-0.1)--rotateAroundY (-0) L.!*! moveAlongZ (-0.1) L.!*! L.identity
+      flush
       GtkGL.glDrawableSwapBuffers glwindow
+      writeIORef realized True
     return True
+  Gtk.onButtonPress canvas $ \_ -> do
+    print "Hey it s me"
+    return True
+  Gtk.onMotionNotify canvas True (\(Gtk.Motion _ _ x y _ _ _ _) -> do
+      e <- readIORef last
+      case e of
+          Nothing -> return ()
+          Just (lx, ly) -> do
+              print (lx-x, ly-y)
+              modifyIORef pos (rotateAroundZ ((x-lx)/20) L.!*! rotateAroundY ((ly-y)/20) L.!*!) 
+      writeIORef last (Just (x,y))
+      Gtk.widgetQueueDraw canvas
+      return False)
+  Gtk.onSizeAllocate canvas $ \(Gtk.Rectangle l u r d) -> do
+      print "allocate or die"
+      rd <- readIORef realized
+      when rd $
+        GtkGL.withGLDrawingArea canvas $ \_ -> resize (r-l) (r-d)
 
-  -- Setup the animation
-  Gtk.timeoutAddFull (do
-    modifyIORef ref (\(r_x, r_y, r_z) -> (r_x + dx, r_y + dy, r_z + dz))
-    Gtk.widgetQueueDraw canvas
-    return True)
-    Gtk.priorityDefaultIdle animationWaitTime
-
-  --------------------------------
-  -- Setup the rest of the GUI:
-  --
   window <- Gtk.windowNew
   Gtk.onDestroy window Gtk.mainQuit
   Gtk.set window [ Gtk.containerBorderWidth := 8,
-                   Gtk.windowTitle := "Gtk2Hs + HOpenGL demo" ]
+                   Gtk.windowTitle := "Level editor" ]
 
   vbox <- Gtk.vBoxNew False 4
   Gtk.set window [ Gtk.containerChild := vbox ]
 
-  label <- Gtk.labelNew (Just "Gtk2Hs using OpenGL via HOpenGL!")
-  button <- Gtk.buttonNewWithLabel "Close"
-  Gtk.onClicked button (do
-                         Gtk.widgetDestroy window
-                         Gtk.mainQuit)
-  Gtk.set vbox [ Gtk.containerChild := canvas,
-                 Gtk.containerChild := label,
-                 Gtk.containerChild := button ]
+  Gtk.set vbox [ Gtk.containerChild := canvas
+                ]
 
+  Gtk.windowMaximize window
   Gtk.widgetShowAll window
   Gtk.mainGUI
 
-drawCube :: (GLfloat, GLfloat, GLfloat) -> IO ()
-drawCube (r_x, r_y, r_z) = do
-  loadIdentity
-  rotate r_x (Vector3 1 0 0 :: Vector3 GLfloat)
-  rotate r_y (Vector3 0 1 0 :: Vector3 GLfloat)
-  rotate r_z (Vector3 0 0 1 :: Vector3 GLfloat)
-  mapM_ drawFace (zip colours faces)
-
-  where drawFace :: (Color3 GLfloat, IO ()) -> IO ()
-        drawFace (colour, face) = do color colour
-                                     renderPrimitive Quads face
-        faces = map (mapM_ vertex) faceVertices :: [IO ()]
-        colours = [red, green, yellow, blue, purple, cyan]
-        faceVertices = [
-              [Vertex3     to     to     to,
-               Vertex3   from     to     to,
-               Vertex3   from   from     to,
-               Vertex3     to   from     to],
-              [Vertex3     to     to   from,
-               Vertex3   from     to   from,
-               Vertex3   from   from   from,
-               Vertex3     to   from   from],
-              [Vertex3     to     to     to,
-               Vertex3   from     to     to,
-               Vertex3   from     to   from,
-               Vertex3     to     to   from],
-              [Vertex3     to   from     to,
-               Vertex3   from   from     to,
-               Vertex3   from   from   from,
-               Vertex3     to   from   from],
-              [Vertex3     to     to     to,
-               Vertex3     to   from     to,
-               Vertex3     to   from   from,
-               Vertex3     to     to   from],
-              [Vertex3   from     to     to,
-               Vertex3   from   from     to,
-               Vertex3   from   from   from,
-               Vertex3   from     to   from]]
-
-to, from :: GLfloat
-to = 0.4
-from   =  -0.4
-
-animationWaitTime :: Int
-animationWaitTime = 3
-
-dx, dy, dz :: GLfloat
-dx = 0.1
-dy = 0.3
-dz = 0.7
-
-red, green, yellow, blue, purple, cyan :: Color3 GLfloat
-red    = Color3 1 0 0
-green  = Color3 0 1 0
-yellow = Color3 1 1 0
-blue   = Color3 0 0 1
-purple = Color3 1 0 1
-cyan = Color3 0 1 1

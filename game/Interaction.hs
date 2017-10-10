@@ -14,6 +14,8 @@ import GHC.Float
 import Text.Show.Pretty
 import System.Environment
 import System.IO.Error
+-- import System.IO.SaferFileHandles я хотел использовать модные безопасные функции работы с файлами,
+-- монадические регионы, все дела, но у меня файлхендлов вообще нет нигде, всё читается из файла одной функцией
 import System.Console.Program
 import System.Console.Argument
 import System.Console.Command

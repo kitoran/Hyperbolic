@@ -9,6 +9,8 @@ import qualified GHC.Exts
 import qualified Control.Lens as Lens
 import Linear(M44, (!*!), (!*), (*!), normalizePoint, V3(..), M33)
 
+--fixme этот файл, конечно, надо переместить в util, а Mesh переместить в другой файл
+
 --текущее положение  матрица куда надо пойти   результат (?) 
 -- correct :: M44 Double -> M44 Double -> M44 Double
 -- correct 
