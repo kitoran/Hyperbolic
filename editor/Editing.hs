@@ -3,6 +3,7 @@
 module Editing where
 
 import System.IO
+import Control.Concurrent
 
 -- data Action
 
@@ -39,6 +40,7 @@ newtype Model = M Int
 data Action = Double | Add Int
 main :: IO ()
 main = do
+    forkIO ()
     hSetBuffering stdin NoBuffering 
     d <- getChar 
     print d
