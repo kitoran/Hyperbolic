@@ -1,6 +1,6 @@
 -- import Graphics.UI.Gtk
 -- import Graphics.UI.Gtk.OpenGL
-
+ 
 -- main = do
 
 --    initGUI
