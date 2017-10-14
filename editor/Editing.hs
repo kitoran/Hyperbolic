@@ -1,9 +1,15 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Editing where
 
 import System.IO
+import System.Exit
+import Data.IORef
+import Data.Char
 import Control.Concurrent
+import Control.Concurrent.MVar 
+import Control.Monad
 
 -- data Action
 
@@ -36,11 +42,49 @@ import Control.Concurrent
 -- let's say Model = Int
 -- the problem is we can't block, вычисление инициируется GUI
 -- может, можно использовать MVar и вообще
-newtype Model = M Int
+
+newtype Model = M Int deriving (Num, Show)
 data Action = Double | Add Int
+
 main :: IO ()
 main = do
-    forkIO ()
-    hSetBuffering stdin NoBuffering 
-    d <- getChar 
-    print d
+    i <- myThreadId
+    y <- newIORef 5
+    var <- newEmptyMVar
+    sho <- forkIO $ showM y
+    rea <- forkIO $ readM [i, sho] var
+    hSetBuffering stdin NoBuffering
+    go var y
+    killThread sho
+    killThread rea
+  where
+    go :: MVar Action -> IORef Model -> IO ()
+    go y i = do 
+      d <- takeMVar y
+      modifyIORef i (apply d)
+      go y i
+
+apply :: Action -> Model -> Model
+apply Double = (*2)
+apply (Add e) = (+M e)
+
+readM :: [ThreadId] -> MVar Action -> IO ()
+readM th y = do
+      d <- getChar
+      putStrLn ""
+      when (isDigit d)
+          (putMVar y (Add (read [d])) )
+      when (d == 'd')
+          (putMVar y Double )
+      when (d == 'q') $ mapM_ killThread th 
+      when (d /= 'q') $ readM th y
+
+showM :: IORef Model -> IO ()
+showM y = do
+  (print =<< readIORef y) 
+  threadDelay 1000000 
+  showM y
+
+-- мне нравится идея, что вычисления происходят не в гуишном треде, но по мне более красиво было бы, если бы не было forkIO, а функция изменения состояния была
+-- колбэком у readM (в реальной программе ввод и вывод в одном треде, это просто с консолью такие трудности).
+-- Единственная проблема - мне так и не удалось использовать GADTs. Не понимаю где все находят эти юзкейсы.
