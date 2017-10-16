@@ -1,60 +1,87 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE EmptyCase #-}
+{-# OPTIONS_GHC -Wincomplete-patterns #-}
+-- # LANGUAGE PatternSynonyms  #
 module Editing where
 
 import System.IO
 import System.Exit
+-- import Data.Sequence
 import Data.IORef
 import Data.Char
 import Control.Concurrent
+import Control.Concurrent.Chan
 import Control.Concurrent.MVar 
 import Control.Monad
+import qualified Linear as L
 
+type Number = Double 
+
+data Action 
+
+apply :: Action -> Model -> Model
+apply a = case a of
 -- data Action
 
--- data Model
+data Model = M
+data ViewOptions = VO (L.M44 Double)deriving (Enum)
 
--- data P a where
---     GetModel :: P Model
---     Transform :: Action -> P ()
+-- data Event = Keyboard Char | Show
 
+data EditingMode = EM deriving (Enum, Eq)
 
--- -- в Editor.hs типа функция run :: PromptT P IO
--- runrun :: IO ()
--- runrun = do 
---     model <- loadOrCreateModel
---     MonadPrompt.runPrompt (\case
---         Pure -> model
---         smthElse -> blah) run
-
--- run :: PromptT P IO
--- run = do 
---     let ?someFrpProbably = ?keeraHails
---     action <- somehowWeGetWhatActionUserWantsToDo
---     prompt (Transform action)
---     lift showNewModelToUser =<< prompt GetModel
---     run
-
--- data ViewOptions
--- data EditingMode
-
--- let's say Model = Int
--- the problem is we can't block, вычисление инициируется GUI
--- может, можно использовать MVar и вообще
+toggle :: Enum a => a -> a
+toggle = toEnum . (1-) . fromEnum
 
 newtype Model = M Int deriving (Num, Show)
-data Action = Double | Add Int
+
+data State = S ViewOptions EditingMode Model 
+
+data SpecialEvent = Quit | ToggleView | ToggleMode
+
+processEvent stateRef (Keyboard c) = do
+    cont <- atomicModifyIORef stateRef (\(S v e m) -> case interpret e c of
+        (Just (Right a)) -> (S v e $ apply a m, True)
+        (Just (Left Quit)) -> (S v e m, False)
+        (Just (Left ToggleView)) -> (S (toggle v) e m, True)
+        (Just (Left ToggleMode)) -> (S v (toggle e) m, True)
+        (Nothing) -> (S v e m, True))
+    return cont
+processEvent stateRef (Show) = do
+    (S v _ m) <- readIORef stateRef 
+    case v of
+        Quotes -> putStrLn $ "\"" ++ show m ++ "\""
+        Parens -> putStrLn $ "(" ++ show m ++ ")"
+    return True
+
+interpret e c 
+  | isDigit c && e == AddMode = Just $ Right $ Add (read [c]) 
+  | isDigit c && e == SubtractMode = Just $ Right $ Subtract (read [c]) 
+  | (c == 'd') = Just $ Right $ Double
+  | (c == 'q') = Just $ Left Quit
+  | (c == 's') = Just $ Left ToggleMode
+  | (c == 'v') = Just $ Left ToggleView
+  | otherwise = Nothing
+
+eventLoop :: IORef State -> Chan Event -> IO ()
+eventLoop stateRef queueRef = do
+    event <- readChan queueRef
+    cont <- processEvent stateRef event
+    when cont $ eventLoop stateRef queueRef
+    
 
 main :: IO ()
 main = do
-    i <- myThreadId
-    y <- newIORef 5
-    var <- newEmptyMVar
-    sho <- forkIO $ showM y
-    rea <- forkIO $ readM [i, sho] var
     hSetBuffering stdin NoBuffering
-    go var y
+    i <- myThreadId
+    y <- newIORef (S Quotes AddMode 5)
+    var <- newChan
+    sho <- forkIO $ showM var
+    rea <- forkIO $ readM var
+    eventLoop y var
     killThread sho
     killThread rea
   where
@@ -64,27 +91,20 @@ main = do
       modifyIORef i (apply d)
       go y i
 
-apply :: Action -> Model -> Model
-apply Double = (*2)
-apply (Add e) = (+M e)
 
-readM :: [ThreadId] -> MVar Action -> IO ()
-readM th y = do
+readM :: Chan Event -> IO ()
+readM y = do
       d <- getChar
-      putStrLn ""
-      when (isDigit d)
-          (putMVar y (Add (read [d])) )
-      when (d == 'd')
-          (putMVar y Double )
-      when (d == 'q') $ mapM_ killThread th 
-      when (d /= 'q') $ readM th y
+      putStr "\n"
+      writeChan y (Keyboard d) 
+      readM y
 
-showM :: IORef Model -> IO ()
+showM :: Chan Event -> IO ()
 showM y = do
-  (print =<< readIORef y) 
+  writeChan y Show 
   threadDelay 1000000 
   showM y
 
--- мне нравится идея, что вычисления происходят не в гуишном треде, но по мне более красиво было бы, если бы не было forkIO, а функция изменения состояния была
--- колбэком у readM (в реальной программе ввод и вывод в одном треде, это просто с консолью такие трудности).
 -- Единственная проблема - мне так и не удалось использовать GADTs. Не понимаю где все находят эти юзкейсы.
+
+-- https://mail.haskell.org/pipermail/haskell-cafe/2008-January/038151.html
