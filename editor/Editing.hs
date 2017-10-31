@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE EmptyCase #-}
+{-# LANGUAGE DataKinds #-}
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
 -- # LANGUAGE PatternSynonyms  #
 module Editing where
@@ -18,12 +19,18 @@ import Control.Concurrent.MVar
 import Control.Monad
 import qualified Linear as L
 
+data Menu = ...
+data EditorState = AddingVertices | AddingVertices | MenuOpened Menu
+data Doing EditorState EditorState where 
+    AddVertex :: Coordinates -> Doing AddingVertices AddingVertices
+    ClickMenu :: (m::Menu) -> Doing a (MenuOpened m) -- dependent much? singletons bla bla type inference
+do :: Doing a b -> State a -> State b
 type Number = Double 
 
-data Action 
+data Action = A 
 
 apply :: Action -> Model -> Model
-apply a = case a of
+apply a = case a of A -> id
 -- data Action
 
 data Model = M
@@ -33,23 +40,18 @@ data ViewOptions = VO (L.M44 Double)deriving (Enum)
 
 data EditingMode = EM deriving (Enum, Eq)
 
-toggle :: Enum a => a -> a
-toggle = toEnum . (1-) . fromEnum
-
-newtype Model = M Int deriving (Num, Show)
-
 data State = S ViewOptions EditingMode Model 
 
-data SpecialEvent = Quit | ToggleView | ToggleMode
+-- data SpecialEvent = Quit | ToggleView | ToggleMode
 
-processEvent stateRef (Keyboard c) = do
-    cont <- atomicModifyIORef stateRef (\(S v e m) -> case interpret e c of
+processKeyboard stateRef c = do
+    cont <- atomicModifyIORef stateRef id{-(\(S v e m) -> case interpret e c of
         (Just (Right a)) -> (S v e $ apply a m, True)
         (Just (Left Quit)) -> (S v e m, False)
         (Just (Left ToggleView)) -> (S (toggle v) e m, True)
         (Just (Left ToggleMode)) -> (S v (toggle e) m, True)
-        (Nothing) -> (S v e m, True))
-    return cont
+        (Nothing) -> (S v e m, True))-}
+
 processEvent stateRef (Show) = do
     (S v _ m) <- readIORef stateRef 
     case v of
@@ -57,7 +59,7 @@ processEvent stateRef (Show) = do
         Parens -> putStrLn $ "(" ++ show m ++ ")"
     return True
 
-interpret e c 
+interpret e c = 
   | isDigit c && e == AddMode = Just $ Right $ Add (read [c]) 
   | isDigit c && e == SubtractMode = Just $ Right $ Subtract (read [c]) 
   | (c == 'd') = Just $ Right $ Double
