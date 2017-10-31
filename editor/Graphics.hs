@@ -74,7 +74,7 @@ displayGame (Mesh env) tran = do
     -- renderObject Solid $ Teapot 1
   -- color $ Color3 (1 :: GLdouble) 1 1
   -- color $ Color3 0 0 (0::GLdouble)
-  -- flush 
+  flush 
 
   return ()
     where toRaw :: ((c, c, c), HyperEntity a) -> IO ()

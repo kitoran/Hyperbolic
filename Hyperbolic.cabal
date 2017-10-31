@@ -127,8 +127,8 @@ executable Editor
   -- {- -fdefer-type-errors -} 
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.8 
-                     , gtkglext
-                     , gtk
+                     , gi-gtk
+                     , gi-gdk
                      , OpenGL
                      , linear
                      , lens
