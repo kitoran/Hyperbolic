@@ -129,6 +129,7 @@ executable Editor
   build-depends:       base >=4.8 
                      , gi-gtk
                      , gi-gdk
+                     , singletons
                      , OpenGL
                      , linear
                      , lens
