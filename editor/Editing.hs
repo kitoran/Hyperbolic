@@ -50,10 +50,10 @@ toggle  AddingEdges =AddingVertices
 toggle _ = error "this should be a type error"
 -- class Brack (e::EditorState) where
     -- brack :: Proxy e -> Model -> String
-data Singl (e::EditorState) where
-   Av :: Singl AddingVertices
-   Ae :: Singl AddingEdges
-   Mo :: forall (m::Menu) . SMenu m -> Singl (MenuOpened (m))
+-- data Singl (e::EditorState) where
+   -- Av :: Singl AddingVertices
+   -- Ae :: Singl AddingEdges
+   -- Mo :: forall (m::Menu) . SMenu m -> Singl (MenuOpened (m))
 -- reify :: Singl e -> EditorState
 -- reify Av = AddingVertices
 -- reify Ae = AddingEdges
@@ -66,7 +66,7 @@ data Singl (e::EditorState) where
 -- instance Brack Any where
     -- brack _ m = error "this is precisely the code i don't want to write"-- ("\"" ++ show m ++ "\"")
 data State where 
-    S :: forall e. Singl e -> Model -> State  
+    S :: forall e. SEditorState e -> Model -> State  
 -- data SomeState where
     -- SS :: forall e. State -> SomeState
 app :: Doing a b -> Doing b c -> Doing a c
@@ -102,22 +102,22 @@ type family Fam d f where
 -- data Exists = forall e  t . E (Doing e t) 
 -- interpret :: forall (r::EditorState) t . Char -> Maybe (Doing r t) 
 -- interpret c = Just (AddVertex (C $ read [c]))
-pu :: forall k. Singl k
+pu :: forall k. SEditorState k
 pu = pu
 processKeyboard :: IORef (State ) -> Char -> IO Bool
 processKeyboard stateRef c = do
      atomicModifyIORef stateRef (\s@(S v m ) -> case interpret v c of
-        (Just (SD _ (AddVertex (C ff)))) -> (S Av (M $ unM m+ff), True)
-        (Just (SD _ (RemoveVertex (C ff)))) -> (S Ae (M $ unM m-ff), True)
+        (Just (SD _ (AddVertex (C ff)))) -> (S SAddingVertices (M $ unM m+ff), True)
+        (Just (SD _ (RemoveVertex (C ff)))) -> (S SAddingEdges (M $ unM m-ff), True)
         (Just (SD _ Quit)) -> (S pu m, False)
         -- (Just (Left ToggleView)) -> (S (toggle v) e m, True)
-        (Just (SD _ ToggleModeE)) -> (S (Ae) m , True)
-        (Just (SD _ ToggleModeV)) -> (S (Av) m , True)
+        (Just (SD _ ToggleModeE)) -> (S (SAddingEdges) m , True)
+        (Just (SD _ ToggleModeV)) -> (S (SAddingVertices) m , True)
         (Nothing) -> (S v m , True))
 
-brack :: Singl e -> Model -> String
-brack Av m =  ("\"" ++ show m ++ "\"")
-brack Ae m =  ("[" ++ show m ++ "]")
+brack :: SEditorState e -> Model -> String
+brack SAddingVertices m =  ("\"" ++ show m ++ "\"")
+brack SAddingEdges m =  ("[" ++ show m ++ "]")
 brack _ _ =  [] -- ("[" ++ show m ++ "]")
 processEvent stateRef event = do
     (S v m ) <- readIORef stateRef
@@ -126,17 +126,17 @@ processEvent stateRef event = do
             -- AddingEdges -> putStrLn ("(" ++ show m ++ ")") >> return True
      Keyboard c -> processKeyboard stateRef c
 
-data SomeDoing r = forall t . SD (Singl t) (Doing r t)
-interpret :: Singl e -> Char -> Maybe (SomeDoing e)
-interpret Av c 
-  | isDigit c  = Just $ SD Av $ AddVertex (C $ read [c]) 
+data SomeDoing r = forall t . SD (SEditorState t) (Doing r t)
+interpret :: SEditorState e -> Char -> Maybe (SomeDoing e)
+interpret SAddingVertices c 
+  | isDigit c  = Just $ SD SAddingVertices $ AddVertex (C $ read [c]) 
   | (c == 'q') = Just $ SD undefined $ Quit
-  | (c == 's') = Just $ SD Ae $ ToggleModeE
+  | (c == 's') = Just $ SD SAddingEdges $ ToggleModeE
   | otherwise = Nothing
-interpret Ae c 
-  | isDigit c = Just $ SD Ae $ RemoveVertex (C $ read [c]) 
+interpret SAddingEdges c 
+  | isDigit c = Just $ SD SAddingEdges $ RemoveVertex (C $ read [c]) 
   | (c == 'q') = Just $ SD undefined $ Quit
-  | (c == 's') = Just $ SD Av $ ToggleModeV -- последние две строки уместить в одну?
+  | (c == 's') = Just $ SD SAddingVertices $ ToggleModeV -- последние две строки уместить в одну?
   | otherwise = Nothing
 
   -- | (c == 'd') = Just $ Right $ Double
@@ -153,7 +153,7 @@ main :: IO ()
 main = do
     hSetBuffering stdin NoBuffering
     i <- myThreadId
-    y <- newIORef (S (Av) 4)
+    y <- newIORef (S (SAddingVertices) 4)
     var <- newChan
     sho <- forkIO $ showM var
     rea <- forkIO $ readM var
