@@ -73,7 +73,7 @@ import Control.Lens-- (over)
 --     , never
 --     ) 
 
-import Hyperbolic 
+import Riemann 
         -- ( rotateAroundZ
         -- , rotateAroundY
         -- , moveAlongZ
@@ -110,7 +110,7 @@ startState :: State
 startState = State identity 0.1 0 (V3 0.0 0 0)
 
 tick :: Double -> [RuntimeObstacle Double] -> State -> State
-tick gravity level = (\s@(State pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (level) . applyGravity gravity . applySpeed
+tick gravity level = (\s@(State pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (level){- . applyGravity gravity-} . applySpeed
 
 matricesMoveInPlane :: Floating a => [(Char, a -> M33 a)]
 matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3 ), ('s', moveAlongX3 . negate), 
