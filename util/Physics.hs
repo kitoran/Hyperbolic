@@ -1,8 +1,8 @@
 {-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds, DuplicateRecordFields, DeriveFunctor, BangPatterns #-}
 module Physics where
 
-import qualified Hyperbolic as H
-import Hyperbolic (Point(Point), (!$), tau)
+import qualified Riemann as H
+import Riemann (Point(Point), (!$), tau)
 import qualified Unsafe.Coerce
 import Data.Foldable
 import qualified Debug.Trace
@@ -131,20 +131,20 @@ instance H.Movable (Environment c) where
 data RuntimeObstacle a = SphereR !(Point a) a | TriangleR (M44 a) a a a a deriving (Eq, Show,Functor, Read)
 
 
--- optics
-ray :: V3 Double -> Double -> S.Set Mirror -> ([V3 Double], Double)
-ray pp phi s = case findFirstIntersection pp phi s of
-          Nothing -> ([], phi)
-          Just (p, d) -> (p:fst (ray p d s), d)
-findFirstIntersection :: V3 Double -> Double -> S.Set Mirror -> Maybe (V3 Double, Double)
-findFirstIntersection p phi s = foldrM 
-                                  (Just . min) 
-                                  (map (\m -> intersection p phi m) s)
-                                  Nothing
-intersection :: V3 Double -> Double -> Mirror -> Maybe Double
-intersection p phi (p1, p2) = let ((V3 x1 y1 z1), (V3 x2 y2 z2)) = (rotate2 (-phi) !*! moveToOrigin2 p !* ) *** (p1, p2)
-                                  res = (x2*z1-x1*z2)/(y1*z2-y2*z1) 
-                              in if y1*z1*y1*z2 < 0 && res > 0 then Just res else Nothing 
+-- -- optics
+-- ray :: V3 Double -> Double -> S.Set Mirror -> ([V3 Double], Double)
+-- ray pp phi s = case findFirstIntersection pp phi s of
+--           Nothing -> ([], phi)
+--           Just (p, d) -> (p:fst (ray p d s), d)
+-- findFirstIntersection :: V3 Double -> Double -> S.Set Mirror -> Maybe (V3 Double, Double)
+-- findFirstIntersection p phi s = foldrM 
+--                                   (Just . min) 
+--                                   (map (\m -> intersection p phi m) s)
+--                                   Nothing
+-- intersection :: V3 Double -> Double -> Mirror -> Maybe Double
+-- intersection p phi (p1, p2) = let ((V3 x1 y1 z1), (V3 x2 y2 z2)) = (rotate2 (-phi) !*! moveToOrigin2 p !* ) *** (p1, p2)
+--                                   res = (x2*z1-x1*z2)/(y1*z2-y2*z1) 
+--                               in if y1*z1*y1*z2 < 0 && res > 0 then Just res else Nothing 
 -- pushOut :: (RealFloat a, Eq a, Ord a, Show a) => Obstacles a -> M44 a -> M44 a
 -- pushOut (Obs a) currentPos = foldr (\(center, radius) a -> a !*! ((transposeMink (pushOutSphereO (fromV4 $ (toV4 center) *! currentPos ) radius )))
 --                                                            ) currentPos a            
