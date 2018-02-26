@@ -1,13 +1,13 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
              MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables, BangPatterns, Strict #-}
--- module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
+-- module Riemann (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
 --                    rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
 --                    pretty, proper, distance, chDistance, adj44, moveTo, invAroundZ, invAroundY, fromV4, toV4 {-FIMXE when learn lens-}, 
 --                    normalizeWass, normalizeKlein, Movable (..), transposeMink, turmPToOxz, turmPToOx, moveFromTo, commute,
 --                    moveRightTo, getTriangleToOxy) where
 
-
-module Hyperbolic  where -- x=
+-- Риман в значении риманово пространство, не в значении риманово многообразие 
+module Riemann  where -- x=
    
 import Data.Monoid
 import GHC.Generics (Generic1) 
@@ -113,10 +113,10 @@ insanity a = getSum $ fold $ fmap (foldMap (\x->Sum $ x*x)) (sanity a L.^-^ L.id
 form :: Num a => Point a -> Point a -> a {- fundamental minkowski form, она зависит от координатного
 представления точки, то есть не однозначна для точек гиперболического пространства, 
 её стоит использовать с осторожностью -}
-form (Point x1 y1 z1 t1) (Point x2 y2 z2 t2) = x1*x2 + y1*y2 + z1*z2 - t1*t2 
+form (Point x1 y1 z1 t1) (Point x2 y2 z2 t2) = x1*x2 + y1*y2 + z1*z2 + t1*t2 
 
 formV :: Num a => L.V4 a -> L.V4 a -> a
-formV (L.V4 x1 y1 z1 t1) (L.V4 x2 y2 z2 t2) = x1*x2 + y1*y2 + z1*z2 - t1*t2 
+formV (L.V4 x1 y1 z1 t1) (L.V4 x2 y2 z2 t2) = x1*x2 + y1*y2 + z1*z2 + t1*t2 
 
 -- next three datatypes represent things in hyperbolic space
 -- data Line a = Line (Point a) (Point a) {- ^ if one of the points is proper, the line is proper -}
@@ -137,17 +137,17 @@ reflectAboutOrigin = L.V4 (L.V4 (-1) 0 0 0) (L.V4 0 (-1) 0 0) (L.V4 0 0 (-1) 0) 
 
 moveAlongX, moveAlongY, moveAlongZ :: Floating a => a -> L.M44 a
 -- По дебильному решению кметта матрицы записываются по строкам :(
-moveAlongZ d = L.V4 (L.V4 1 0 0 0) (L.V4 0 1 0 0) (L.V4 0 0 (cosh d) (sinh d)) (L.V4 0 0 (sinh d) (cosh d))
-moveAlongY d = L.V4 (L.V4 1 0 0 0) (L.V4 0 (cosh d) 0 (sinh d)) (L.V4 0 0 1 0) (L.V4 0 (sinh d) 0 (cosh d))
-moveAlongX d = L.V4 (L.V4 (cosh d) 0 0 (sinh d)) (L.V4 0 1 0 0) (L.V4 0 0 1 0) (L.V4 (sinh d) 0 0 (cosh d))
+moveAlongZ d = L.V4 (L.V4 1 0 0 0) (L.V4 0 1 0 0) (L.V4 0 0 (cos d) (sin d)) (L.V4 0 0 (sin d) (cos d))
+moveAlongY d = L.V4 (L.V4 1 0 0 0) (L.V4 0 (cos d) 0 (sin d)) (L.V4 0 0 1 0) (L.V4 0 (sin d) 0 (cos d))
+moveAlongX d = L.V4 (L.V4 (cos d) 0 0 (sin d)) (L.V4 0 1 0 0) (L.V4 0 0 1 0) (L.V4 (sin d) 0 0 (cos d))
 rotateAroundX, rotateAroundY, rotateAroundZ :: Floating a => a -> L.M44 a 
 rotateAroundZ a = L.V4 (L.V4 (cos a) (-sin a) 0 0) (L.V4 (sin a) (cos a) 0 0) (L.V4 0 0 1 0) (L.V4 0 0 0 1)
 rotateAroundY a = L.V4 (L.V4 (cos a) 0 (sin a) 0) (L.V4 0 1 0 0) (L.V4 (-sin a) 0 (cos a) 0) (L.V4 0 0 0 1)
 rotateAroundX a = L.V4 (L.V4 1 0 0 0) (L.V4 0 (cos a) (-sin a) 0) (L.V4 0 (sin a) (cos a) 0) (L.V4 0 0 0 1)
 
 moveAlongX3, moveAlongY3 :: Floating a => a -> L.M33 a
-moveAlongY3 d = L.V3 (L.V3 1 0 0) (L.V3 0 (cosh d)  (sinh d)) (L.V3 0 (sinh d) (cosh d))
-moveAlongX3 d = L.V3 (L.V3 (cosh d) 0 (sinh d)) (L.V3 0 1 0) (L.V3 (sinh d) 0 (cosh d))
+moveAlongY3 d = L.V3 (L.V3 1 0 0) (L.V3 0 (cos d)  (sin d)) (L.V3 0 (sin d) (cos d))
+moveAlongX3 d = L.V3 (L.V3 (cos d) 0 (sin d)) (L.V3 0 1 0) (L.V3 (sin d) 0 (cos d))
 rotate3 :: Floating a => a -> L.M33 a
 rotate3 a = L.V3 (L.V3 (cos a) (-sin a) 0) (L.V3 (sin a) (cos a) 0) (L.V3 0 0 1)
 rotateAround3 :: RealFloat a => L.V3 a -> a -> L.M33 a
@@ -245,8 +245,8 @@ fd
 -}
 distance :: (Floating a, Ord a) => Point a -> Point a -> a
 distance a b 
-  | (chDistance a b) > 1 = acosh (chDistance a b)
-  | otherwise = 0 
+  | (cDistance a b) > 1 = 0
+  | otherwise = acos (cDistance a b)
 
 
 legByAdjacentAndOppositeAngles :: (Floating a) => a -> a -> a
@@ -255,8 +255,8 @@ legByAdjacentAndOppositeAngles a b = acosh $ cos b / sin a
 hypotenuseByAngles :: (Floating a) => a -> a -> a
 hypotenuseByAngles a b = acosh $ recip $ tan a * tan b
 
-chDistance :: Floating a => Point a -> Point a -> a
-chDistance a b = negate (form (normalizeWass a) (normalizeWass b)) --let diff = a ^-^ b in form diff diff
+cDistance :: Floating a => Point a -> Point a -> a
+cDistance a b = negate (form (normalizeWass a) (normalizeWass b)) --let diff = a ^-^ b in form diff diff
 signedDistanceFromOxy :: (Floating a, Ord a) => Point a -> a
 signedDistanceFromOxy p@(Point x y z t) = distance p (Point x y 0 t) * signum z * signum t
 -- that is, they must be linearly dependent

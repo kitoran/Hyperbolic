@@ -33,7 +33,7 @@ import Graphics.UI.GLUT as GL
 import qualified Graphics.Rendering.OpenGL.GLU.Matrix (perspective, lookAt)
 import Graphics.Rendering.OpenGL.GL.Shaders
 import Physics  as P (Mesh(..), HyperEntity(..))
-import Hyperbolic as H (Point(..), transposeMink, normalizeWass, _v4, klein)
+import Riemann as H (Point(..), transposeMink, normalizeWass, _v4, klein)
 import Linear hiding (perspective, lookAt, trace)
 import Data.Coerce
 import Graphics.UI.GLUT.Objects --fixme
@@ -88,7 +88,7 @@ initialiseGraphics = do
    
     diffuse (Light 0)  $= Color4 1 1 1 1
     blend              $= Enabled
-    -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) 
+    -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) -- ??????????????????????????
     colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
     matrixMode $= Projection
     perspective 45 (1024/600) (0.01) 1
@@ -170,7 +170,10 @@ lpos = Vertex4 (-1.4313725157195931) 2.663858068380254e-6 (0.3::GLfloat) 1.84608
 displayGame :: forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a)
                                          =>  Mesh (c, c, c) a -> Bool -> M44 a -> IO ()
 displayGame (Mesh env) drawFrame tran = do
+  matrixMode $= Projection
+                 
   clear [ColorBuffer, DepthBuffer]
+  lighting           $= Enabled 
   preservingMatrix $ do
     matrixx <- (newMatrix RowMajor $ m44toList tran :: IO (GLmatrix GLdouble))
     multMatrix matrixx
@@ -186,13 +189,26 @@ displayGame (Mesh env) drawFrame tran = do
     when drawFrame $ do
       color $ Color3 0 0 (0::GLdouble)
       mapM_ (frame.snd) env
+      -- color $ Color3 0 0 (1::GLdouble)
+
   -- color $ Color3 1 1 (1::GLdouble)
     -- renderObject Solid $ Teapot 1
   -- color $ Color3 (1 :: GLdouble) 1 1
   -- color $ Color3 0 0 (0::GLdouble)
   -- flush 
-  swapBuffers-- swapBuffers
-  return ()
+  preservingMatrix $ do
+    color $ Color3 0 0 (1::GLdouble)
+    loadIdentity
+    matrixMode $= Modelview 2
+
+    loadIdentity 
+    -- clear [ColorBuffer, DepthBuffer]
+    rasterPos $ Vertex3 0 0 (0::GLdouble) 
+    lighting           $= Disabled 
+    -- texture $= Disabled
+    renderString TimesRoman24 "QQWEQWEQWE"
+  swapBuffers
+  -- return ()
     where toRaw :: ((c, c, c), HyperEntity a) -> IO ()
           toRaw (col, (P.Polygon list)) = do
                               renderPrimitive GL.Polygon $ do

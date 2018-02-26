@@ -56,19 +56,19 @@ executable Hyperbolic
   -- other-extensions:    
 
   ghc-options: 
-    -Wall
-    -Odph
-    -fdicts-strict
-    -fexpose-all-unfoldings 
-    -flate-dmd-anal 
-    -fregs-iterative
-    -funbox-strict-fields 
-    -threaded
-    -rtsopts
-    -Wno-name-shadowing
-    -Wcompat 
-    -Wmonomorphism-restriction
-    "-with-rtsopts=-N -threaded"
+ --   -Wall
+ --   -Odph
+ --   -fdicts-strict
+ --   -fexpose-all-unfoldings 
+ --   -flate-dmd-anal 
+ --   -fregs-iterative
+ --   -funbox-strict-fields 
+ --  -threaded
+ --   -rtsopts
+ --  -Wno-name-shadowing
+ --   -Wcompat 
+ --   -Wmonomorphism-restriction
+ --   "-with-rtsopts=-N -threaded"
   -- {- -fdefer-type-errors -} 
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.8 
