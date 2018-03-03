@@ -33,14 +33,14 @@ import Graphics.UI.GLUT as GL
 import qualified Graphics.Rendering.OpenGL.GLU.Matrix (perspective, lookAt)
 import Graphics.Rendering.OpenGL.GL.Shaders
 import Physics  as P (Mesh(..), HyperEntity(..), State(..))
-import Riemann as H (Point(..), transposeMink, normalizeWass, _v4, klein, origin3)
+import Riemann as H (Point(..), transposeMink, normalizeWass, _v4, klein, origin3, _t)
 import Linear hiding (perspective, lookAt, trace)
 import Data.Coerce
 import Data.List (intercalate)
 import Graphics.UI.GLUT.Objects --fixme
 import qualified System.Random
 import qualified Control.Lens
-import Control.Lens ((^.))
+import Control.Lens ((^.), (%~), (&))
 import qualified Data.ByteString as BS
 import Text.Show.Pretty
 import Text.Printf
@@ -96,7 +96,7 @@ initialiseGraphics = do
     -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) -- ??????????????????????????
     colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
     matrixMode $= Projection
-    perspective 45 (1024/600) (0.1) (10)
+    perspective 45 (1024/600) (0.01) (100)
     lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
 --     _ <- getArgsAndInitialize
 --     initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered, RGBAMode]
@@ -307,7 +307,7 @@ displayGame (Mesh env) drawFrame tran state = do
     -- renderString Helvetica18 $
     -- windowPos $ Vertex3 0 (h) (0::GLfloat)
     let transform2 :: Point a -> V4 GLdouble
-        transform2 p {- (H.Point x y z t)-} =  let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+        transform2 p {- (H.Point x y z t)-} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                     V4 (coerce $ x/t) (coerceG $ y/t) (coerceG $ z/t) (1)
         P.Polygon tri = snd $ head env
@@ -325,6 +325,10 @@ displayGame (Mesh env) drawFrame tran state = do
                                 color $ curry3 Color3 $ mapTuple coerceG col
                                 applyNormal list
                                 mapM_ transform list
+                              renderPrimitive GL.Polygon $ do
+                                color $ Color3 0 0 (1::GLdouble) --curry3 Color3 $ mapTuple coerceG col
+                                applyNormal list
+                                mapM_ transformn list
           toRaw (col, (Segment a b)) = do
                               renderPrimitive Lines $ do
                                 color $ curry3 (Color3) $ mapTuple coerceG col
@@ -342,7 +346,7 @@ displayGame (Mesh env) drawFrame tran state = do
                      (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
           transformn :: Point a -> IO ()--Vertex4 Double
 
-          transformn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+          transformn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
                      (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
