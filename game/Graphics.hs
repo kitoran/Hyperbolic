@@ -1,7 +1,7 @@
 {-# Language NoMonomorphismRestriction, BangPatterns, RecursiveDo, TupleSections, TemplateHaskell,
     ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses #-}
 module Graphics where
-
+import Data.Functor.Identity 
 import Control.Monad(when)
 import Graphics.UI.GLUT as GL
 {-(($=), 
@@ -32,14 +32,19 @@ import Graphics.UI.GLUT as GL
                          Vector3(..) )-}
 import qualified Graphics.Rendering.OpenGL.GLU.Matrix (perspective, lookAt)
 import Graphics.Rendering.OpenGL.GL.Shaders
-import Physics  as P (Mesh(..), HyperEntity(..))
-import Riemann as H (Point(..), transposeMink, normalizeWass, _v4, klein)
+import Physics  as P (Mesh(..), HyperEntity(..), State(..))
+import Riemann as H (Point(..), transposeMink, normalizeWass, _v4, klein, origin3)
 import Linear hiding (perspective, lookAt, trace)
 import Data.Coerce
+import Data.List (intercalate)
 import Graphics.UI.GLUT.Objects --fixme
 import qualified System.Random
 import qualified Control.Lens
+import Control.Lens ((^.))
 import qualified Data.ByteString as BS
+import Text.Show.Pretty
+import Text.Printf
+
 -- import qualified Data.Coerce
 -- import qualified Graphics.Rendering.FTGL
 
@@ -91,7 +96,7 @@ initialiseGraphics = do
     -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) -- ??????????????????????????
     colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
     matrixMode $= Projection
-    perspective 45 (1024/600) (0.01) 1
+    perspective 45 (1024/600) (0.1) (10)
     lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
 --     _ <- getArgsAndInitialize
 --     initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered, RGBAMode]
@@ -165,18 +170,117 @@ initialiseGraphics = do
 --   swapBuffers
 
 lpos = Vertex4 (-1.4313725157195931) 2.663858068380254e-6 (0.3::GLfloat) 1.8460891382643082 
+renderText :: String -> IO () 
+renderText s = do
+      h <- fontHeight Helvetica18
+      let liness = lines s
+          qwe = length liness
+      go liness qwe h
+   where
+     go [] 0  h = return ()
+     go (f:ff) r h = do
+       windowPos $ Vertex3 0 (fromIntegral r*h) (0::GLfloat)
+       renderString Helvetica18 $ f
+       go ff (r-1) h
 
+mareix :: Coercible Double a => M44 a -> String
+mareix m = unlines $ fmap wer [a, s, d, f]
+  where q = (fmap.fmap) coerce m
+        wer (V4 q w e r) = printf "%.3f \t%.3f \t%.3f \t%.3f" q w e (r::Double)
+        (V4 a s d f) = q
+--  -- fixme use DisplayLists
+-- displayGame :: forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)
+--                                          =>  Mesh (c, c, c) a -> Bool -> M44 a -> State -> IO ()
+-- displayGame (Mesh env) drawFrame tran state = do
+--   matrixMode $= Projection
+                 
+--   clear [ColorBuffer, DepthBuffer]
+--   lighting           $= Enabled 
+--   preservingMatrix $ do
+--     matrixx <- (newMatrix RowMajor $ m44toList tran :: IO (GLmatrix GLdouble))
+--     multMatrix matrixx
+--     position (Light 0) $= lpos -- Vertex4 0.3 0.1 0.15 (1::GLfloat)
+--     mapM_ ( toRaw) env
+
+--     color $ Color3 0 0 (1::GLdouble)
+--     renderPrimitive Triangles $ do
+--       let Vertex4 x y z t = lpos
+--       vertex $ Vertex4 (x+0.01) y z t
+--       vertex $ Vertex4 x (y+0.01) z t
+--       vertex $ Vertex4 x y (z+0.01) t
+--     when drawFrame $ do
+--       color $ Color3 0 0 (0::GLdouble)
+--       mapM_ (frame.snd) env
+
+--   preservingMatrix $ do
+--     color $ Color3 0 0 (1::GLdouble)
+--     loadIdentity
+--     matrixMode $= Modelview 2
+
+--     loadIdentity 
+--     -- clear [ColorBuffer, DepthBuffer]
+--     windowPos $ Vertex3 0 0 (0::GLdouble) 
+--     lighting           $= Disabled 
+--     -- texture $= Disabled
+--     -- renderString Helvetica18 $
+--     -- windowPos $ Vertex3 0 (h) (0::GLfloat)
+--     let transform2 :: Point a -> V4 GLdouble
+--         transform2 (H.Point x y z t) = -- let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+--                     {- when ((x/t)>0) -}
+--                     V4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t)
+--         P.Polygon tri = snd $ head env
+--         [aaa, bbb, ccc] = map transform2 $ tri
+--     renderText $  show (_pos state !* origin3) ++ "\n" ++ (show $ _height state) ++ "\n" ++ show aaa ++ "\n" ++ mareix tran
+
+--   swapBuffers
+--   -- return ()
+--     where toRaw :: ((c, c, c), HyperEntity a) -> IO ()
+--           toRaw (col, (P.Polygon list)) = do
+--                               renderPrimitive GL.Polygon $ do
+--                                 color $ curry3 Color3 $ mapTuple coerceG col
+--                                 applyNormal list
+--                                 mapM_ transform list
+--           toRaw (col, (Segment a b)) = do
+--                               renderPrimitive Lines $ do
+--                                 color $ curry3 (Color3) $ mapTuple coerceG col
+--                                 transform a
+--                                 transform b
+--           toRaw (col, (HPoint a )) = do
+--                               renderPrimitive Points $ do
+--                                 color $ curry3 (Color3) $ mapTuple coerceG col
+--                                 transform a
+--           transform :: Point a -> IO ()--Vertex4 Double
+
+--           transform (H.Point x y z t) = -- let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+--                     {- when ((x/t)>0) -}
+--                     do
+--                      (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
+--           applyNormal (a:b:c:_) = normal $ Normal3 (coerce x :: GLdouble) (coerce y) (coerce z)
+--             where
+--               V3 x1 y1 z1 = signorm $ cross ( klein a-klein b ) (klein a - klein c)    
+--               V3 x y z = if z1 < 0 then V3 x1 y1 z1 else negate (V3 x1 y1 z1)
+--           coerceG a = (coerce a) :: GLdouble
+--           curry3 f (a,b,c)=f a b c
+--           uncurry3  f a b c=f (a,b,c)
+--           mapTuple f (a, b, c) = (f a, f  b, f c)
+--           m44toList (V4 (V4 a b c d)
+--                         (V4 e f g h)
+--                         (V4 i j k l)
+--                         (V4 m n o p)) = [coerceG a,coerceG  b,coerceG  c,coerceG  d,coerceG  e,coerceG  f,coerceG  g,coerceG  h,coerceG  i,coerceG  j,coerceG  k ,coerceG  l,coerceG  m,coerceG  n,coerceG  o,coerceG  p]
+--           frame (P.Polygon list) = 
+--               renderPrimitive LineLoop $ mapM_ transform list
+--           frame (Segment a b) = return ()
  -- fixme use DisplayLists
-displayGame :: forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a)
-                                         =>  Mesh (c, c, c) a -> Bool -> M44 a -> IO ()
-displayGame (Mesh env) drawFrame tran = do
+displayGame :: forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)
+                                         =>  Mesh (c, c, c) a -> Bool -> M44 a -> State -> IO ()
+displayGame (Mesh env) drawFrame tran state = do
   matrixMode $= Projection
                  
   clear [ColorBuffer, DepthBuffer]
   lighting           $= Enabled 
   preservingMatrix $ do
-    matrixx <- (newMatrix RowMajor $ m44toList tran :: IO (GLmatrix GLdouble))
-    multMatrix matrixx
+    -- matrixx <- (newMatrix RowMajor $ m44toList tran :: IO (GLmatrix GLdouble))
+    -- multMatrix matrixx
     position (Light 0) $= lpos -- Vertex4 0.3 0.1 0.15 (1::GLfloat)
     mapM_ ( toRaw) env
 
@@ -189,13 +293,7 @@ displayGame (Mesh env) drawFrame tran = do
     when drawFrame $ do
       color $ Color3 0 0 (0::GLdouble)
       mapM_ (frame.snd) env
-      -- color $ Color3 0 0 (1::GLdouble)
 
-  -- color $ Color3 1 1 (1::GLdouble)
-    -- renderObject Solid $ Teapot 1
-  -- color $ Color3 (1 :: GLdouble) 1 1
-  -- color $ Color3 0 0 (0::GLdouble)
-  -- flush 
   preservingMatrix $ do
     color $ Color3 0 0 (1::GLdouble)
     loadIdentity
@@ -203,10 +301,22 @@ displayGame (Mesh env) drawFrame tran = do
 
     loadIdentity 
     -- clear [ColorBuffer, DepthBuffer]
-    rasterPos $ Vertex3 0 0 (0::GLdouble) 
+    windowPos $ Vertex3 0 0 (0::GLdouble) 
     lighting           $= Disabled 
     -- texture $= Disabled
-    renderString TimesRoman24 "QQWEQWEQWE"
+    -- renderString Helvetica18 $
+    -- windowPos $ Vertex3 0 (h) (0::GLfloat)
+    let transform2 :: Point a -> V4 GLdouble
+        transform2 p {- (H.Point x y z t)-} =  let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+                    {- when ((x/t)>0) -}
+                    V4 (coerce $ x/t) (coerceG $ y/t) (coerceG $ z/t) (1)
+        P.Polygon tri = snd $ head env
+        [aaa, bbb, ccc] = map transform2 $ tri
+    renderText $ intercalate "\n" [show (_pos state !* origin3),
+                                   (show $ _height state),
+                                   show aaa,
+                                   mareix tran]
+
   swapBuffers
   -- return ()
     where toRaw :: ((c, c, c), HyperEntity a) -> IO ()
@@ -226,10 +336,16 @@ displayGame (Mesh env) drawFrame tran = do
                                 transform a
           transform :: Point a -> IO ()--Vertex4 Double
 
-          transform (H.Point x y z t) = -- let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+          transform p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
-                    do
+                     do
                      (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
+          transformn :: Point a -> IO ()--Vertex4 Double
+
+          transformn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+                    {- when ((x/t)>0) -}
+                     do
+                     (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
           applyNormal (a:b:c:_) = normal $ Normal3 (coerce x :: GLdouble) (coerce y) (coerce z)
             where
               V3 x1 y1 z1 = signorm $ cross ( klein a-klein b ) (klein a - klein c)    
