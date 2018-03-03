@@ -88,6 +88,7 @@ executable Hyperbolic
                      -- because wavefront uses this version
                      , pretty-show
                      , bytestring
+                     , prettyprinter
   
   -- Directories containing source files.
   hs-source-dirs:  game

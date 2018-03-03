@@ -120,7 +120,7 @@ runtimeObstacles :: [RuntimeObstacle Double]
 runtimeObstacles = computeObs (obstacles level)
 level  :: Environment (Double, Double, Double) Double
 level = Env (Mesh [(red, Polygon [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01])
-  where p0 = Point 1.0 0.0 0.0 2.0
+  where p0 = Point (cos 1) 0.0 0.0 (sin 1)
         p1 = rotateAroundZ (tau/3) !$ p0
         p2 = rotateAroundZ (-tau/3) !$ p0
         red = (1.0, 0.0, 0.0)
@@ -204,7 +204,7 @@ main = do
                             state' <- readIORef stateRef
                             mesh <- readIORef meshRef
                             frame <- readIORef frameRef
-                            displayGame (mesh :: Mesh (Double, Double, Double) Double) frame (viewPort state') 
+                            displayGame (mesh :: Mesh (Double, Double, Double) Double) frame (viewPort state') state' 
             passiveMotionCallback $= (Just $ (\(Position x y) -> do
                 last' <- readIORef last
                 now <- getCurrentTime
