@@ -349,7 +349,7 @@ displayGame (Mesh env) drawFrame tran state = do
           transformn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
-                     (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
+                     (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG ( t)))
           applyNormal (a:b:c:_) = normal $ Normal3 (coerce x :: GLdouble) (coerce y) (coerce z)
             where
               V3 x1 y1 z1 = signorm $ cross ( klein a-klein b ) (klein a - klein c)    
