@@ -146,8 +146,8 @@ rotateAroundY a = L.V4 (L.V4 (cos a) 0 (sin a) 0) (L.V4 0 1 0 0) (L.V4 (-sin a) 
 rotateAroundX a = L.V4 (L.V4 1 0 0 0) (L.V4 0 (cos a) (-sin a) 0) (L.V4 0 (sin a) (cos a) 0) (L.V4 0 0 0 1)
 
 moveAlongX3, moveAlongY3 :: Floating a => a -> L.M33 a
-moveAlongY3 d = L.V3 (L.V3 1 0 0) (L.V3 0 (cos d)  (sin d)) (L.V3 0 (sin d) (cos d))
-moveAlongX3 d = L.V3 (L.V3 (cos d) 0 (sin d)) (L.V3 0 1 0) (L.V3 (sin d) 0 (cos d))
+moveAlongY3 d = L.V3 (L.V3 1 0 0) (L.V3 0 (cos d)  (-sin d)) (L.V3 0 (sin d) (cos d))
+moveAlongX3 d = L.V3 (L.V3 (cos d) 0 (-sin d)) (L.V3 0 1 0) (L.V3 (sin d) 0 (cos d))
 rotate3 :: Floating a => a -> L.M33 a
 rotate3 a = L.V3 (L.V3 (cos a) (-sin a) 0) (L.V3 (sin a) (cos a) 0) (L.V3 0 0 1)
 rotateAround3 :: RealFloat a => L.V3 a -> a -> L.M33 a
@@ -160,14 +160,14 @@ reflect3 :: RealFloat a => L.V3 a -> L.V3 a -> L.M33 a
 reflect3 p1 p2 = commute3 (getSegmentToOx3 p1 p2) reflectOnX3 
 
 moveToTangentVector :: RealFloat a => L.V3 a -> L.M44 a
-moveToTangentVector v@(L.V3 x y z) = moveRightTo $ Point (cosh x) (cosh y) (cosh z) (sinh (L.norm v)) -- fixme это вроде неправильно
+moveToTangentVector v@(L.V3 x y z) = moveRightTo $ Point (cos x) (cos y) (cos z) (sin (L.norm v)) -- fixme это вроде неправильно
 moveToTangentVector3 :: RealFloat a => L.V2 a -> L.M33 a
 moveToTangentVector3 v@(L.V2 x y) = moveTo3  (L.V3 (x) (y) (sqrt (x*x + y*y + 1))) (L.norm v) 
  
 origin3 :: Num a => L.V3 a
 origin3 = L.V3 0 0 1
 distance3 :: Floating a => L.V3 a -> L.V3 a -> a
-distance3 p1 p2 = acosh (form3 (normalizeWass3 p1) (normalizeWass3 p2))
+distance3 p1 p2 = acos (form3 (normalizeWass3 p1) (normalizeWass3 p2))
 transposeMink3 :: Num a => L.M33 a -> L.M33 a
 transposeMink3 (L.V3 (L.V3 q w e) (L.V3 r t y) (L.V3 u i o)) = L.V3 (L.V3 q r (-u)) (L.V3 w t (-i)) (L.V3 (-e) (-y) o)
 normalizeWass3 :: Floating a => L.V3 a -> L.V3 a
@@ -250,10 +250,10 @@ distance a b
 
 
 legByAdjacentAndOppositeAngles :: (Floating a) => a -> a -> a
-legByAdjacentAndOppositeAngles a b = acosh $ cos b / sin a
+legByAdjacentAndOppositeAngles a b = acos $ cos b / sin a
 
 hypotenuseByAngles :: (Floating a) => a -> a -> a
-hypotenuseByAngles a b = acosh $ recip $ tan a * tan b
+hypotenuseByAngles a b = acos $ recip $ tan a * tan b
 
 cDistance :: Floating a => Point a -> Point a -> a
 cDistance a b = negate (form (normalizeWass a) (normalizeWass b)) --let diff = a ^-^ b in form diff diff
@@ -319,7 +319,7 @@ getPointToOrigin, getPointToOxzAroundOz, getPointToOxyAroundOx, getPointOnOxToOr
 getPointToOrigin = transposeMink . moveRightTo
 getPointToOxzAroundOz (Point x y _ t) = rotateAroundZ $ -(atan2 (y/t) (x/t)) --  брать синус и косинус арктангенса очень весело, конечно
 getPointToOxyAroundOx (Point _ y z t) = rotateAroundX $ -(atan2 (z/t) (y/t)) -- от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
-getPointOnOxToOrigin (Point x _ _ t) = moveAlongX $ asinh $ (  - x/ sqrt (( (t*t-x*x))) * signum t) -- брать гиперболические синус и косинус аркчосинуса очень весело, конечно
+getPointOnOxToOrigin (Point x _ _ t) = moveAlongX $ asin $ (  - x/ sqrt (( (t*t-x*x))) * signum t) -- брать гиперболические синус и косинус аркчосинуса очень весело, конечно
 -- moveFromTo a b d = 
 
 andThen :: (Num a, Movable m) => (m a -> L.M44 a) -> (m a -> L.M44 a) -> m a -> L.M44 a -- может быть, это какой-нибудь arrows 
