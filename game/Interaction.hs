@@ -119,8 +119,8 @@ matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3
 runtimeObstacles :: [RuntimeObstacle Double]
 runtimeObstacles = computeObs (obstacles level)
 level  :: Environment (Double, Double, Double) Double
-level = Env (Mesh [(red, Polygon [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01])
-  where p0 = Point (0.1) 0.0 0.0 (1)
+level = Env (Mesh [(red, Polygon $ map (moveAlongX 1 !$) [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01])
+  where p0 = Point (1) 0.0 0.0 (1)
         p1 = rotateAroundZ (tau/3) !$ p0
         p2 = rotateAroundZ (-tau/3) !$ p0
         red = (1.0, 0.0, 0.0)

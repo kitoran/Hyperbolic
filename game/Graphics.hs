@@ -325,10 +325,18 @@ displayGame (Mesh env) drawFrame tran state = do
                                 color $ curry3 Color3 $ mapTuple coerceG col
                                 applyNormal list
                                 mapM_ transform list
+                              -- renderPrimitive GL.Polygon $ do
+                              --   color $ Color3 0 0 (1::GLdouble) --curry3 Color3 $ mapTuple coerceG col
+                              --   applyNormal list
+                              --   mapM_ transformnn list
+                              -- renderPrimitive GL.Polygon $ do
+                              --   color $ Color3 0 1 (0::GLdouble) --curry3 Color3 $ mapTuple coerceG col
+                              --   applyNormal list
+                              --   mapM_ transformnp list
                               renderPrimitive GL.Polygon $ do
-                                color $ Color3 0 0 (1::GLdouble) --curry3 Color3 $ mapTuple coerceG col
+                                color $ Color3 1 1 (0::GLdouble) --curry3 Color3 $ mapTuple coerceG col
                                 applyNormal list
-                                mapM_ transformn list
+                                mapM_ transformpn list
           toRaw (col, (Segment a b)) = do
                               renderPrimitive Lines $ do
                                 color $ curry3 (Color3) $ mapTuple coerceG col
@@ -344,9 +352,21 @@ displayGame (Mesh env) drawFrame tran state = do
                     {- when ((x/t)>0) -}
                      do
                      (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
-          transformn :: Point a -> IO ()--Vertex4 Double
+          transformpn :: Point a -> IO ()--Vertex4 Double
 
-          transformn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+          transformpn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ id) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+                    {- when ((x/t)>0) -}
+                     do
+                     (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
+          transformnn :: Point a -> IO ()--Vertex4 Double
+
+          transformnn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+                    {- when ((x/t)>0) -}
+                     do
+                     (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
+          transformnp :: Point a -> IO ()--Vertex4 Double
+
+          transformnp p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
                      (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG ( t)))
