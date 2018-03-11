@@ -1,5 +1,5 @@
 {-# Language NoMonomorphismRestriction, BangPatterns, RecursiveDo, TupleSections, TemplateHaskell,
-    ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses #-}
+    ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses, OverloadedStrings #-}
 module Graphics where
 import Data.Functor.Identity 
 import Control.Monad(when)
@@ -33,17 +33,23 @@ import Graphics.UI.GLUT as GL
 import qualified Graphics.Rendering.OpenGL.GLU.Matrix (perspective, lookAt)
 import Graphics.Rendering.OpenGL.GL.Shaders
 import Physics  as P (Mesh(..), HyperEntity(..), State(..))
-import Riemann as H (Point(..), transposeMink, normalizeWass, _v4, klein, origin3, _t)
-import Linear hiding (perspective, lookAt, trace)
+import Riemann as H (Point(..), transposeMink, normalizeWass, _v4, klein, origin3, _t, origin, distance, (!$)
+  , cDistance)
+import Linear hiding (perspective, lookAt, trace, distance)
 import Data.Coerce
+import Data.Semigroup
+import qualified Data.Text as T
+import Text.Show.Pretty
+import Formatting
+import TextShow
+import TextShow.TH
 import Data.List (intercalate)
 import Graphics.UI.GLUT.Objects --fixme
 import qualified System.Random
 import qualified Control.Lens
+import Console
 import Control.Lens ((^.), (%~), (&))
 import qualified Data.ByteString as BS
-import Text.Show.Pretty
-import Text.Printf
 
 -- import qualified Data.Coerce
 -- import qualified Graphics.Rendering.FTGL
@@ -54,7 +60,9 @@ import qualified Graphics.Rendering.OpenGL.GL.CoordTrans (loadIdentity)
 -- --import qualified Debug.Trace 
 --В этом модуле находится столько всякой нефункциональности, что от двух маленьких unsafeperformio вреда не будет особого
 
-
+$(deriveTextShow ''V3)
+$(deriveTextShow ''Point)
+$(deriveTextShow ''V4)
 initialiseGraphics ::  IO ()
 initialiseGraphics = do
 
@@ -170,23 +178,23 @@ initialiseGraphics = do
 --   swapBuffers
 
 lpos = Vertex4 (-1.4313725157195931) 2.663858068380254e-6 (0.3::GLfloat) 1.8460891382643082 
-renderText :: String -> IO () 
+renderText :: T.Text -> IO () 
 renderText s = do
       h <- fontHeight Helvetica18
-      let liness = lines s
+      let liness = T.lines s
           qwe = length liness
       go liness qwe h
    where
      go [] 0  h = return ()
      go (f:ff) r h = do
        windowPos $ Vertex3 0 (fromIntegral r*h) (0::GLfloat)
-       renderString Helvetica18 $ f
+       renderString Helvetica18 $ T.unpack f
        go ff (r-1) h
 
-mareix :: Coercible Double a => M44 a -> String
-mareix m = unlines $ fmap wer [a, s, d, f]
+mareix :: Coercible Double a => M44 a -> T.Text
+mareix m = T.unlines $ fmap wer [a, s, d, f]
   where q = (fmap.fmap) coerce m
-        wer (V4 q w e r) = printf "%.3f \t%.3f \t%.3f \t%.3f" q w e (r::Double)
+        wer (V4 q w e r) = T.intercalate "\t" (map (sformat (fixed 3)) [q, w, e, (r::Double)])
         (V4 a s d f) = q
 --  -- fixme use DisplayLists
 -- displayGame :: forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)
@@ -271,11 +279,12 @@ mareix m = unlines $ fmap wer [a, s, d, f]
 --               renderPrimitive LineLoop $ mapM_ transform list
 --           frame (Segment a b) = return ()
  -- fixme use DisplayLists
-displayGame :: forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)
-                                         =>  Mesh (c, c, c) a -> Bool -> M44 a -> State -> IO ()
-displayGame (Mesh env) drawFrame tran state = do
+displayGame :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)
+                                         => -}
+                 Console -> Bool -> Mesh (Double, Double, Double) Double -> Bool -> M44 Double -> State -> IO ()
+displayGame cons whecons (Mesh env) drawFrame tranw state = do
   matrixMode $= Projection
-                 
+  print cons
   clear [ColorBuffer, DepthBuffer]
   lighting           $= Enabled 
   preservingMatrix $ do
@@ -304,22 +313,30 @@ displayGame (Mesh env) drawFrame tran state = do
     windowPos $ Vertex3 0 0 (0::GLdouble) 
     lighting           $= Disabled 
     -- texture $= Disabled
-    -- renderString Helvetica18 $
+    -- renderS1tring Helvetica18 $
     -- windowPos $ Vertex3 0 (h) (0::GLfloat)
-    let transform2 :: Point a -> V4 GLdouble
+    let transform2 :: Point Double -> V4 GLdouble
         transform2 p {- (H.Point x y z t)-} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                     V4 (coerce $ x/t) (coerceG $ y/t) (coerceG $ z/t) (1)
         P.Polygon tri = snd $ head env
         [aaa, bbb, ccc] = map transform2 $ tri
-    renderText $ intercalate "\n" [show (_pos state !* origin3),
-                                   (show $ _height state),
-                                   show aaa,
-                                   mareix tran]
+    (when whecons
+          (renderText $ T.intercalate "\n" ((history cons) ++ [line cons] )))
+    (when  (not whecons)
+           (renderText $ T.intercalate "\n" [showt (_pos state !* origin3),
+                                             (showt $ _height state),
+                                             showt aaa,
+                                             "dist " <> showt (distance origin ((inv44 tran) !$ origin)),
+                                             "cDist " <> showt (cDistance origin ((inv44 tran) !$ origin)),
+                                             "vect " <> showt ((inv44 tran) !$ origin),
+                                             mareix tran]))
 
   swapBuffers
   -- return ()
-    where toRaw :: ((c, c, c), HyperEntity a) -> IO ()
+    where 
+          tran = tranw
+          toRaw :: ((Double, Double, Double), HyperEntity Double) -> IO ()
           toRaw (col, (P.Polygon list)) = do
                               renderPrimitive GL.Polygon $ do
                                 color $ curry3 Color3 $ mapTuple coerceG col
@@ -346,25 +363,25 @@ displayGame (Mesh env) drawFrame tran state = do
                               renderPrimitive Points $ do
                                 color $ curry3 (Color3) $ mapTuple coerceG col
                                 transform a
-          transform :: Point a -> IO ()--Vertex4 Double
+          transform :: Point Double -> IO ()--Vertex4 Double
 
           transform p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
                      (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
-          transformpn :: Point a -> IO ()--Vertex4 Double
+          transformpn :: Point Double -> IO ()--Vertex4 Double
 
           transformpn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ id) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
                      (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
-          transformnn :: Point a -> IO ()--Vertex4 Double
+          transformnn :: Point Double -> IO ()--Vertex4 Double
 
           transformnn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
                      (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
-          transformnp :: Point a -> IO ()--Vertex4 Double
+          transformnp :: Point Double -> IO ()--Vertex4 Double
 
           transformnp p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
