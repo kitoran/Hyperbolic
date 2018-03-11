@@ -101,8 +101,8 @@ tau = 2 * pi
 -- |4x4 matrix transpose with respect to minkowski form
 -- for hyperbolic space isometries this is same as inL.V44 (modulo floating-point precision)
 transposeMink::Num a => L.M44 a -> L.M44 a
-transposeMink (L.V4 (L.V4 a b c d) (L.V4 e f g h) (L.V4 i j k l) (L.V4 m n o p))
-  = (L.V4 (L.V4 a e i (-m)) (L.V4 b f j (-n)) (L.V4 c g k (-o)) (L.V4 (-d) (-h) (-l) p))
+transposeMink -- (L.V4 (L.V4 a b c d) (L.V4 e f g h) (L.V4 i j k l) (L.V4 m n o p))
+  = L.transpose -- (L.V4 (L.V4 a e i (m)) (L.V4 b f j (-n)) (L.V4 c g k (-o)) (L.V4 (-d) (-h) (-l) p))
 
 sanity :: Num a => L.M44 a -> L.M44 a
 sanity a = a !*! transposeMink a
@@ -169,14 +169,14 @@ origin3 = L.V3 0 0 1
 distance3 :: Floating a => L.V3 a -> L.V3 a -> a
 distance3 p1 p2 = acos (form3 (normalizeWass3 p1) (normalizeWass3 p2))
 transposeMink3 :: Num a => L.M33 a -> L.M33 a
-transposeMink3 (L.V3 (L.V3 q w e) (L.V3 r t y) (L.V3 u i o)) = L.V3 (L.V3 q r (-u)) (L.V3 w t (-i)) (L.V3 (-e) (-y) o)
+transposeMink3 {- (L.V3 (L.V3 q w e) (L.V3 r t y) (L.V3 u i o)) -}= L.transpose-- L.V3 (L.V3 q r (-u)) (L.V3 w t (-i)) (L.V3 (-e) (-y) o)
 normalizeWass3 :: Floating a => L.V3 a -> L.V3 a
-normalizeWass3 (L.V3 x y t) = L.V3 (x/d) (y/d) (t/d) where d = sqrt (t*t - y*y - x*x) * signum t
+normalizeWass3 (L.V3 x y t) = L.V3 (x/d) (y/d) (t/d) where d = sqrt (t*t + y*y + x*x) * signum t
 normalizeKlein3 :: Floating a => L.V3 a -> L.V3 a
 normalizeKlein3 (L.V3 x y t) = L.V3 (x/t) (y/t) 1
 
 form3 :: Num a => L.V3 a -> L.V3 a -> a
-form3 (L.V3 x1 y1 z1) (L.V3 x2 y2 z2) = z1*z2 - x1*x2 - y1*y2
+form3 (L.V3 x1 y1 z1) (L.V3 x2 y2 z2) = z1*z2 + x1*x2 + y1*y2
 
 
 moveRightFromTo3 :: RealFloat a => L.V3 a -> L.V3 a -> L.M33 a
@@ -256,7 +256,7 @@ hypotenuseByAngles :: (Floating a) => a -> a -> a
 hypotenuseByAngles a b = acos $ recip $ tan a * tan b
 
 cDistance :: Floating a => Point a -> Point a -> a
-cDistance a b = negate (form (normalizeWass a) (normalizeWass b)) --let diff = a ^-^ b in form diff diff
+cDistance a b = (form (normalizeWass a) (normalizeWass b)) --let diff = a ^-^ b in form diff diff
 signedDistanceFromOxy :: (Floating a, Ord a) => Point a -> a
 signedDistanceFromOxy p@(Point x y z t) = distance p (Point x y 0 t) * signum z * signum t
 -- that is, they must be linearly dependent
@@ -273,7 +273,7 @@ normalizeKlein :: Fractional a => Point a -> Point a
 normalizeKlein (Point x y z t) = Point (x/t) (y/t) (z/t) 1
 normalizeWass :: Floating a => Point a -> Point a
 normalizeWass (Point x y z t) = Point (x/d) (y/d) (z/d) (t/d)
-    where d = sqrt ((-(x*x)) - y*y - z*z + t*t) * signum t
+    where d = sqrt (((x*x)) + y*y + z*z + t*t) * signum t
 
 rotate :: (RealFloat a) => Point a -> Point a -> a -> L.M44 a
 rotate a b x = commute ((getPointToOrigin a `andConsideringThat` turmPToOx) b) (rotateAroundX x)

@@ -55,9 +55,10 @@ executable Hyperbolic
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
 
-  ghc-options: 
+  ghc-options:
+      -O0 
  --   -Wall
- --   -Odph
+ --   -Odph11
  --   -fdicts-strict
  --   -fexpose-all-unfoldings 
  --   -flate-dmd-anal 
@@ -89,6 +90,9 @@ executable Hyperbolic
                      , pretty-show
                      , bytestring
                      , prettyprinter
+                     , text
+                     , text-show
+                     , formatting
   
   -- Directories containing source files.
   hs-source-dirs:  game

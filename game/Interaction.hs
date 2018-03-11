@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds,DuplicateRecordFields, BangPatterns, LambdaCase #-}
+{-# Language TemplateHaskell, ScopedTypeVariables, OverloadedStrings, NoMonomorphismRestriction, DataKinds,DuplicateRecordFields, BangPatterns, LambdaCase #-}
 module Main where
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
@@ -9,6 +9,7 @@ import Control.Applicative(liftA2, liftA3)
 import Data.List((++))
 import qualified Data.Vector as V
 import Codec.Wavefront hiding (Point, Triangle)
+import Console
 import qualified Codec.Wavefront
 import GHC.Float 
 import Text.Show.Pretty
@@ -175,10 +176,12 @@ main = do
         jumpRef <- newIORef 0.01
         gravityRef <- newIORef 0.0002
         frameRef <- newIORef True
+        wheConsoleRef <- newIORef False
+        consoleRef <- newIORef (Console "" [])
         stateRef <- newIORef $ startState {_speed = V3 0.0 0 0.000}
-        forkIO (glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef)
-        console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef
-  where glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef = 
+        forkIO (glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef)
+        console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef 
+  where glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef = 
           do
             initialiseGraphics
             GL.actionOnWindowClose $= GL.MainLoopReturns
@@ -186,9 +189,15 @@ main = do
             let width = fromIntegral width'
             let height = fromIntegral height' 
             keyboardCallback $= (Just $ (\a _ -> do
-                               step <- readIORef stepRef
-                               jump <- readIORef jumpRef
-                               modifyIORef stateRef $ processKeyboard step jump a)) 
+                               when (a == '\t') (modifyIORef wheConsoleRef not)
+                               wheCon <- readIORef wheConsoleRef
+                               when (wheCon) $ do
+                                 modifyIORef consoleRef (stroke a)
+                               when (not wheCon) $ do
+                                
+                                 step <- readIORef stepRef
+                                 jump <- readIORef jumpRef
+                                 modifyIORef stateRef $ processKeyboard step jump a)) 
                                -- \a _ -> case a of
                                -- 'q' -> leaveMainLoop 
                                -- 'c' -> do
@@ -200,11 +209,15 @@ main = do
                                -- _   -> modifyIORef state $ processKeyboard a)
 
             last <- newIORef $ UTCTime (toEnum 0) 1
-            let display = do
+            let display =
+            
+                          do
                             state' <- readIORef stateRef
                             mesh <- readIORef meshRef
                             frame <- readIORef frameRef
-                            displayGame (mesh :: Mesh (Double, Double, Double) Double) frame (viewPort state') state' 
+                            cons <- readIORef consoleRef
+                            wheCons <- readIORef wheConsoleRef
+                            displayGame cons wheCons (mesh :: Mesh (Double, Double, Double) Double) frame (viewPort state') state' 
             passiveMotionCallback $= (Just $ (\(Position x y) -> do
                 last' <- readIORef last
                 now <- getCurrentTime
