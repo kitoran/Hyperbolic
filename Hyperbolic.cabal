@@ -77,13 +77,17 @@ executable Hyperbolic
                      , lens >=4.14
                      , time >=1.5
                      , split
-                     , GLUT
+                     , GLUT == 2.7.0.13
                      , template-haskell
+                     , mtl
                      , QuickCheck
                      , random
                      , OpenGL
                      , containers
-                     , console-program 
+                     -- , console-program
+                     -- deps of console-program:
+                     , ansi-wl-pprint 
+                     -- end of deps of console-program
                      , wavefront
                      , vector
                      -- because wavefront uses this version
@@ -93,11 +97,15 @@ executable Hyperbolic
                      , text
                      , text-show
                      , formatting
+-- for GLUT:
+                     -- , StateVar
+
   
   -- Directories containing source files.
   hs-source-dirs:  game
                  , util   
-                 , bytestring 
+           --      , bytestring 
+           --      , GLUT-2.7.0.12/src
   
   -- Base language which the package is written in.
   default-language:    Haskell2010

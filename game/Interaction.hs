@@ -1,8 +1,13 @@
-{-# Language TemplateHaskell, ScopedTypeVariables, OverloadedStrings, NoMonomorphismRestriction, DataKinds,DuplicateRecordFields, BangPatterns, LambdaCase #-}
+{-# Language TemplateHaskell, ScopedTypeVariables, OverloadedStrings,
+ NoMonomorphismRestriction, DataKinds,DuplicateRecordFields, 
+ BangPatterns, LambdaCase,
+ FlexibleContexts #-}
 module Main where
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Debug.Trace
+
+import qualified Control.Monad.State as MTL
 import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
 import Control.Monad(when)
 import Control.Applicative(liftA2, liftA3)
@@ -10,6 +15,7 @@ import Data.List((++))
 import qualified Data.Vector as V
 import Codec.Wavefront hiding (Point, Triangle)
 import Console
+import qualified Data.Tree               as T
 import qualified Codec.Wavefront
 import GHC.Float 
 import Text.Show.Pretty
@@ -17,9 +23,6 @@ import System.Environment
 import System.IO.Error
 -- import System.IO.SaferFileHandles я хотел использовать модные безопасные функции работы с файлами,
 -- монадические регионы, все дела, но у меня файлхендлов вообще нет нигде, всё читается из файла одной функцией
-import System.Console.Program
-import System.Console.Argument
-import System.Console.Command
 import qualified Text.Read as TR
 import  Control.Concurrent
 import qualified Graphics.UI.GLUT as GL
@@ -179,21 +182,37 @@ main = do
         wheConsoleRef <- newIORef False
         consoleRef <- newIORef (Console "" [])
         stateRef <- newIORef $ startState {_speed = V3 0.0 0 0.000}
-        forkIO (glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef)
-        console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef 
-  where glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef = 
-          do
+        -- glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef
+        -- console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef 
+  -- where glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef = 
+        do
             initialiseGraphics
             GL.actionOnWindowClose $= GL.MainLoopReturns
             (Size width' height') <- get screenSize 
             let width = fromIntegral width'
             let height = fromIntegral height' 
+            let commands :: Commands (MTL.StateT Console IO) 
+                commands = (T.Node ( Command "" "" (io (return ())) True) [T.Node (setGravity gravityRef) [], 
+                                                                           T.Node (loadLevel obsRef meshRef) [], 
+                                                                           T.Node (loadObj obsRef meshRef) [], 
+                                                                           T.Node (setStep stepRef) [], 
+                                                                           T.Node (setJump jumpRef) [],
+                                                                           T.Node (quit) [],
+                                                                           T.Node (toggleFrame frameRef) [],
+                                                                           T.Node (help commands) [],
+                                                                           T.Node (state stateRef) []
+                                                                          ])
             keyboardCallback $= (Just $ (\a _ -> do
-                               when (a == '\t') (modifyIORef wheConsoleRef not)
-                               wheCon <- readIORef wheConsoleRef
-                               when (wheCon) $ do
-                                 modifyIORef consoleRef (stroke a)
-                               when (not wheCon) $ do
+                               mod <- GL.getModifiers
+                               if (a == '\t' && GL.ctrl mod == GL.Down) then (modifyIORef wheConsoleRef not) else do
+                                wheCon <- readIORef wheConsoleRef
+                                if wheCon then do
+                                  cons <- readIORef consoleRef
+                                  ((), newConsole) <- MTL.runStateT (interactive commands a) cons
+                                  writeIORef consoleRef newConsole
+
+                                          else do
+                               -- when (not wheCon) $ do
                                 
                                  step <- readIORef stepRef
                                  jump <- readIORef jumpRef
@@ -240,34 +259,24 @@ main = do
             addTimerCallback 0 timerCallback
             pointerPosition $= (Position (width'`div`2) (height'`div`2))
             mainLoop
-        console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef =
-          (interactive commands)
-         where commands = (Node ( Command "" "" (io (return ())) True) [Node (setGravity gravityRef) [], 
-                                                                         Node (loadLevel obsRef meshRef) [], 
-                                                                         Node (loadObj obsRef meshRef) [], 
-                                                                         Node (setStep stepRef) [], 
-                                                                         Node (setJump jumpRef) [],
-                                                                         Node (quit) [],
-                                                                         Node (toggleFrame frameRef) [],
-                                                                         Node (help commands) [],
-                                                                         Node (state stateRef) []
-                                                                        ])
+        -- console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef =
+          -- (interactive commands)
 
 
-toggleFrame :: IORef Bool -> Command IO
-toggleFrame frameVar = command "toggleFrame" "toggleFrame toggles something" action 
+toggleFrame :: forall m. MTL.MonadIO m => IORef Bool -> Command m
+toggleFrame frameVar = command "toggleFrame" "toggleFrame toggles something" (action::Action m) 
     where
-        action =  io (modifyIORef frameVar not)
+        action =  io (MTL.liftIO $ modifyIORef frameVar not)
                   
 
-setGravity :: IORef Double -> Command IO
+setGravity :: MTL.MonadIO m => IORef Double -> Command m
 setGravity gravityVar = command "setGravity" "setGravity sets gravity" action 
     where
         action = withNonOption string (\s -> io (case TR.readEither s of
             Right num -> writeIORef gravityVar num
             Left error -> putStrLn error))
 
-loadLevel :: IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command IO
+loadLevel :: MTL.MonadIO m => IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command m
 loadLevel obsVar meshVar = command "load" "load <filename> loads enviromment from file <filename>" action 
     where
         action = withNonOption file (\path -> io $ do 
@@ -278,7 +287,7 @@ loadLevel obsVar meshVar = command "load" "load <filename> loads enviromment fro
                                 Left error -> putStrLn error
                 Left () -> return ())
 
-loadObj :: IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command IO
+loadObj :: MTL.MonadIO m => IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command m
 loadObj obsVar meshVar = command "loadObj" "loadObj <filename> loads enviromment from .obj file <filename>\n\
         \user can specify mesh file and osctacles files separately\n\
         \there shouldn't be any non-triangle faces in obstacle file" action 
@@ -290,36 +299,36 @@ loadObj obsVar meshVar = command "loadObj" "loadObj <filename> loads enviromment
                       Right (Env mesh slowObs) -> writeIORef meshVar mesh >> writeIORef obsVar (computeObs slowObs)
                       Left s -> putStrLn s)) 
 
-setStep :: IORef Double -> Command IO
+setStep :: MTL.MonadIO m => IORef Double -> Command m
 setStep stepVar = command "setStep" "setStep sets step length" action 
     where
         action = withNonOption string (\s -> io (writeIORef stepVar (read s)))
 
 
-setJump :: IORef Double -> Command IO
+setJump :: MTL.MonadIO m => IORef Double -> Command m
 setJump jumpVar = command "setJump" "setJump sets jump velocity" action 
     where
         action = withNonOption string (\s -> io (writeIORef jumpVar (read s)))
 
-quit ::  Command IO
+quit :: MTL.MonadIO m => Command m
 quit  = command "quit" "" action
     where 
         action = io (exitSuccess)
 
-help :: Commands n -> Command IO 
-help cnds = command "help" "shows this usage text" (io $ showUsage cnds)
+help :: MTL.MonadState Console m => Commands n -> Command (m)
+help cnds = command "help" "shows this usage text" (consoleState $ showUsage cnds)
 
-window :: Command IO
+window :: MTL.MonadIO m => Command m
 window = command "window" "" action 
     where
         action = io (GL.leaveFullScreen)
 
-fullscreen :: Command IO
+fullscreen :: MTL.MonadIO m => Command m
 fullscreen = command "fullscreen" "" action 
     where
         action = io (GL.fullScreen)
 
-state :: IORef State -> Command IO
+state :: MTL.MonadIO m => IORef State -> Command m
 state stateVar = command "state" "query current position etc" action 
     where
         action =  io $ do
