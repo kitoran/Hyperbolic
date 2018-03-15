@@ -322,7 +322,7 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
         P.Polygon tri = snd $ head env
         [aaa, bbb, ccc] = map transform2 $ tri
     (when whecons
-          (renderText $ T.intercalate "\n" ((history cons) ++ [line cons] )))
+          (renderText $ T.intercalate "\n" ((history cons) ++ [line cons] ) <> "\n"))
     (when  (not whecons)
            (renderText $ T.intercalate "\n" [showt (_pos state !* origin3),
                                              (showt $ _height state),
