@@ -180,7 +180,7 @@ initialiseGraphics = do
 lpos = Vertex4 (-1.4313725157195931) 2.663858068380254e-6 (0.3::GLfloat) 1.8460891382643082 
 renderText :: T.Text -> IO () 
 renderText s = do
-      h <- fontHeight Helvetica18
+      h <- fontHeight Helvetica10
       let liness = T.lines s
           qwe = length liness
       go liness qwe h
@@ -188,7 +188,7 @@ renderText s = do
      go [] 0  h = return ()
      go (f:ff) r h = do
        windowPos $ Vertex3 0 (fromIntegral r*h) (0::GLfloat)
-       renderString Helvetica18 $ T.unpack f
+       renderString Helvetica10 $ T.unpack f
        go ff (r-1) h
 
 mareix :: Coercible Double a => M44 a -> T.Text

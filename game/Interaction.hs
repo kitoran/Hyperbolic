@@ -23,6 +23,7 @@ import System.Environment
 import System.IO.Error
 -- import System.IO.SaferFileHandles я хотел использовать модные безопасные функции работы с файлами,
 -- монадические регионы, все дела, но у меня файлхендлов вообще нет нигде, всё читается из файла одной функцией
+import qualified Data.Text.Read as TR
 import qualified Text.Read as TR
 import  Control.Concurrent
 import qualified Graphics.UI.GLUT as GL
@@ -269,14 +270,15 @@ toggleFrame frameVar = command "toggleFrame" "toggleFrame toggles something" (ac
         action =  io (MTL.liftIO $ modifyIORef frameVar not)
                   
 
-setGravity :: MTL.MonadIO m => IORef Double -> Command m
+setGravity :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef Double -> Command m
 setGravity gravityVar = command "setGravity" "setGravity sets gravity" action 
     where
-        action = withNonOption string (\s -> io (case TR.readEither s of
-            Right num -> writeIORef gravityVar num
-            Left error -> putStrLn error))
+        -- action :: MTL.MonadIO m => Action m
+        action = withNonOption string (\s -> io (case TR.signed TR.double s of
+            Right (num, _) -> writeIORef gravityVar num
+            Left error -> print error))
 
-loadLevel :: MTL.MonadIO m => IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command m
+loadLevel :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command m
 loadLevel obsVar meshVar = command "load" "load <filename> loads enviromment from file <filename>" action 
     where
         action = withNonOption file (\path -> io $ do 
@@ -287,7 +289,7 @@ loadLevel obsVar meshVar = command "load" "load <filename> loads enviromment fro
                                 Left error -> putStrLn error
                 Left () -> return ())
 
-loadObj :: MTL.MonadIO m => IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command m
+loadObj :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command m
 loadObj obsVar meshVar = command "loadObj" "loadObj <filename> loads enviromment from .obj file <filename>\n\
         \user can specify mesh file and osctacles files separately\n\
         \there shouldn't be any non-triangle faces in obstacle file" action 
@@ -299,17 +301,20 @@ loadObj obsVar meshVar = command "loadObj" "loadObj <filename> loads enviromment
                       Right (Env mesh slowObs) -> writeIORef meshVar mesh >> writeIORef obsVar (computeObs slowObs)
                       Left s -> putStrLn s)) 
 
-setStep :: MTL.MonadIO m => IORef Double -> Command m
+setStep :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef Double -> Command m
 setStep stepVar = command "setStep" "setStep sets step length" action 
     where
-        action = withNonOption string (\s -> io (writeIORef stepVar (read s)))
+        action = withNonOption string (\s -> io (case TR.signed TR.double s of
+            Right (num, _) -> writeIORef stepVar num
+            Left error -> print error))
 
-
-setJump :: MTL.MonadIO m => IORef Double -> Command m
+setJump :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef Double -> Command m
 setJump jumpVar = command "setJump" "setJump sets jump velocity" action 
     where
-        action = withNonOption string (\s -> io (writeIORef jumpVar (read s)))
-
+        action = withNonOption string (\s -> io (case TR.signed TR.double s of
+            Right (num, _) -> writeIORef jumpVar num
+            Left error -> print error)) -- (writeIORef jumpVar (read s)))
+-- do you see this code duplication? i dont'
 quit :: MTL.MonadIO m => Command m
 quit  = command "quit" "" action
     where 
