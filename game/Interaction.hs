@@ -293,7 +293,7 @@ loadObj :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef [RuntimeObstacle D
 loadObj obsVar meshVar = command "loadObj" "loadObj <filename> loads enviromment from .obj file <filename>\n\
         \user can specify mesh file and osctacles files separately\n\
         \there shouldn't be any non-triangle faces in obstacle file" action 
-  where
+  where 
     action = withNonOption file (\path -> withNonOption (optional "" file)  
           (\pathObj -> io $ do
                     env <- loadObj' path (if pathObj==""then path else pathObj)
