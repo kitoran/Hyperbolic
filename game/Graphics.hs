@@ -1,7 +1,6 @@
 {-# Language NoMonomorphismRestriction, BangPatterns, RecursiveDo, TupleSections, TemplateHaskell,
     ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses, OverloadedStrings #-}
 module Graphics where
-import Data.Functor.Identity 
 import Control.Monad(when)
 import Graphics.UI.GLUT as GL
 {-(($=), 
@@ -65,12 +64,17 @@ $(deriveTextShow ''Point)
 $(deriveTextShow ''V4)
 initialiseGraphics ::  IO ()
 initialiseGraphics = do
-
+    putStrLn "68"
     initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered]
+    putStrLn "70"
     _ <- getArgsAndInitialize
+    putStrLn "72"
     _window <- createWindow "Hyperbolic"
+    putStrLn "74"
     fullScreen
+    putStrLn "76"
     depthFunc $= Just Less
+    putStrLn "77"
     depthBounds $= Nothing
     lineSmooth $= Enabled
     polygonOffsetFill $= Enabled
@@ -178,19 +182,30 @@ initialiseGraphics = do
 --   swapBuffers
 
 lpos = Vertex4 (-1.4313725157195931) 2.663858068380254e-6 (0.3::GLfloat) 1.8460891382643082 
+renderConsole :: T.Text -> IO () 
+renderConsole s = do
+      h <- fontHeight Helvetica10
+      let liness = T.lines s
+      go liness 0 h
+   where
+     go []  _  _ = return ()
+     go (f:ff) r h = do
+       windowPos $ Vertex3 0 (fromIntegral r*h) (0::GLfloat)
+       renderString Helvetica10 $ T.unpack f
+       go ff (r+1) h
+
 renderText :: T.Text -> IO () 
 renderText s = do
       h <- fontHeight Helvetica10
       let liness = T.lines s
           qwe = length liness
-      go liness qwe h
+      go liness qwe  h
    where
      go [] 0  h = return ()
      go (f:ff) r h = do
        windowPos $ Vertex3 0 (fromIntegral r*h) (0::GLfloat)
        renderString Helvetica10 $ T.unpack f
        go ff (r-1) h
-
 mareix :: Coercible Double a => M44 a -> T.Text
 mareix m = T.unlines $ fmap wer [a, s, d, f]
   where q = (fmap.fmap) coerce m
@@ -284,7 +299,7 @@ displayGame :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Co
                  Console -> Bool -> Mesh (Double, Double, Double) Double -> Bool -> M44 Double -> State -> IO ()
 displayGame cons whecons (Mesh env) drawFrame tranw state = do
   matrixMode $= Projection
-  print cons
+  -- print cons
   clear [ColorBuffer, DepthBuffer]
   lighting           $= Enabled 
   preservingMatrix $ do
@@ -322,7 +337,7 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
         P.Polygon tri = snd $ head env
         [aaa, bbb, ccc] = map transform2 $ tri
     (when whecons
-          (renderText $ T.intercalate "\n" ((history cons) ++ [line cons] ) <> "\n"))
+          (renderConsole $ T.intercalate "\n" (line cons : history cons ) <> "\n"))
     (when  (not whecons)
            (renderText $ T.intercalate "\n" [showt (_pos state !* origin3),
                                              (showt $ _height state),
