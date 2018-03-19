@@ -20,12 +20,13 @@ import qualified Codec.Wavefront
 import GHC.Float 
 import Text.Show.Pretty
 import System.Environment
+import System.IO
 import System.IO.Error
 -- import System.IO.SaferFileHandles я хотел использовать модные безопасные функции работы с файлами,
 -- монадические регионы, все дела, но у меня файлхендлов вообще нет нигде, всё читается из файла одной функцией
-import qualified Data.Text.Read as TR
 import qualified Text.Read as TR
 import  Control.Concurrent
+import System.Process
 import qualified Graphics.UI.GLUT as GL
 import Graphics.UI.GLUT
     (    Size(Size)
@@ -103,8 +104,15 @@ import Riemann
 import  Graphics as G (initialiseGraphics, displayGame, {-displayConsole-}) 
 --import qualified Physics
 import Physics
+import Child
 import System.Exit 
 
+{-# INLINABLE (!?) #-}
+xs !? n
+  | n < 0     = Nothing
+  | otherwise = foldr (\x r k -> case k of
+                                   0 -> Just x
+                                   _ -> r (k-1)) (const Nothing) xs n
 bound :: Double -> Double -> Double -> Double
 bound low high x 
   | x < low = low
@@ -113,6 +121,9 @@ bound low high x
 
 startState :: State
 startState = State identity 0.1 0 (V3 0.0 0 0)
+
+viewPort :: State -> M44 Double
+viewPort (State pos height nod _) = rotateAroundY (-nod) !*! moveAlongZ (-height) !*! (m33_to_m44M $ transposeMink3 pos)
 
 tick :: Double -> [RuntimeObstacle Double] -> State -> State
 tick gravity level = {-(\s@(State pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s).-} pushOut (level){- . applyGravity gravity-} . applySpeed
@@ -129,88 +140,48 @@ level = Env (Mesh [(red, Polygon $ map (moveAlongX 1 !$) [p0, p1, p2])]) ([Trian
         p1 = rotateAroundZ (tau/3) !$ p0
         p2 = rotateAroundZ (-tau/3) !$ p0
         red = (1.0, 0.0, 0.0)
--- не ебу я как с трансформерами работать и вообще пишут в интернете что IO (Either x y) - это зло
-loadObj' :: FilePath -> FilePath -> IO (Either String (Environment (Double, Double, Double) Double))
-loadObj' pathMesh pathObs = do
-  meshE <- fromFile pathMesh
-  obsE <- fromFile pathObs
-  return $ do
-    meshObj <- meshE
-    obsObj <- obsE
-    mesh <- (parseMesh meshObj:: Either String (Mesh (Double, Double, Double) Double))
-    obs <- parseObstacles obsObj
-    return $ Env mesh obs
-
-parseMesh :: WavefrontOBJ -> Either String (Mesh (Double, Double, Double) Double)
-parseMesh obj = fmap Mesh $ mapM toPolygon $ map (elValue) $ V.toList $ objFaces obj
-  where 
-    toPolygon :: Face -> Either String ((Double, Double, Double), HyperEntity Double)
-    toPolygon (Face i1 i2 i3 is) = do
-      p1 <- toPoint i1
-      p2 <- toPoint i2
-      p3 <- toPoint i3
-      ps <- mapM toPoint is
-      Right $ ((0.5, 0.5, 0.5), Polygon ((p1): (p2): (p3):ps))
-    toPoint :: FaceIndex -> Either String (Point Double)
-    toPoint i = do
-      (Location lx ly lz lw) <- maybe (Left $ "index out of range:" ++ ppShow i ++ "\n" ++ ppShow (objLocations obj)) Right (objLocations obj V.!? (faceLocIndex i-1))
-      return $ Point (float2Double lx) (float2Double ly) (float2Double lz) (float2Double lw)
-
-parseObstacles :: WavefrontOBJ -> Either String (Obstacles Double)
-parseObstacles obj = mapM toTriangle $ map (elValue) $ V.toList $ objFaces obj
-  where 
-    toTriangle :: Face -> Either String (Obstacle Double)
-    toTriangle (Codec.Wavefront.Triangle i1 i2 i3) = do
-      p1 <- toPoint i1
-      p2 <- toPoint i2
-      p3 <- toPoint i3
-      Right $ ( Triangle (p1) (p2) (p3) 0.01)
-    toTriangle _ = Left "non-triangle face"
-    toPoint :: FaceIndex -> Either String (Point Double)
-    toPoint i = do
-      (Location lx ly lz lw) <- maybe (Left $ "index out of range:" ++ ppShow i ++ "\n" ++ ppShow (objLocations obj)) Right (objLocations obj V.!? (faceLocIndex i-1))
-      return $ Point (float2Double lx) (float2Double ly) (float2Double lz) (float2Double lw)
-
 main :: IO ()
 main = do 
-        thId <- myThreadId 
-        !meshRef <- newIORef (mesh level) 
-        obsRef <- newIORef runtimeObstacles
-        stepRef <- newIORef 0.01
-        jumpRef <- newIORef 0.01
-        gravityRef <- newIORef 0.0002
-        frameRef <- newIORef True
-        wheConsoleRef <- newIORef False
-        consoleRef <- newIORef (Console "" [])
-        stateRef <- newIORef $ startState {_speed = V3 0.0 0 0.000}
+        args <- getArgs
+        if (args !? 0 == Just "console") then child else do
+         thId <- myThreadId 
+         !meshRef <- newIORef (mesh level) 
+         obsRef <- newIORef runtimeObstacles
+         stepRef <- newIORef 0.01
+         jumpRef <- newIORef 0.01
+         gravityRef <- newIORef 0.0002
+         frameRef <- newIORef True
+         wheConsoleRef <- newIORef False
+         consoleRef <- newIORef (Console "" [])
+         stateRef <- newIORef $ startState {_speed = V3 0.0 0 0.000}
         -- glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef
         -- console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef 
   -- where glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef = 
-        do
+         do
+            progPath <- getExecutablePath
+            putStrLn "before"
+            (inp,out,err,pid) <- runInteractiveProcess progPath ["console"] Nothing Nothing 
+            -- hPutStr inp "str"
+            hSetBuffering inp NoBuffering
+            hSetBuffering out NoBuffering
+            putStrLn "after"
+            putStrLn "after-1"
             initialiseGraphics
+            putStrLn "after initialiseGraphics"
             GL.actionOnWindowClose $= GL.MainLoopReturns
             (Size width' height') <- get screenSize 
             let width = fromIntegral width'
             let height = fromIntegral height' 
-            let commands :: Commands (MTL.StateT Console IO) 
-                commands = (T.Node ( Command "" "" (io (return ())) True) [T.Node (setGravity gravityRef) [], 
-                                                                           T.Node (loadLevel obsRef meshRef) [], 
-                                                                           T.Node (loadObj obsRef meshRef) [], 
-                                                                           T.Node (setStep stepRef) [], 
-                                                                           T.Node (setJump jumpRef) [],
-                                                                           T.Node (quit) [],
-                                                                           T.Node (toggleFrame frameRef) [],
-                                                                           T.Node (help commands) [],
-                                                                           T.Node (state stateRef) []
-                                                                          ])
+                
             keyboardCallback $= (Just $ (\a _ -> do
                                mod <- GL.getModifiers
                                if (a == '\t' && GL.ctrl mod == GL.Down) then (modifyIORef wheConsoleRef not) else do
                                 wheCon <- readIORef wheConsoleRef
-                                if wheCon then do
-                                  cons <- readIORef consoleRef
-                                  ((), newConsole) <- MTL.runStateT (interactive commands a) cons
-                                  writeIORef consoleRef newConsole
+                                if wheCon then hPutChar inp a >> hFlush inp 
+                                  -- do
+                                  -- cons <- readIORef consoleRef
+                                  -- ((), newConsole) <- MTL.runStateT (interactive commands a) cons
+                                  -- writeIORef consoleRef newConsole
 
                                           else do
                                -- when (not wheCon) $ do
@@ -227,7 +198,9 @@ main = do
                                -- --                                                                                  displayGame (mesh) (viewPort state') 
                                --         modifyIORef consoleShown not
                                -- _   -> modifyIORef state $ processKeyboard a)
-
+            GL.specialCallback $= (Just $ (\a _ -> do
+                               when (a == GL.KeyUp) (modifyIORef consoleRef consoleUp)))
+            
             last <- newIORef $ UTCTime (toEnum 0) 1
             let display =
             
@@ -249,7 +222,27 @@ main = do
                      display)
                 ))
             displayCallback $= display
-            idleCallback $= (Just display)
+            let  
+                commands = (T.Node ( Command "" "" (io (return ())) True) [T.Node (setGravity gravityRef) [], 
+                                                                           T.Node (loadLevel obsRef meshRef) [], 
+                                                                           T.Node (loadObj obsRef meshRef) [], 
+                                                                           T.Node (setStep stepRef) [], 
+                                                                           T.Node (setJump jumpRef) [],
+                                                                           T.Node (quit) [],
+                                                                           T.Node (toggleFrame frameRef) [],
+                                                                           T.Node (help commands) [],
+                                                                           T.Node (Console.state stateRef) []
+                                                                          ])
+                pr = do
+                 b <- hReady out
+                 when(b) $ do
+                   c <- hGetChar out
+                   cons <- readIORef consoleRef
+                   ((), newConsole) <- MTL.runStateT (interactive commands c) cons
+                   writeIORef consoleRef newConsole
+
+            idleCallback $= (Just (pr >> display))
+
             closeCallback $= Just (killThread thId)
             let timerCallback = do
                                     addTimerCallback 16 timerCallback
@@ -263,86 +256,6 @@ main = do
         -- console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef =
           -- (interactive commands)
 
-
-toggleFrame :: forall m. MTL.MonadIO m => IORef Bool -> Command m
-toggleFrame frameVar = command "toggleFrame" "toggleFrame toggles something" (action::Action m) 
-    where
-        action =  io (MTL.liftIO $ modifyIORef frameVar not)
-                  
-
-setGravity :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef Double -> Command m
-setGravity gravityVar = command "setGravity" "setGravity sets gravity" action 
-    where
-        -- action :: MTL.MonadIO m => Action m
-        action = withNonOption string (\s -> io (case TR.signed TR.double s of
-            Right (num, _) -> writeIORef gravityVar num
-            Left error -> print error))
-
-loadLevel :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command m
-loadLevel obsVar meshVar = command "load" "load <filename> loads enviromment from file <filename>" action 
-    where
-        action = withNonOption file (\path -> io $ do 
-            enc <- catchIOError (fmap Right $ readFile path) (\_ -> putStrLn "error while opening file" >> return (Left ()))
-            case enc of 
-                Right enc' -> case TR.readEither enc' of 
-                                Right (Env mesh slowObs) -> writeIORef meshVar mesh >> writeIORef obsVar (computeObs slowObs)
-                                Left error -> putStrLn error
-                Left () -> return ())
-
-loadObj :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef [RuntimeObstacle Double] -> IORef (Mesh (Double, Double, Double) Double) -> Command m
-loadObj obsVar meshVar = command "loadObj" "loadObj <filename> loads enviromment from .obj file <filename>\n\
-        \user can specify mesh file and osctacles files separately\n\
-        \there shouldn't be any non-triangle faces in obstacle file" action 
-  where 
-    action = withNonOption file (\path -> withNonOption (optional "" file)  
-          (\pathObj -> io $ do
-                    env <- loadObj' path (if pathObj==""then path else pathObj)
-                    case env of 
-                      Right (Env mesh slowObs) -> writeIORef meshVar mesh >> writeIORef obsVar (computeObs slowObs)
-                      Left s -> putStrLn s)) 
-
-setStep :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef Double -> Command m
-setStep stepVar = command "setStep" "setStep sets step length" action 
-    where
-        action = withNonOption string (\s -> io (case TR.signed TR.double s of
-            Right (num, _) -> writeIORef stepVar num
-            Left error -> print error))
-
-setJump :: (MTL.MonadState Console m, MTL.MonadIO m) => IORef Double -> Command m
-setJump jumpVar = command "setJump" "setJump sets jump velocity" action 
-    where
-        action = withNonOption string (\s -> io (case TR.signed TR.double s of
-            Right (num, _) -> writeIORef jumpVar num
-            Left error -> print error)) -- (writeIORef jumpVar (read s)))
--- do you see this code duplication? i dont'
-quit :: MTL.MonadIO m => Command m
-quit  = command "quit" "" action
-    where 
-        action = io (exitSuccess)
-
-help :: MTL.MonadState Console m => Commands n -> Command (m)
-help cnds = command "help" "shows this usage text" (consoleState $ showUsage cnds)
-
-window :: MTL.MonadIO m => Command m
-window = command "window" "" action 
-    where
-        action = io (GL.leaveFullScreen)
-
-fullscreen :: MTL.MonadIO m => Command m
-fullscreen = command "fullscreen" "" action 
-    where
-        action = io (GL.fullScreen)
-
-state :: MTL.MonadIO m => IORef State -> Command m
-state stateVar = command "state" "query current position etc" action 
-    where
-        action =  io $ do
-          s'@(State m _ _ _) <- readIORef stateVar
-          print s'
-          putStrLn $ "current xy position is " ++ show (m !* V3 0 0 1)
-
-viewPort :: State -> M44 Double
-viewPort (State pos height nod _) = rotateAroundY (-nod) !*! moveAlongZ (-height) !*! (m33_to_m44M $ transposeMink3 pos)
 
 processMove move = {-modifyIORef state-} (\(State pos height nod speed) -> State 
                                                                                                   (pos !*! move (0.1/cosh height) )

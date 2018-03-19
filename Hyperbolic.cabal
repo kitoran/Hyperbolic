@@ -57,6 +57,7 @@ executable Hyperbolic
 
   ghc-options:
       -O0 
+      -Wunused-imports
  --   -Wall
  --   -Odph11
  --   -fdicts-strict
@@ -84,19 +85,20 @@ executable Hyperbolic
                      , random
                      , OpenGL
                      , containers
-                     -- , console-program
+                     , console-program
                      -- deps of console-program:
                      , ansi-wl-pprint 
                      -- end of deps of console-program
                      , wavefront
                      , vector
-                     -- because wavefront uses this version
                      , pretty-show
                      , bytestring
                      , prettyprinter
                      , text
                      , text-show
                      , formatting
+                     , typed-process
+                     , process
 -- for GLUT:
                      -- , StateVar
 
