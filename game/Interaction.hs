@@ -9,7 +9,7 @@ import Debug.Trace
 
 import qualified Control.Monad.State as MTL
 import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
-import Control.Monad(when)
+import Control.Monad(when, forM)
 import Control.Applicative(liftA2, liftA3)
 import Data.List((++))
 import qualified Data.Vector as V
@@ -160,6 +160,8 @@ main = do
          do
             progPath <- getExecutablePath
             putStrLn "before"
+            
+            setEnv "TERM" "ansi"
             (inp,out,err,pid) <- runInteractiveProcess progPath ["console"] Nothing Nothing 
             -- hPutStr inp "str"
             hSetBuffering inp NoBuffering
@@ -177,7 +179,10 @@ main = do
                                mod <- GL.getModifiers
                                if (a == '\t' && GL.ctrl mod == GL.Down) then (modifyIORef wheConsoleRef not) else do
                                 wheCon <- readIORef wheConsoleRef
-                                if wheCon then hPutChar inp a >> hFlush inp 
+                                if wheCon then do
+                                 hPutChar inp a 
+                                 hFlush inp
+                                 modifyIORef consoleRef (echo a)
                                   -- do
                                   -- cons <- readIORef consoleRef
                                   -- ((), newConsole) <- MTL.runStateT (interactive commands a) cons
@@ -198,19 +203,18 @@ main = do
                                -- --                                                                                  displayGame (mesh) (viewPort state') 
                                --         modifyIORef consoleShown not
                                -- _   -> modifyIORef state $ processKeyboard a)
-            GL.specialCallback $= (Just $ (\a _ -> do
-                               when (a == GL.KeyUp) (modifyIORef consoleRef consoleUp)))
+            -- GL.specialCallback $= (Just $ (\a _ -> do
+                               -- when (a == GL.KeyUp) (modifyIORef consoleRef consoleUp)))
             
             last <- newIORef $ UTCTime (toEnum 0) 1
             let display =
-            
                           do
                             state' <- readIORef stateRef
                             mesh <- readIORef meshRef
                             frame <- readIORef frameRef
                             cons <- readIORef consoleRef
                             wheCons <- readIORef wheConsoleRef
-                            displayGame cons wheCons (mesh :: Mesh (Double, Double, Double) Double) frame (viewPort state') state' 
+                            displayGame cons wheCons (mesh :: Mesh (Double, Double, Double) Double) frame (viewPort state') state'
             passiveMotionCallback $= (Just $ (\(Position x y) -> do
                 last' <- readIORef last
                 now <- getCurrentTime
@@ -222,6 +226,7 @@ main = do
                      display)
                 ))
             displayCallback $= display
+            escape <- newIORef (""::String) -- это должна быть mutable bytestring
             let  
                 commands = (T.Node ( Command "" "" (io (return ())) True) [T.Node (setGravity gravityRef) [], 
                                                                            T.Node (loadLevel obsRef meshRef) [], 
@@ -236,11 +241,40 @@ main = do
                 pr = do
                  b <- hReady out
                  when(b) $ do
+                   esc <- readIORef escape
                    c <- hGetChar out
-                   cons <- readIORef consoleRef
-                   ((), newConsole) <- MTL.runStateT (interactive commands c) cons
-                   writeIORef consoleRef newConsole
 
+                   putStrLn $ "pr: " ++ show esc ++ ", c: " ++ show c -- writeIORef escape ""
+                   let news = esc ++ [c]
+                   if isSequencePrefix (news) 
+                     then
+                      do 
+                       putStrLn $ "in then, news = " ++ show news
+                       case Console.sequence (news) of
+                         Nothing -> do
+                           putStrLn $ "in Nothing"
+                       
+                           writeIORef escape (news)
+                         Just seqq-> do
+                           putStrLn $ "in Just" ++ show seqq
+                           modifyIORef consoleRef (applyEscapeSequence seqq) >> writeIORef escape ""
+                     else 
+                      -- error ("unknown seq: "++show news) 
+                      do
+                        putStrLn $ "in else" 
+                        -- forM esc $ (\e -> do
+                          -- cc <- readIORef consoleRef
+                          -- newCC <- (MTL.execStateT (interactive commands e) cc)
+                          -- writeIORef consoleRef newCC) -- (runStateTinteractive commands e))
+                        -- 
+                        writeIORef escape ""
+                        cc <- readIORef consoleRef
+                        newCC <- (MTL.execStateT (interactive commands c) cc)
+                        writeIORef consoleRef newCC -- modifyIORefIO consoleRef (interactive commands c)
+                        -- e <- readIORef consoleRef
+                       -- ((), newConsole) <- MTL.runStateT (interactive commands c) cons
+                       -- writeIORef consoleRef newConsole
+                     -- str -> 
             idleCallback $= (Just (pr >> display))
 
             closeCallback $= Just (killThread thId)
