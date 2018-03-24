@@ -85,7 +85,7 @@ executable Hyperbolic
                      , random
                      , OpenGL
                      , containers
-                     , console-program
+                     -- , console-program
                      -- deps of console-program:
                      , ansi-wl-pprint 
                      -- end of deps of console-program
@@ -97,8 +97,9 @@ executable Hyperbolic
                      , text
                      , text-show
                      , formatting
-                     , typed-process
-                     , process
+                     , safe
+--                     , typed-process
+  --                   , process
 -- for GLUT:
                      -- , StateVar
 
