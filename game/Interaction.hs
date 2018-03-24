@@ -26,7 +26,7 @@ import System.IO.Error
 -- монадические регионы, все дела, но у меня файлхендлов вообще нет нигде, всё читается из файла одной функцией
 import qualified Text.Read as TR
 import  Control.Concurrent
-import System.Process
+-- import System.Process
 import qualified Graphics.UI.GLUT as GL
 import Graphics.UI.GLUT
     (    Size(Size)
@@ -104,7 +104,7 @@ import Riemann
 import  Graphics as G (initialiseGraphics, displayGame, {-displayConsole-}) 
 --import qualified Physics
 import Physics
-import Child
+-- import Child
 import System.Exit 
 
 {-# INLINABLE (!?) #-}
@@ -142,8 +142,8 @@ level = Env (Mesh [(red, Polygon $ map (moveAlongX 1 !$) [p0, p1, p2])]) ([Trian
         red = (1.0, 0.0, 0.0)
 main :: IO ()
 main = do 
-        args <- getArgs
-        if (args !? 0 == Just "console") then child else do
+         -- args <- getArgs
+        -- if (args !? 0 == Just "console") then child else do
          thId <- myThreadId 
          !meshRef <- newIORef (mesh level) 
          obsRef <- newIORef runtimeObstacles
@@ -152,41 +152,43 @@ main = do
          gravityRef <- newIORef 0.0002
          frameRef <- newIORef True
          wheConsoleRef <- newIORef False
-         consoleRef <- newIORef (Console "" [])
+         consoleRef <- newIORef (Console "" [] 0)
          stateRef <- newIORef $ startState {_speed = V3 0.0 0 0.000}
         -- glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef
         -- console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef 
   -- where glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef = 
          do
-            progPath <- getExecutablePath
-            putStrLn "before"
-            
-            setEnv "TERM" "ansi"
-            (inp,out,err,pid) <- runInteractiveProcess progPath ["console"] Nothing Nothing 
-            -- hPutStr inp "str"
-            hSetBuffering inp NoBuffering
-            hSetBuffering out NoBuffering
-            putStrLn "after"
-            putStrLn "after-1"
             initialiseGraphics
-            putStrLn "after initialiseGraphics"
-            GL.actionOnWindowClose $= GL.MainLoopReturns
+            -- GL.actionOnWindowClose $= GL.MainLoopReturns
             (Size width' height') <- get screenSize 
             let width = fromIntegral width'
             let height = fromIntegral height' 
                 
+            let  
+                commands = (T.Node ( Command "" "" (io (return ())) True) [T.Node (setGravity gravityRef) [], 
+                                                                           T.Node (loadLevel obsRef meshRef) [], 
+                                                                           T.Node (loadObj obsRef meshRef) [], 
+                                                                           T.Node (setStep stepRef) [], 
+                                                                           T.Node (setJump jumpRef) [],
+                                                                           T.Node (quit) [],
+                                                                           T.Node (toggleFrame frameRef) [],
+                                                                           T.Node (help commands) [],
+                                                                           T.Node (Console.state stateRef) []
+                                                                          ])
             keyboardCallback $= (Just $ (\a _ -> do
                                mod <- GL.getModifiers
                                if (a == '\t' && GL.ctrl mod == GL.Down) then (modifyIORef wheConsoleRef not) else do
                                 wheCon <- readIORef wheConsoleRef
                                 if wheCon then do
-                                 hPutChar inp a 
-                                 hFlush inp
-                                 modifyIORef consoleRef (echo a)
+                                 -- let act = if (a == '\r') then '\n' else if (a == '\b') then '\b' else a 
+                                 -- hPutChar inp  act
+                                 -- hFlush inp
+                                 -- modifyIORef consoleRef (echo a)
+                                 when (a == '\EOT' || a == '\ETX') $ exitSuccess
                                   -- do
-                                  -- cons <- readIORef consoleRef
-                                  -- ((), newConsole) <- MTL.runStateT (interactive commands a) cons
-                                  -- writeIORef consoleRef newConsole
+                                 (cons::Console) <- readIORef consoleRef
+                                 newConsole <- MTL.execStateT (interactive commands a) cons
+                                 writeIORef consoleRef newConsole
 
                                           else do
                                -- when (not wheCon) $ do
@@ -203,8 +205,8 @@ main = do
                                -- --                                                                                  displayGame (mesh) (viewPort state') 
                                --         modifyIORef consoleShown not
                                -- _   -> modifyIORef state $ processKeyboard a)
-            -- GL.specialCallback $= (Just $ (\a _ -> do
-                               -- when (a == GL.KeyUp) (modifyIORef consoleRef consoleUp)))
+            GL.specialCallback $= (Just $ (\a _ -> do
+                               when (a == GL.KeyUp) (modifyIORef consoleRef consoleUp)))
             
             last <- newIORef $ UTCTime (toEnum 0) 1
             let display =
@@ -227,55 +229,45 @@ main = do
                 ))
             displayCallback $= display
             escape <- newIORef (""::String) -- это должна быть mutable bytestring
-            let  
-                commands = (T.Node ( Command "" "" (io (return ())) True) [T.Node (setGravity gravityRef) [], 
-                                                                           T.Node (loadLevel obsRef meshRef) [], 
-                                                                           T.Node (loadObj obsRef meshRef) [], 
-                                                                           T.Node (setStep stepRef) [], 
-                                                                           T.Node (setJump jumpRef) [],
-                                                                           T.Node (quit) [],
-                                                                           T.Node (toggleFrame frameRef) [],
-                                                                           T.Node (help commands) [],
-                                                                           T.Node (Console.state stateRef) []
-                                                                          ])
-                pr = do
-                 b <- hReady out
-                 when(b) $ do
-                   esc <- readIORef escape
-                   c <- hGetChar out
+                -- pr = do
+                --  b <- hReady out
+                --  when(b) $ do
+                --    esc <- readIORef escape
+                --    c <- hGetChar out
 
-                   putStrLn $ "pr: " ++ show esc ++ ", c: " ++ show c -- writeIORef escape ""
-                   let news = esc ++ [c]
-                   if isSequencePrefix (news) 
-                     then
-                      do 
-                       putStrLn $ "in then, news = " ++ show news
-                       case Console.sequence (news) of
-                         Nothing -> do
-                           putStrLn $ "in Nothing"
+                --    putStrLn $ "pr: " ++ show esc ++ ", c: " ++ show c -- writeIORef escape ""
+                --    let news = esc ++ [c]
+                --    if isSequencePrefix (news) 
+                --      then
+                --       do 
+                --        putStrLn $ "in then, news = " ++ show news
+                --        case Console.sequence (news) of
+                --          Nothing -> do
+                --            putStrLn $ "in Nothing"
                        
-                           writeIORef escape (news)
-                         Just seqq-> do
-                           putStrLn $ "in Just" ++ show seqq
-                           modifyIORef consoleRef (applyEscapeSequence seqq) >> writeIORef escape ""
-                     else 
-                      -- error ("unknown seq: "++show news) 
-                      do
-                        putStrLn $ "in else" 
-                        -- forM esc $ (\e -> do
-                          -- cc <- readIORef consoleRef
-                          -- newCC <- (MTL.execStateT (interactive commands e) cc)
-                          -- writeIORef consoleRef newCC) -- (runStateTinteractive commands e))
-                        -- 
-                        writeIORef escape ""
-                        cc <- readIORef consoleRef
-                        newCC <- (MTL.execStateT (interactive commands c) cc)
-                        writeIORef consoleRef newCC -- modifyIORefIO consoleRef (interactive commands c)
-                        -- e <- readIORef consoleRef
+                --            writeIORef escape (news)
+                --          Just seqq-> do
+                --            putStrLn $ "in Just" ++ show seqq
+                --            modifyIORef consoleRef (applyEscapeSequence seqq) >> writeIORef escape ""
+                --      else 
+                --       -- error ("unknown seq: "++show news) 
+                --       do
+                --         when (esc /= "") $ error "unknown esc seq"
+                --         putStrLn $ "in else" 
+                --         -- forM esc $ (\e -> do
+                --           -- cc <- readIORef consoleRef
+                --           -- newCC <- (MTL.execStateT (interactive commands e) cc)
+                --           -- writeIORef consoleRef newCC) -- (runStateTinteractive commands e))
+                --         -- 
+                --         writeIORef escape ""
+                --         cc <- readIORef consoleRef
+                --         newCC <- (MTL.execStateT (interactive commands c) cc)
+                --         writeIORef consoleRef newCC -- modifyIORefIO consoleRef (interactive commands c)
+                --    pr     -- e <- readIORef consoleRef
                        -- ((), newConsole) <- MTL.runStateT (interactive commands c) cons
                        -- writeIORef consoleRef newConsole
                      -- str -> 
-            idleCallback $= (Just (pr >> display))
+            idleCallback $= (Just ( display))
 
             closeCallback $= Just (killThread thId)
             let timerCallback = do
