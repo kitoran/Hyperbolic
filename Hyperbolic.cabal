@@ -50,8 +50,11 @@ executable Hyperbolic
   main-is:             Interaction.hs
   
   -- Modules included in this executable, other than Main.
-  -- other-modules:       
-  
+  other-modules:       Console
+                     , Graphics
+                     , Physics
+     --                , Riemann
+                     , Hyperbolic
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
 
@@ -143,7 +146,7 @@ executable Editor
   build-depends:       base >=4.8 
                      , gi-gtk
                      , gi-gdk
-                     , singletons
+--                     , singleons
                      , OpenGL
                      , linear
                      , lens
@@ -194,7 +197,7 @@ executable Hyperbolic-prof
                      , random
                      , OpenGL
                      , containers
-                     , console-program
+                     -- , console-program
 
   -- Directories containing source files.
   -- hs-source-dirs:      
