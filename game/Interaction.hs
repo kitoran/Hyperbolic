@@ -6,7 +6,7 @@ module Main where
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Debug.Trace
-
+import Prelude hiding (sinh)
 import qualified Control.Monad.State as MTL
 import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
 import Control.Monad(when, forM)
@@ -18,7 +18,7 @@ import Codec.Wavefront hiding (Point, Triangle)
 import Console
 import qualified Data.Tree               as T
 import qualified Codec.Wavefront
-import GHC.Float
+--import GHC.Float hiding (sinh)
 import Text.Show.Pretty
 import System.Environment
 import System.IO
@@ -79,8 +79,8 @@ import Control.Lens-- (over)
 --     , unionWith
 --     , never
 --     )
-
-import Hyperbolic
+import qualified Linear as L
+import Hyperbolic as H
         -- ( rotateAroundZ
         -- , rotateAroundY
         -- , moveAlongZ
@@ -104,9 +104,11 @@ import Hyperbolic
 -- import qualified Behaviour
 import qualified Graphics as G
 --import qualified Physics
-import Physics
+import Physics as P
 -- import Child
 import System.Exit
+import Safe
+import Data.Function
 
 {-# INLINABLE (!?) #-}
 xs !? n
@@ -119,13 +121,51 @@ bound low high x
   | x < low = low
   | x < high = x
   | otherwise = high
+-- findSelected :: _
+findSelected (WS de _) ap = foldMaybesP de (G.viewPort ap)
+ -- тут мы много раз считаем преобразование, а надо один если вообще считать
+
+foldMaybesP :: [P.Deviator Double] -> M44 Double -> Maybe Int -- , H.Absolute Double)
+foldMaybesP list ttt = fmap snd $ minimumByMay (compare `on` fst) $ zip listt [0..]
+  where listt :: [(Double)]
+        listt = do
+                 dev <- list
+                 case intersectRay dev ttt of
+                   Nothing -> []
+                   Just (dis) -> 
+                     return (dis{-, ((P._devPos) dev, diir)-}) --]filter (map (\e@(P.Devi poos _ _) -> ) list)
+
+intersectRay :: Deviator Double -> M44 Double -> Maybe Double
+intersectRay (de) trans = if any (\(_, Polygon a) -> G.containsZero (map mapping a)) list 
+                          then Just $ distance (_devPos de) origin
+                          else Nothing
+--if trace ("newdir = "++show newDir) cond then Just (x/t, newDir) else Nothing
+  where
+    Mesh list = transposeMink trans !$ G.deviator
+    -- trans = let move = moveRightTo pos
+                -- dirFromStart = (toNonPhysicalPoint $ transposeMink move !$ dir)
+                -- turn = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz) dirFromStart
+             -- in (move !*! turn) {-}
+             -- ((moveRightTo pos `andConsideringThat`  
+                                         -- (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz))
+                                         -- (toNonPhysicalPoint dir))-}
+    mapping p = case trans !$ p of
+                  (Point x y _ _) -> L.V2 x y
+    -- res@(H.Point x y z t) = trans !$ dpos
+    -- newDir = {-H.moveAlongY (0.1) !$ H.rotateAroundZ (H.tau/4) !$ ddir -} transposeMink trans !*! rotateAroundX (-d) !*! H.moveAlongX (H.distance H.origin res) !$ (H.Abs 0 1 0) -- } trans !$ (H.Abs 0 1 0)
+    -- cond = abs y < 0.01 && abs z < 0.01 && x*t > 0 -- и ещё условие что девиатор правильно повёрнут
+-- вызывать гиперболический косинус от гиперболического арккосинуса очень весело
 
 startState :: LevelState
-startState = LS (AP identity 0.1 0 (V3 0.0 0 0)) (Just De) (WS [moveAlongY 0.2 !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0)] [])
+startState = LS (AP identity 0.1 0 (V3 0.0 0 0)) (Nothing) (WS [moveAlongY 0.1 !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0),
+                                                                moveAlongY (-0.1) !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0)   ] []) (Just 0)
 -- { _avatarPosition :: AvatarPosition,
 --                        _avatarInventory :: Item,
 --                        _worldState :: WorldState
 --                      }
+thisFunc (LS (ap@(AP mat hei nod _)) (Just De) (WS des dis) _) = let nmat = m33_to_m44M mat in LS ap Nothing (WS (Devi (nmat !*! moveAlongZ hei !$ (Point 0 0 0 1)) (nmat !$ Abs 1 0 0) 0: des) (dis)) Nothing
+thisFunc (LS (ap@(AP mat hei nod _)) (Nothing) (WS des dis) e) = (LS (ap) (Just De) (WS des dis) e) -- = LS (ap@(mat hei nod)) (Nothing) (WS des dis) = LS ap Nothing (WS (Devi (mat !*! moveAlongZ hei !$ (Point 0 0 0 1)): des) (dis))
+
 
 tick :: Double -> [RuntimeObstacle Double] -> AvatarPosition -> AvatarPosition
 tick gravity level = (\s@(AP pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (level) . applyGravity gravity . applySpeed
@@ -229,10 +269,22 @@ main = do
                 when (now `diffUTCTime ` last' > 0.03)
                     (do
                      writeIORef last now
-                     modifyIORef stateRef $ (avatarPosition %~ processMouse width height (fromEnum x, fromEnum y))
-                     pointerPosition $= (Position (width'`div`2) (height'`div`2))
+                     LS vatarPosition vatarInventory orldState _  <- readIORef stateRef
+                     let newap = processMouse width height (fromEnum x, fromEnum y) vatarPosition
+                         newLected = case vatarInventory of
+                                       Nothing -> Just 1 --findSelected orldState vatarPosition
+                                       _ -> Nothing
+                     writeIORef stateRef  (LS newap vatarInventory orldState newLected)
+                     -- modifyIORef stateRef $ ((avatarPosition %~ ) . (selected %~ p))
+                     pointerPosition $= (Position (newap `seq`
+                                                   newLected `seq`
+                                                   (LS newap vatarInventory orldState newLected) `seq` 
+                                                   (width'`div`2)) (height'`div`2))
                      display)
                 ))
+            GL.mouseCallback $= Just (\GL.LeftButton butt _ -> case butt of
+                                                                GL.Down -> modifyIORef stateRef (thisFunc)
+                                                                GL.Up -> return ())
             displayCallback $= display
             escape <- newIORef (""::String) -- это должна быть mutable bytestring
                 -- pr = do

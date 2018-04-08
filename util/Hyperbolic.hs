@@ -16,8 +16,14 @@ import Data.List (intercalate)
 
 import qualified Linear as L
 import Linear ((!*!))
+import Unsafe.Coerce
 import qualified Control.Lens as Lens
-
+import Prelude hiding (sinh)
+import qualified Prelude (sinh)
+import Debug.Trace
+sinh a 
+  | unsafeCoerce a == (1::Double) = trace "sinh!!" $ Prelude.sinh a
+  | True = Prelude.sinh a
 toV4 :: Point a -> L.V4 a
 toV4 (Point a b c d) = L.V4 a b c d {-FIMXE when learn lens-}
 {-# INLINE toV4 #-}
