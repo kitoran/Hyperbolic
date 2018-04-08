@@ -9,6 +9,7 @@ import qualified Unsafe.Coerce
 import qualified Debug.Trace
 -- import qualified GHC.Exts
 import qualified Control.Lens as Lens
+import Data.IORef
 import Linear(M44, (!*!), (!*), (*!), normalizePoint, V3(..), M33)
 
 --fixme этот файл, конечно, надо переместить в util, а Mesh переместить в другой файл
@@ -24,7 +25,8 @@ data AvatarPosition = AP { _pos :: !(M33 Double ) -- проекция на пл�
 
 data LevelState = LS { _avatarPosition :: AvatarPosition,
                        _avatarInventory :: Maybe Item,
-                       _worldState :: WorldState Double
+                       _worldState :: WorldState Double,
+                       _selected :: Maybe Int
                      } 
 data Item = De | Di 
 
