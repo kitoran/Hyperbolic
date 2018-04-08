@@ -37,6 +37,7 @@ import Hyperbolic as H (Point(..), transposeMink, normalizeWass, _v4, klein, ori
   , chDistance, rotateAroundX, andThen, andConsideringThat, toNonPhysicalPoint, getPointToOxzAroundOz, getPointToOxyAroundOx, moveTo, moveRightTo)
 import qualified Hyperbolic as H
 import Linear hiding (perspective, lookAt, trace, distance)
+import qualified Linear as L
 import Data.Coerce
 import Debug.Trace
 import Safe
@@ -283,7 +284,7 @@ deviator = Mesh [((0.0, 0.0, 1.0), (P.Polygon [aaa, aba, abb, aab])),
                  ((0.0, 1.0, 1.0), (P.Polygon [aaa, baa, bab, aab])),
                  ((0.0, 0.0, 1.0), (P.Polygon [aba, bba, bbb, abb]))]
   where
-    r = 0.02
+    r = 0.01
     aaa = H.Point (r) (r) (r) 1
     aab = H.Point (r) (r) (-r) 1
     aba = H.Point (r) (-r) (r) 1
@@ -292,7 +293,9 @@ deviator = Mesh [((0.0, 0.0, 1.0), (P.Polygon [aaa, aba, abb, aab])),
     bab = H.Point (-r) (r) (-r) 1
     bba = H.Point (-r) (-r) (r) 1
     bbb = H.Point (-r) (-r) (-r) 1
-
+selectedDeviator :: Mesh Double
+selectedDeviator = let (Mesh a) = deviator in Mesh $ (fmap (\((q, w, e), r) -> ((f q, f w, f e), r))) a
+  where f a = if a >= (2/3) then 1 else a+1/3
 divider :: Mesh Double
 divider = let (Mesh w) = deviator in Mesh (map (\(_, he) -> ((1.0, 0.0, 1.0), he )) w)
 
@@ -305,7 +308,7 @@ maap f g (a:[]) = [g a]
 maap f g (a:b:as) = f a b:maap f g (b:as)
 
 toMesh :: [P.Source Double] -> P.LevelState -> Mesh Double
-toMesh s (P.LS (P.AP pos height nod _) mi (P.WS de di)) = rays <> items <> inv
+toMesh s (P.LS (P.AP pos height nod _) mi (P.WS de di) sel) = rays <> items <> inv
   where
     rays = Mesh (concatMap mapping s)
 
@@ -316,8 +319,8 @@ toMesh s (P.LS (P.AP pos height nod _) mi (P.WS de di)) = rays <> items <> inv
         (line, (H.Abs x y z)) = unfoldRay de pos dir
     inv = case mi of
         Nothing -> mempty
-        Just P.De -> transposeMink (viewPort (P.AP pos height nod 0))!*! H.moveAlongX 0.021 !*! H.moveAlongZ (-0.029) !$ deviator
-    items = foldMap (\dede -> thatTransformation dede !$ deviator) $  de
+        Just P.De -> transposeMink (viewPort (P.AP pos height nod 0))!*! H.moveAlongX 0.011 !*! H.moveAlongZ (-0.012) !$ deviator
+    items = Control.Lens.ifoldMap (\i dede -> let dm = if Just i == sel then selectedDeviator else deviator in thatTransformation dede !$ dm) $  de
 thatTransformation (P.Devi pos dir d) = let move = moveRightTo pos -- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
                                             dirFromStart = (toNonPhysicalPoint $ transposeMink move !$ dir)
                                             turn = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz) dirFromStart
@@ -349,7 +352,7 @@ foldMaybes list pos dir = fmap snd $ minimumByMay (compare `on` fst) $ listt
                      return (dis, ((P._devPos) dev, diir)) --]filter (map (\e@(P.Devi poos _ _) -> ) list)
 
 function :: H.Point Double -> H.Absolute Double -> P.Deviator Double -> Maybe (Double, H.Absolute Double)
-function pos dir (P.Devi dpos ddir d) = if trace ("newdir = "++show newDir) cond then Just (x/t, newDir) else Nothing
+function pos dir (P.Devi dpos ddir d) = if {-trace ("newdir = "++show newDir)-} cond then Just (x/t, newDir) else Nothing
   where
     trans = let move = moveRightTo pos
                 dirFromStart = (toNonPhysicalPoint $ transposeMink move !$ dir)
@@ -362,3 +365,32 @@ function pos dir (P.Devi dpos ddir d) = if trace ("newdir = "++show newDir) cond
     newDir = {-H.moveAlongY (0.1) !$ H.rotateAroundZ (H.tau/4) !$ ddir -} transposeMink trans !*! rotateAroundX (-d) !*! H.moveAlongX (H.distance H.origin res) !$ (H.Abs 0 1 0) -- } trans !$ (H.Abs 0 1 0)
     cond = abs y < 0.01 && abs z < 0.01 && x*t > 0 -- и ещё условие что девиатор правильно повёрнут
 -- вызывать гиперболический косинус от гиперболического арккосинуса очень весело
+ziip :: [a] -> [(a, a)]
+ziip list = go list
+  where
+    -- go :: [a] -> [(a, a)]
+    go (a:b:as) = (a, b) : go (b:as)
+    go (b:[]) = [(b, head list)]
+
+{-
+ax_1 + by_1 + 1 = 0
+ax_2 + by_2 + 1 = 0
+a(x_1 - x_2) + b(y_1 - y_2) = 0
+a = b(y_2 - y_1)/(x_1 - x_2)
+bx_1(y_2 - y_1)/(x_1 - x_2) + by_1 + 1 = 0
+bx_1(y_2 - y_1)/(x_1 - x_2) + b(x_1-x_2)y_1 = -1
+b(x_1(y_2-y_1) + y_1(x_1-x_2))/(x_1-x_2) = -1
+b(x_1(y_2-y_1) - y_1(x_2-x_1))/(x_2-x_1) = 1
+b = (x_2 - x_1) / (x_1(y_2-y_1) - y_1(x_2-x_1))
+ax_0 + 1 = 0  -- 
+
+x = at + x_1
+y = bt + y_1
+
+
+-}
+counterClockwise :: L.V2 Double -> L.V2 Double -> Bool
+counterClockwise (L.V2 x1 y1) (L.V2 x2 y2) = case L.cross (L.V3 x1 y1 0) (L.V3 x2 y2 0) of 
+                                        (L.V3 _ _ z) -> z > 0
+containsZero::[L.V2 Double] -> Bool 
+containsZero = all (uncurry counterClockwise) . ziip
