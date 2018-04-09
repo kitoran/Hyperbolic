@@ -1,5 +1,5 @@
 {-# Language NoMonomorphismRestriction, OverloadedStrings,
-             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables, BangPatterns, Strict #-}
+             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables, BangPatterns, Strict, FlexibleInstances #-}
 -- module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
 --                    rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
 --                    pretty, proper, distance, chDistance, adj44, moveTo, invAroundZ, invAroundY, fromV4, toV4 {-FIMXE when learn lens-}, 
@@ -15,7 +15,7 @@ import Data.Foldable
 import Data.List (intercalate) 
 
 import qualified Linear as L
-import Linear ((!*!))
+import Linear ()
 import Unsafe.Coerce
 import qualified Control.Lens as Lens
 import Prelude hiding (sinh)
@@ -97,6 +97,8 @@ fromV4 (L.V4 a s d f) = Point a s d f
 klein :: Fractional a => Point a -> L.V3 a
 klein (Point x y z t) = L.V3 (x/t) (y/t) (z/t) 
 
+
+
 instance Applicative Point where --stupid instance, don't use it
   pure a = Point a a a a
   (Point a b c d) <*> (Point e f g h) = Point (a e) (b f) (c g) (d h)
@@ -111,7 +113,7 @@ transposeMink (L.V4 (L.V4 a b c d) (L.V4 e f g h) (L.V4 i j k l) (L.V4 m n o p))
   = (L.V4 (L.V4 a e i (-m)) (L.V4 b f j (-n)) (L.V4 c g k (-o)) (L.V4 (-d) (-h) (-l) p))
 
 sanity :: Num a => L.M44 a -> L.M44 a
-sanity a = a !*! transposeMink a
+sanity a = a <> transposeMink a
 
 insanity::Num a => L.M44 a -> a
 insanity a = getSum $ fold $ fmap (foldMap (\x->Sum $ x*x)) (sanity a L.^-^ L.identity)
@@ -135,8 +137,8 @@ data Absolute a = Abs a a a deriving (Show, Read){- ^ point on celestial sphere 
 x^2+y^2+z^2 > 0-}
 toNonPhysicalPoint (Abs a b c) = Point a b c ((a*a)+(b*b)+(c*c))
 
-instance Movable Absolute where
-  tran !$ (Abs a b c) = let (L.V4 am bm cm dm) = tran L.!* (L.V4 a b c (a*a+b*b+c*c)) in Abs am bm cm
+instance Num a => Movable (L.V4 (L.V4 a)) (Absolute a) where
+  tran !$ (Abs a b c) = let (L.V4 am bm cm dm) = coerce tran L.!* (L.V4 a b c (a*a+b*b+c*c)) in Abs am bm cm
 
 type ProjectiveMap a = L.V4 (L.V4 a)
 
@@ -188,7 +190,7 @@ form3 (L.V3 x1 y1 z1) (L.V3 x2 y2 z2) = z1*z2 - x1*x2 - y1*y2
 
 
 moveRightFromTo3 :: RealFloat a => L.V3 a -> L.V3 a -> L.M33 a
-moveRightFromTo3 p1 p2 = moveRightTo3 p1 !*! moveRightTo3 (transposeMink3 (moveRightTo3 p1) L.!* p2) !*! transposeMink3 ( moveRightTo3 p1)
+moveRightFromTo3 p1 p2 = moveRightTo3 p1 <> moveRightTo3 (transposeMink3 (moveRightTo3 p1) L.!* p2) <> transposeMink3 ( moveRightTo3 p1)
  
 qr :: Floating a => L.M44 a -> L.M44 a
 qr {-(L.V4 (L.V4 a11 a12 a13 a14) 
@@ -287,16 +289,16 @@ rotate :: (RealFloat a) => Point a -> Point a -> a -> L.M44 a
 rotate a b x = commute ((getPointToOrigin a `andConsideringThat` turmPToOx) b) (rotateAroundX x)
 
 commute :: Num a => L.M44 a -> L.V4 (L.V4 a) -> L.V4 (L.V4 a)
-commute a b = (transposeMink a) !*! b !*! a
+commute a b = (transposeMink a) <> b <> a
 commute3 :: Num a => L.M33 a -> L.V3 (L.V3 a) -> L.V3 (L.V3 a)
-commute3 a b = (transposeMink3 a) !*! b !*! a
+commute3 a b = (transposeMink3 a) <> b <> a
 
 moveTo :: (RealFloat a) => Point a -> a -> L.M44 a
-moveTo p dist =  transposeMink a !*! moveAlongX (dist) !*! a
+moveTo p dist =  transposeMink a <> moveAlongX (dist) <> a
     where a = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz)  p
---moveRightTo3 p@(L.V3 x y t) = rotate3 ((atan2 y x)) !*! moveAlongX3 (distance3 origin3 p) !*! rotate3 (-(atan2 y x))
+--moveRightTo3 p@(L.V3 x y t) = rotate3 ((atan2 y x)) <> moveAlongX3 (distance3 origin3 p) <> rotate3 (-(atan2 y x))
 moveTo3 :: RealFloat a =>  L.V3 a -> a -> L.M33 a
-moveTo3 (L.V3 x y _) d = rotate3 ((atan2 y x)) !*! moveAlongX3 (d) !*! rotate3 (-(atan2 y x))
+moveTo3 (L.V3 x y _) d = rotate3 ((atan2 y x)) <> moveAlongX3 (d) <> rotate3 (-(atan2 y x))
 
 moveRightTo :: RealFloat a => Point a -> L.M44 a
 moveRightTo p = moveTo p (distance origin p) 
@@ -305,7 +307,7 @@ moveRightTo3 :: RealFloat a => L.V3 a -> L.M33 a
 moveRightTo3 p = moveTo3 p (distance3 origin3 p) 
     
 moveFromTo :: (RealFloat a) => Point a -> Point a -> a -> L.M44 a
-moveFromTo fr to dist =   a !*! moveTo (transposeMink a!$to) (dist) !*! transposeMink a
+moveFromTo fr to dist =   a <> moveTo (transposeMink a!$to) (dist) <> transposeMink a
     where a = moveRightTo fr --может быть, тут можно вместо moverightto использовать более простое движение - не из пяти, а из трёх элементарных
 
 turmPToOxz ::forall a . (Eq a, Floating a) => Point a -> L.M44 a -- cbc fixme this function is same as getPointToOxzAroundOz ??
@@ -313,7 +315,7 @@ turmPToOxz  (Point x y _ t) = rotateAroundZ alpha
   where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0
 
 turmPToOx ::forall a . (Eq a, Floating a) => Point a -> L.M44 a -- cbc fixme this function is same as getPointToOxyAroundOx ??
-turmPToOx  (Point x y z t) =  rotateAroundY (beta) !*! rotateAroundZ alpha
+turmPToOx  (Point x y z t) =  rotateAroundY (beta) <> rotateAroundZ alpha
   where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0
         beta = -signum t * (if (x /= 0 ) || (y /= 0) then atan (-z/sqrt(x*x + y*y)) else 0)
 -- тут сожно наверное всё сделать ДРАМАТИЧЕСКИ быстрее, если вставить rewrite rules
@@ -331,14 +333,14 @@ getPointOnOxToOrigin (Point x _ _ t) = moveAlongX $ asinh $ (  - x/ sqrt (( (t*t
 -- moveFromTo a b d = 
 
 andThen :: (Num a, Movable m) => (m a -> L.M44 a) -> (m a -> L.M44 a) -> m a -> L.M44 a -- может быть, это какой-нибудь arrows 
-((!f) `andThen` (!g)) (!p) = g ((f p) !$ p) !*! f p -- безумно неэффективно и вообще пиздец
+((!f) `andThen` (!g)) (!p) = g ((f p) !$ p) <> f p -- безумно неэффективно и вообще пиздец
 
-((!f) `andThen3` (!g)) (!p) = g ((f p) L.!* p) L.!*! f p
+((!f) `andThen3` (!g)) (!p) = g ((f p) L.!* p) <> f p
 
 andConsideringThat :: (Num a, Movable m) => L.M44 a -> (m a -> L.M44 a) -> m a -> L.M44 a 
-andConsideringThat !m !f !p = f (m !$ p) !*! m
+andConsideringThat !m !f !p = f (m !$ p) <> m
 
-andConsideringThat3 !m !f !p = f (m L.!* p) L.!*! m
+andConsideringThat3 !m !f !p = f (m L.!* p) <> m
 
 -- getTriangleToOxy !a !b !c = (   (   getPointToOxyAroundOx `andThen` 
 --                                  getPointToOxzAroundOz `andThen` 
@@ -373,10 +375,10 @@ getPointToOxAroundO3 (L.V3 x y t) = rotate3 $ -(atan2 (y/t) (x/t))
 -}
 
 
-class Movable p where
-  (!$) :: (Num a) => L.M44 a -> p a -> p a 
+class Movable motion p where
+  (!$) :: motion -> p -> p 
 infixr 1 !$
-instance Movable Point where
+instance Num a => Movable (L.M44 a) (Point a) where
   m !$ p = Lens.over _v4 (m L.!*) p
 --so much for agressive inlining... class methods dont get rewrited... class methods are harder to inline.. sad..
 

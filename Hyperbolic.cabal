@@ -90,6 +90,7 @@ executable Hyperbolic
                      , QuickCheck
                      , random
                      , OpenGL
+                     , clif
                      , containers
                      -- , console-program
                      -- deps of console-program:
