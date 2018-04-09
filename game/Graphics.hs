@@ -30,7 +30,6 @@ import Graphics.UI.GLUT as GL
                          Vertex3(Vertex3),
                          Vector3(..) )-}
 import qualified Graphics.Rendering.OpenGL.GLU.Matrix (perspective, lookAt)
-import Graphics.Rendering.OpenGL.GL.Shaders
 import Physics  as P (Mesh(..), HyperEntity(..), AvatarPosition(..))
 import qualified Physics  as P
 import Hyperbolic as H (Point(..), transposeMink, normalizeWass, _v4, klein, origin3, _t, origin, distance, (!$)
@@ -93,23 +92,23 @@ initialiseGraphics = do
     lighting           $= Enabled 
     light (Light 0)    $= Enabled
     lightModelAmbient  $= Color4 0.5 0.5 0.5 1 
-    v <- createShader VertexShader
-    f <- createShader FragmentShader
-    f2 <- createShader FragmentShader
-    vst <- BS.readFile "toon.vert"
-    fst <- BS.readFile "toon.frag"
-    fst2 <- BS.readFile "toon2.frag"
-    shaderSourceBS v $= vst
-    shaderSourceBS f $= fst
-    shaderSourceBS f2 $= fst2
-    compileShader v
-    compileShader f
-    compileShader f2
-    p <- createProgram
-    attachShader p v
-    attachShader p f
-    attachShader p f2
-    linkProgram p
+    -- v <- createShader VertexShader
+    -- f <- createShader FragmentShader
+    -- f2 <- createShader FragmentShader
+    -- vst <- BS.readFile "toon.vert"
+    -- fst <- BS.readFile "toon.frag"
+    -- fst2 <- BS.readFile "toon2.frag"
+    -- shaderSourceBS v $= vst
+    -- shaderSourceBS f $= fst
+    -- shaderSourceBS f2 $= fst2
+    -- compileShader v
+    -- compileShader f
+    -- compileShader f2
+    -- p <- createProgram
+    -- attachShader p v
+    -- attachShader p f
+    -- attachShader p f2
+    -- linkProgram p
     -- currentProgram $= Just p 
    
     diffuse (Light 0)  $= Color4 1 1 1 1
