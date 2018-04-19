@@ -21,6 +21,7 @@ import qualified Codec.Wavefront
 --import GHC.Float hiding (sinh)
 import Text.Show.Pretty
 import System.Environment
+import Data.Foldable
 import System.IO
 import System.IO.Error
 -- import System.IO.SaferFileHandles я хотел использовать модные безопасные функции работы с файлами,
@@ -122,11 +123,11 @@ bound low high x
   | x < high = x
   | otherwise = high
 -- findSelected :: _
-findSelected (WS de _) ap = foldMaybesP de (G.viewPort ap)
+findSelected (WS de _) ap = foldMaybesP de ({-transposeMink- $-} G.viewPort ap)
  -- тут мы много раз считаем преобразование, а надо один если вообще считать
 
-foldMaybesP :: [P.Deviator Double] -> M44 Double -> Maybe Int -- , H.Absolute Double)
-foldMaybesP list ttt = fmap snd $ minimumByMay (compare `on` fst) $ zip listt [0..]
+foldMaybesP :: [P.Deviator] -> M44 Double -> Maybe Int -- , H.Absolute Double)
+foldMaybesP list ttt =   fmap snd $ minimumByMay (compare `on` fst) $ zip listt [0..]
   where listt :: [(Double)]
         listt = do
                  dev <- list
@@ -135,53 +136,54 @@ foldMaybesP list ttt = fmap snd $ minimumByMay (compare `on` fst) $ zip listt [0
                    Just (dis) -> 
                      return (dis{-, ((P._devPos) dev, diir)-}) --]filter (map (\e@(P.Devi poos _ _) -> ) list)
 
-intersectRay :: Deviator Double -> M44 Double -> Maybe Double
-intersectRay (de) trans = if any (\(_, Polygon a) -> G.containsZero (map mapping a)) list 
-                          then Just $ distance (_devPos de) origin
+intersectRay :: Deviator -> M44 Double -> Maybe Double
+intersectRay (P.Devi pos dir nod) transs = if any (\(_, Polygon a) ->  G.containsZero (map mapping a)) $ 
+                                                      {-  traceShow (map (\(_, Polygon a) -> (map mapping a) ) list)-} list 
+                          then Just $ distance (pos) origin
                           else Nothing
 --if trace ("newdir = "++show newDir) cond then Just (x/t, newDir) else Nothing
   where
-    Mesh list = transposeMink trans !$ G.deviator
-    -- trans = let move = moveRightTo pos
-                -- dirFromStart = (toNonPhysicalPoint $ transposeMink move !$ dir)
-                -- turn = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz) dirFromStart
-             -- in (move !*! turn) {-}
+    Mesh list = {-transposeMink-} trans !$ G.deviator
+    trans = let move = moveRightTo pos
+                dirFromStart = (toNonPhysicalPoint $ transposeMink move !$ dir)
+                turn = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz) dirFromStart
+             in (move !*! turn) {-}
              -- ((moveRightTo pos `andConsideringThat`  
                                          -- (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz))
                                          -- (toNonPhysicalPoint dir))-}
-    mapping p = case trans !$ p of
-                  (Point x y _ _) -> L.V2 x y
+    mapping p = case transs !$ p of
+                  (Point x y z t) -> {-Debug.Trace.trace ("What intersectRay sees: " <> show transs){ -} L.V2 (y/t) (z/t)
     -- res@(H.Point x y z t) = trans !$ dpos
     -- newDir = {-H.moveAlongY (0.1) !$ H.rotateAroundZ (H.tau/4) !$ ddir -} transposeMink trans !*! rotateAroundX (-d) !*! H.moveAlongX (H.distance H.origin res) !$ (H.Abs 0 1 0) -- } trans !$ (H.Abs 0 1 0)
     -- cond = abs y < 0.01 && abs z < 0.01 && x*t > 0 -- и ещё условие что девиатор правильно повёрнут
 -- вызывать гиперболический косинус от гиперболического арккосинуса очень весело
 
 startState :: LevelState
-startState = LS (AP identity 0.1 0 (V3 0.0 0 0)) (Nothing) (WS [moveAlongY 0.1 !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0),
-                                                                moveAlongY (-0.1) !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0)   ] []) (Just 0)
+startState = LS (AP identity 0.1 0 (V3 0.0 0 0)) (Nothing) (WS [moveAlongY (0.1::Double) !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0) 
+                                                               {- moveAlongY (-0.1::Double) !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0) -}  ] []) (Just 0)
 -- { _avatarPosition :: AvatarPosition,
 --                        _avatarInventory :: Item,
 --                        _worldState :: WorldState
 --                      }
 thisFunc (LS (ap@(AP mat hei nod _)) (Just De) (WS des dis) _) = let nmat = m33_to_m44M mat in LS ap Nothing (WS (Devi (nmat !*! moveAlongZ hei !$ (Point 0 0 0 1)) (nmat !$ Abs 1 0 0) 0: des) (dis)) Nothing
-thisFunc (LS (ap@(AP mat hei nod _)) (Nothing) (WS des dis) e) = (LS (ap) (Just De) (WS des dis) e) -- = LS (ap@(mat hei nod)) (Nothing) (WS des dis) = LS ap Nothing (WS (Devi (mat !*! moveAlongZ hei !$ (Point 0 0 0 1)): des) (dis))
+thisFunc (LS (ap@(AP mat hei nod _)) (Nothing) (WS des dis) e) = (LS (ap) (Nothing) (WS des dis) e) -- = LS (ap@(mat hei nod)) (Nothing) (WS des dis) = LS ap Nothing (WS (Devi (mat !*! moveAlongZ hei !$ (Point 0 0 0 1)): des) (dis))
 
 
-tick :: Double -> [RuntimeObstacle Double] -> AvatarPosition -> AvatarPosition
+tick :: Double -> [RuntimeObstacle ] -> AvatarPosition -> AvatarPosition
 tick gravity level = (\s@(AP pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (level) . applyGravity gravity . applySpeed
 
 matricesMoveInPlane :: Floating a => [(Char, a -> M33 a)]
 matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3 ), ('s', moveAlongX3 . negate),
                            ('a', moveAlongY3 ), ('d', moveAlongY3 . negate)]
 
-runtimeObstacles :: [RuntimeObstacle Double]
+runtimeObstacles :: [RuntimeObstacle ]
 runtimeObstacles = computeObs (obstacles level)
-level :: Environment  Double
+level :: Environment  
 level = Env (Mesh [(red, Polygon [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01]) [Source (Point 0 0 0 1) (Abs 0 1 0), Source (Point 0 0 0 1) (Abs (-1) 0 0)]
   where p0' = Point (sinh 1) 0.0 0.0 (cosh 1)
-        p1' = rotateAroundZ (tau/3) !$ p0'
-        p2' = rotateAroundZ (-tau/3) !$ p0'
-        [p0, p1, p2] = map (moveAlongZ (-0.1) !$) [p0', p1', p2']
+        p1' = rotateAroundZ (tau/3::Double) !$ p0'
+        p2' = rotateAroundZ (-tau/3::Double) !$ p0'
+        [p0, p1, p2] = map (moveAlongZ (-0.1::Double) !$) [p0', p1', p2']
         red = (1.0, 0.0, 0.0)
 
 main :: IO ()
@@ -195,6 +197,7 @@ main = do
          stepRef <- newIORef 0.01
          jumpRef <- newIORef 0.01
          gravityRef <- newIORef 0.0002
+         mutableMeshRef <- newIORef (G.toMesh (sources level) startState)
          frameRef <- newIORef True
          wheConsoleRef <- newIORef False
          consoleRef <- newIORef (Console "" [] 0)
@@ -258,11 +261,20 @@ main = do
                           do
                             state' <- readIORef stateRef
                             levelMesh <- readIORef levelMeshRef
+                            (mesh, itemss) <- readIORef mutableMeshRef
                             cons <- readIORef consoleRef
                             frame <- readIORef frameRef
                             sources <- readIORef sourceRef
                             wheCons <- readIORef wheConsoleRef
-                            G.displayGame cons wheCons (levelMesh <> G.toMesh sources state') frame (G.viewPort $ _avatarPosition state') (_avatarPosition state')
+                            let ap = _avatarPosition state'
+                                inv = case _avatarInventory state' of
+                                       Nothing -> mempty
+                                       Just De -> transposeMink (G.viewPort ap)!*! H.moveAlongX 0.011 !*! H.moveAlongZ (-0.012) !$ G.deviator
+                            let items = case (_selected state') of
+                                         Nothing -> itemss
+                                         Just i -> itemss & ix i %~ (\(Mesh a) -> Mesh (fmap (\((q, w, e), r) -> ((f q, f w, f e), r)) a))
+                                  where f a = if a >= (1/3) then 1 else a+2/3 
+                            G.displayGame cons wheCons (levelMesh <> fold items <> inv) frame (G.viewPort $ ap) (ap)
             passiveMotionCallback $= (Just $ (\(Position x y) -> do
                 last' <- readIORef last
                 now <- getCurrentTime
@@ -272,18 +284,23 @@ main = do
                      LS vatarPosition vatarInventory orldState _  <- readIORef stateRef
                      let newap = processMouse width height (fromEnum x, fromEnum y) vatarPosition
                          newLected = case vatarInventory of
-                                       Nothing -> Just 1 --findSelected orldState vatarPosition
+                                       Nothing -> findSelected orldState newap --vatarPosition
                                        _ -> Nothing
-                     writeIORef stateRef  (LS newap vatarInventory orldState newLected)
+                     let neww = traceShowId (LS newap vatarInventory orldState newLected)
+                     writeIORef stateRef  neww
                      -- modifyIORef stateRef $ ((avatarPosition %~ ) . (selected %~ p))
                      pointerPosition $= (Position (newap `seq`
-                                                   newLected `seq`
-                                                   (LS newap vatarInventory orldState newLected) `seq` 
+                                                   newLected `seq` 
                                                    (width'`div`2)) (height'`div`2))
-                     display)
+                     -- display
+                     )
                 ))
             GL.mouseCallback $= Just (\GL.LeftButton butt _ -> case butt of
-                                                                GL.Down -> modifyIORef stateRef (thisFunc)
+                                                                GL.Down -> do 
+                                                                              modifyIORef stateRef (thisFunc)
+                                                                              so <- readIORef sourceRef
+                                                                              st <- readIORef stateRef
+                                                                              writeIORef mutableMeshRef (G.toMesh (so) st)
                                                                 GL.Up -> return ())
             displayCallback $= display
             escape <- newIORef (""::String) -- это должна быть mutable bytestring

@@ -1,5 +1,18 @@
-{-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DataKinds, DeriveFunctor, BangPatterns,
-            GeneralizedNewtypeDeriving, DuplicateRecordFields #-}
+{-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DeriveFunctor, BangPatterns,
+            GeneralizedNewtypeDeriving, DuplicateRecordFields, MultiParamTypeClasses, FlexibleInstances, FlexibleContexts,
+
+
+
+
+            UndecidableInstances
+
+
+
+
+
+
+
+             #-}
 module Physics where
 
 import qualified Hyperbolic as H
@@ -21,26 +34,26 @@ data AvatarPosition = AP { _pos :: !(M33 Double ) -- проекция на пл�
                                      , _height :: !Double
                                      , _nod :: !Double
                                      , _speed :: !(V3 Double)
-                                     } deriving Show
+                                     } deriving (Show, Read)
 
 data LevelState = LS { _avatarPosition :: AvatarPosition,
                        _avatarInventory :: Maybe Item,
-                       _worldState :: WorldState Double,
+                       _worldState :: WorldState ,
                        _selected :: Maybe Int
-                     } 
-data Item = De | Di 
+                     } deriving (Show, Read)
+data Item = De | Di deriving (Show, Read, Enum)
 
-data Deviator a = Devi { _devPos :: (H.Point a)
-                      , _devDir :: (Absolute a)
-                      , _devNod :: a } -- отклоняет поток на 90 градусов
-instance H.Movable Deviator where 
+data Deviator = Devi { _devPos :: (H.Point Double)
+                      , _devDir :: (Absolute Double)
+                      , _devNod :: Double } deriving (Show, Read)-- отклоняет поток на 90 градусов
+instance (Monoid t, H.Movable t (H.Point Double), H.Movable t (Absolute Double)) => H.Movable t (Deviator ) where 
   trans !$ (Devi a b c) = Devi (trans !$ a) (trans !$ b) c -- третий аргумет переводится неправильно, но что поделать
-data Divider a = Divi (H.Point a) (Absolute a) a
+data Divider = Divi (H.Point Double) (Absolute Double) Double deriving (Show, Read)
 
-data WorldState a = WS {
-                    _devis :: [ Deviator a],
-                    _divis :: [ Divider a]
-                  }
+data WorldState = WS {
+                    _devis :: [ Deviator],
+                    _divis :: [ Divider ]
+                  }deriving (Show, Read)
 
 
 
@@ -51,9 +64,9 @@ $(Lens.makeLenses ''LevelState)
 currentPosition (AP (!pos) (!height) _ _) =  H.m33_to_m44M pos !*! H.moveAlongZ height !$ H.origin
 ourSize = 0.1
 
-type Obstacles a = [Obstacle a]
-data Obstacle a = Sphere !(Point a) a | Triangle !(Point a) !(Point a) !(Point a) !a deriving ( Show,Functor, Read)
-instance H.Movable Obstacle where
+type Obstacles = [Obstacle]
+data Obstacle = Sphere !(Point Double) Double | Triangle !(Point Double) !(Point Double) !(Point Double) !Double deriving ( Show, Read)
+instance (Monoid t, H.Movable t (Point Double)) => H.Movable t Obstacle where
   (!tr) !$ (Sphere !p !r) = Sphere (tr !$ p) r
   (!tr) !$ (Triangle !q !w !e !r) = Triangle (tr !$ q) (tr !$ w) (tr !$ e) r
 
@@ -104,9 +117,9 @@ projectToOxy (Point q w e r) = V3 q w r
 --                  pushOutOne (Triangle a b c r) = if far a (_pos s) then id else ((pushOutTriangleO a b c r))
 --                  far (Point x y _ t) (m::M33 Double) = let (V3 xr yr tr) = m !* V3 0 0 1 
 --                                          in abs ((x/t) - xr/tr)> 2 ||  abs ((y/t) - yr/tr)> 2
-pushOut :: [RuntimeObstacle Double] -> AvatarPosition -> AvatarPosition
+pushOut :: [RuntimeObstacle ] -> AvatarPosition -> AvatarPosition
 pushOut o s = foldr (\o1 -> pushOutOne o1) s o
-           where pushOutOne :: RuntimeObstacle Double -> AvatarPosition -> AvatarPosition
+           where pushOutOne :: RuntimeObstacle -> AvatarPosition -> AvatarPosition
                  pushOutOne (SphereR center radius) = if far center ((_pos::AvatarPosition -> M33 Double) s)  then id else ((pushOutSphereO center radius ))
                  pushOutOne (TriangleR m x1 x2 y2 r) = {- far analysis could bw here -}(pushOutTriangleO m x1 x2 y2 r)
                  far (Point x y _ t) (m::M33 Double) = let (V3 xr yr tr) = m !* V3 0 0 1 
@@ -132,30 +145,30 @@ pushOut o s = foldr (\o1 -> pushOutOne o1) s o
 --                             (Point 0.25 (-0.5) 0 1)
 --                             (Point (-0.5) 0.25 0 1) 0
 
-newtype Mesh a = Mesh [((Double, Double, Double), HyperEntity a)] deriving ( Show,Functor, Read, Monoid)
-data HyperEntity a = Polygon [Point a] -- как всегда, для нормального отображения многоугольник должен быть выпуклым, и точки должны идти в порядке
-                   | Segment !(Point a) !(Point a) 
-                   | HPoint !(Point a) {- fixme this constructor isnt needed -} deriving ( Show,Functor, Read)
+newtype Mesh = Mesh [((Double, Double, Double), HyperEntity)] deriving ( Show, Read, Monoid)
+data HyperEntity = Polygon [Point Double] -- как всегда, для нормального отображения многоугольник должен быть выпуклым, и точки должны идти в порядке
+                 | Segment !(Point Double) !(Point Double) 
+                 | HPoint !(Point Double) {- fixme this constructor isnt needed -} deriving ( Show, Read)
 
-instance H.Movable HyperEntity where
+instance (Monoid t, H.Movable t (Point Double)) => H.Movable t HyperEntity where
   a !$ (Polygon list) = Polygon $ map (a !$) list
   a !$ (Segment q w) = Segment (a !$ q) (a !$ w)
 
-instance H.Movable Mesh where
+instance (Monoid t, H.Movable t (Point Double)) => H.Movable t Mesh where
   a !$ (Mesh l) = Mesh $ fmap (\(c, he) -> (c, a !$ he)) l
 
-data Environment a = Env { mesh :: !(Mesh a),
-                           obstacles :: !(Obstacles a),
-                           sources :: [Source a] } deriving ( Show, Read)
+data Environment = Env { mesh :: !(Mesh),
+                           obstacles :: !(Obstacles),
+                           sources :: [Source] } deriving ( Show, Read)
 
-instance H.Movable (Environment) where
+instance (Monoid t, H.Movable t (Point Double),  H.Movable t (H.Absolute Double)) => H.Movable t (Environment) where
   tr !$ Env m ob s = Env (tr !$ m) (fmap (tr !$) ob) (fmap (tr !$) s)
 
-data Source a = Source (H.Point a) (H.Absolute a) deriving (Show, Read)
-instance H.Movable (Source) where
+data Source  = Source (H.Point Double) (H.Absolute Double) deriving (Show, Read)
+instance (Monoid t, H.Movable t (H.Point Double), H.Movable t (H.Absolute Double)) => H.Movable t (Source) where
   tr !$ (Source p a) = Source (tr !$ p) (tr !$ a)
 
-data RuntimeObstacle a = SphereR !(Point a) a | TriangleR (M44 a) a a a a deriving ( Show,Functor, Read)
+data RuntimeObstacle = SphereR !(Point Double) Double | TriangleR (M44 Double) Double Double Double Double deriving ( Show, Read)
 
 -- -- optics
 -- ray :: V3 Double -> Double -> S.Set Mirror -> ([V3 Double], Double)
@@ -198,7 +211,7 @@ pushOutHorizontalCoordinateQuadrilateral (HCQ xtmin xtmax ytmin ytmax z) s@(AP p
         then if (-height) < (z) then AP pos ( ourSize - z) nod (V3 0 0 0) else  AP pos ((-ourSize) - z) nod (V3 0 0 0) 
         else s-- podumay so znakami
 
-computeObs :: Obstacles Double -> [RuntimeObstacle Double]
+computeObs :: Obstacles  -> [RuntimeObstacle ]
 computeObs = map tr 
   where
     tr (Sphere q w) = SphereR q w
