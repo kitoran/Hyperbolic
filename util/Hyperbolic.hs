@@ -1,5 +1,5 @@
-{-# Language NoMonomorphismRestriction, OverloadedStrings,
-             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables, BangPatterns, Strict, FlexibleInstances #-}
+{-# Language OverloadedStrings,
+             MultiParamTypeClasses, DeriveFunctor, DeriveGeneric, ScopedTypeVariables, BangPatterns,  FlexibleInstances #-}
 -- module Hyperbolic (Point(..), form, formV, moveAlongX, moveAlongY, moveAlongZ, _v4, _t,
 --                    rotateAroundZ, rotateAroundY, rotateAroundX, origin, insanity, identityIm, 
 --                    pretty, proper, distance, chDistance, adj44, moveTo, invAroundZ, invAroundY, fromV4, toV4 {-FIMXE when learn lens-}, 
@@ -10,23 +10,29 @@
 module Hyperbolic  where -- x=
    
 import Data.Monoid
+import Data.Group
 import GHC.Generics (Generic1) 
 import Data.Foldable
 import Data.List (intercalate) 
 
 import qualified Linear as L
-import Linear ()
+import Linear (V4(V4))
 import Unsafe.Coerce
+import Data.Coerce
 import qualified Control.Lens as Lens
 import Prelude hiding (sinh)
 import qualified Prelude (sinh)
 import Debug.Trace
+sinh :: Floating a => a -> a
 sinh a 
   | unsafeCoerce a == (1::Double) = trace "sinh!!" $ Prelude.sinh a
   | True = Prelude.sinh a
 toV4 :: Point a -> L.V4 a
 toV4 (Point a b c d) = L.V4 a b c d {-FIMXE when learn lens-}
 {-# INLINE toV4 #-}
+type ML a = Dual [L.M44 a]
+box :: L.M44 a -> ML a
+box a = Dual [a]
 {-|
 
 Этот модуль описывает гиперболическое пространство
@@ -72,14 +78,14 @@ projective 3-space is sheaf in 4-dimensional vector space.
                \                       /
                 \|                   |/
                --                     -- 
-Пространство Лобачевского (с идеальными элементами)
+*Пространство Лобачевского (с идеальными элементами)
 
 В правой системе координат если Ox направлена  вперёд, а Oz вверх, то Oy направлена влево!
 -} 
 
 instance L.Additive Point where
 
-data Point a = Point !a !a !a !a deriving (Generic1, Show, Functor, Read)
+data Point a = Point a a a a deriving (Generic1, Show, Functor, Read)
 {- ^ for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map 
   is not nearly injective, that's sad. However, sometimes i use improper points -}
 _v4::Lens.Lens' (Point a) (L.V4 a)
@@ -105,7 +111,9 @@ instance Applicative Point where --stupid instance, don't use it
 
 tau :: Floating a => a
 tau = 2 * pi
-
+-- data HomogeneousPoint a = HPoint Double 
+-- ST trick
+-- applyMotion :: L.M44 Double ->
 -- |4x4 matrix transpose with respect to minkowski form
 -- for hyperbolic space isometries this is same as inL.V44 (modulo floating-point precision)
 transposeMink::Num a => L.M44 a -> L.M44 a
@@ -294,14 +302,37 @@ commute3 :: Num a => L.M33 a -> L.V3 (L.V3 a) -> L.V3 (L.V3 a)
 commute3 a b = (transposeMink3 a) <> b <> a
 
 moveTo :: (RealFloat a) => Point a -> a -> L.M44 a
-moveTo p dist =  transposeMink a <> moveAlongX (dist) <> a
-    where a = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz)  p
+moveTo (Point x y z t) d = V4 (V4 ((cosh(d)*x*x+y*y+z*z)/dem)
+                                  (((cosh(d)-1)*x*y)/dem)
+                                  (((cosh(d)-1)*x*z)/dem)
+                                  ((sinh(d)*x)/sqrt(dem)))
+                              (V4 (((cosh(d)-1)*x*y)/(dem))
+                                  ((x*x+cosh(d)*y*y+z*z)/(dem))
+                                  (((cosh(d)-1)*y*z)/(dem))
+                                  ((sinh(d)*y)/sqrt(dem)))
+                              (V4 (((cosh(d)-1)*x*z)/(dem))
+                                  (((cosh(d)-1)*y*z)/(dem))
+                                  ((x*x+y*y+cosh(d)*z*z)/dem)
+                                  ((sinh(d)*z)/sqrt(dem)))
+                              (V4 ((sinh(d)*x)/sqrt(dem))
+                                  ((sinh(d)*y)/sqrt(dem))
+                                  ((sinh(d)*z)/sqrt(dem))
+                                  (cosh(d)))
+      where dem = x*x+y*y+z*z
+
+-- transposeMink a <> moveAlongX (dist) <> a
+--    where a = (getPointToOxyAroundOx `andThen` getPointToOxzAroundOz)  p
+moveTol :: (RealFloat a) => Point a -> a -> ML a
+moveTol p dist = invert a <> (Dual [moveAlongX (dist)]) <> a
+    where a = (box . getPointToOxyAroundOx `andThen` box . getPointToOxzAroundOz)  p
 --moveRightTo3 p@(L.V3 x y t) = rotate3 ((atan2 y x)) <> moveAlongX3 (distance3 origin3 p) <> rotate3 (-(atan2 y x))
 moveTo3 :: RealFloat a =>  L.V3 a -> a -> L.M33 a
 moveTo3 (L.V3 x y _) d = rotate3 ((atan2 y x)) <> moveAlongX3 (d) <> rotate3 (-(atan2 y x))
 
 moveRightTo :: RealFloat a => Point a -> L.M44 a
 moveRightTo p = moveTo p (distance origin p) 
+moveRightTol :: RealFloat a => Point a -> ML a
+moveRightTol p = moveTol p (distance origin p) 
 
 moveRightTo3 :: RealFloat a => L.V3 a -> L.M33 a
 moveRightTo3 p = moveTo3 p (distance3 origin3 p) 
@@ -331,39 +362,60 @@ getPointToOxzAroundOz (Point x y _ t) = rotateAroundZ $ -(atan2 (y/t) (x/t)) -- 
 getPointToOxyAroundOx (Point _ y z t) = rotateAroundX $ -(atan2 (z/t) (y/t)) -- от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
 getPointOnOxToOrigin (Point x _ _ t) = moveAlongX $ asinh $ (  - x/ sqrt (( (t*t-x*x))) * signum t) -- брать гиперболические синус и косинус аркчосинуса очень весело, конечно
 -- moveFromTo a b d = 
+-- getPointToOxyAroundOxl (Point _ y z t) = Dual [rotateAroundX $ -(atan2 (z/t) (y/t))] -- от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
+infixl 8 `andThen`
+andThen :: (Movable t m) => (m -> t) -> (m -> t) -> m -> t -- может быть, это какой-нибудь класс 
+((f) `andThen` (g)) (p) = g ((f p) !$ p) <> f p -- безумно неэффективно и вообще пиздец
 
-andThen :: (Num a, Movable m) => (m a -> L.M44 a) -> (m a -> L.M44 a) -> m a -> L.M44 a -- может быть, это какой-нибудь arrows 
-((!f) `andThen` (!g)) (!p) = g ((f p) !$ p) <> f p -- безумно неэффективно и вообще пиздец
+((f) `andThen3` (g)) (p) = g ((f p) L.!* p) <> f p
 
-((!f) `andThen3` (!g)) (!p) = g ((f p) L.!* p) <> f p
+andConsideringThat :: (Movable t m) => t -> (m -> t) -> m -> t 
+andConsideringThat m f p = f (m !$ p) <> m
 
-andConsideringThat :: (Num a, Movable m) => L.M44 a -> (m a -> L.M44 a) -> m a -> L.M44 a 
-andConsideringThat !m !f !p = f (m !$ p) <> m
+andConsideringThat3 m f p = f (m L.!* p) <> m
 
-andConsideringThat3 !m !f !p = f (m L.!* p) <> m
-
--- getTriangleToOxy !a !b !c = (   (   getPointToOxyAroundOx `andThen` 
+-- getTriangleToOxy a b c = (   (   getPointToOxyAroundOx `andThen` 
 --                                  getPointToOxzAroundOz `andThen` 
 --                                  getPointOnOxToOrigin $ a) `andConsideringThat` 
 --                              (   getPointToOxyAroundOx `andThen` 
 --                                  getPointToOxzAroundOz ) ) b `andConsideringThat` 
---                          getPointToOxyAroundOx $! c
+--                          getPointToOxyAroundOx $ c
 getTriangleToOxy :: forall a.
                           RealFloat a =>
                           Point a -> Point a -> Point a -> L.M44 a
-getTriangleToOxy !a !b !c = (   (   getPointToOxyAroundOx `andThen` 
+getTriangleToOxy a b c = (   (   getPointToOxyAroundOx `andThen` 
                                  getPointToOxzAroundOz `andThen` 
                                  getPointOnOxToOrigin $ a) `andConsideringThat` 
                              (   getPointToOxyAroundOx `andThen` 
                                  getPointToOxzAroundOz ) ) b `andConsideringThat` 
-                         getPointToOxyAroundOx $! c
+                         getPointToOxyAroundOx $ c
 getTriangleToOxyD :: forall a.
                            RealFloat a =>
                            Point a -> Point a -> Point a -> (Point a, Point a, Point a)
-getTriangleToOxyD !a !b !c = (t !$ a, t !$ b, t !$ c) where t = (getTriangleToOxy a b c) `seq` (getTriangleToOxy a b c)
+getTriangleToOxyD a b c = (t !$ a, t !$ b, t !$ c) where t = (getTriangleToOxy a b c) `seq` (getTriangleToOxy a b c)
+
+instance Num a => Monoid (L.V3 (L.V3 a)) where
+  mempty = L.V3 (L.V3 1 0 0) (L.V3 0 1 0) (L.V3 0 0 1)
+  mappend (L.V3 (L.V3 a00 a01 a02) (L.V3 a10 a11 a12) (L.V3 a20 a21 a22)) (L.V3 (L.V3 b00 b01 b02) (L.V3 b10 b11 b12) (L.V3 b20 b21 b22))
+    = L.V3 (L.V3 (a00*b00+a01*b10+a02*b20) (a00*b01+a01*b11+a02*b21) (a00*b02+a01*b12+a02*b22)) 
+         (L.V3 (a10*b00+a11*b10+a12*b20) (a10*b01+a11*b11+a12*b21) (a10*b02+a11*b12+a12*b22)) 
+         (L.V3 (a20*b00+a21*b10+a22*b20) (a20*b01+a21*b11+a22*b21) (a20*b02+a21*b12+a22*b22)) 
+  {-# INLINE mappend #-}
+        
+
+instance Num a => Monoid (L.V4 (L.V4 a)) where
+  mempty = L.V4 (L.V4 1 0 0 0) (L.V4 0 1 0 0 ) (L.V4 0 0 1 0) (L.V4 0 0 0 1)
+  mappend (L.V4 (L.V4 a00 a01 a02 a03) (L.V4 a10 a11 a12 a13) (L.V4 a20 a21 a22 a23) (L.V4 a30 a31 a32 a33)) 
+   (L.V4 (L.V4 b00 b01 b02 b03) (L.V4 b10 b11 b12 b13) (L.V4 b20 b21 b22 b23) (L.V4 b30 b31 b32 b33))
+    = L.V4 (L.V4 (a00*b00+a01*b10+a02*b20+a03*b30) (a00*b01+a01*b11+a02*b21+a03*b31) (a00*b02+a01*b12+a02*b22+a03*b32) (a00*b03+a01*b13+a02*b23+a03*b33))
+           (L.V4 (a10*b00+a11*b10+a12*b20+a13*b30) (a10*b01+a11*b11+a12*b21+a13*b31) (a10*b02+a11*b12+a12*b22+a13*b32) (a10*b03+a11*b13+a12*b23+a13*b33))
+          (L.V4 (a20*b00+a21*b10+a22*b20+a23*b30) (a20*b01+a21*b11+a22*b21+a23*b31) (a20*b02+a21*b12+a22*b22+a23*b32) (a20*b03+a21*b13+a22*b23+a23*b33))
+          (L.V4 (a30*b00+a31*b10+a32*b20+a33*b30) (a30*b01+a31*b11+a32*b21+a33*b31) (a30*b02+a31*b12+a32*b22+a33*b32) (a30*b03+a31*b13+a32*b23+a33*b33))
+  {-# INLINE mappend #-}
 
 getSegmentToOx3 :: RealFloat a => L.V3 a -> L.V3 a -> L.M33 a
 getSegmentToOx3 a b = getPointToOrigin3 a `andConsideringThat3` getPointToOxAroundO3 $ b
+getPointToOrigin3 :: RealFloat a => L.V3 a -> L.M33 a
 getPointToOrigin3 = transposeMink3 . moveRightTo3
 getPointToOxAroundO3 (L.V3 x y t) = rotate3 $ -(atan2 (y/t) (x/t))
 {- 
@@ -374,12 +426,21 @@ getPointToOxAroundO3 (L.V3 x y t) = rotate3 $ -(atan2 (y/t) (x/t))
 
 -}
 
-
-class Movable motion p where
+instance Num a => Group [L.M44 a] where
+  invert = reverse . map (transposeMink)
+class (Monoid motion) => Movable motion p where
+  -- action of monoid 'motion' on p (by congruences of hyperbolic space)
   (!$) :: motion -> p -> p 
 infixr 1 !$
 instance Num a => Movable (L.M44 a) (Point a) where
-  m !$ p = Lens.over _v4 (m L.!*) p
+  (!$) m p = Lens.over _v4 (m L.!*) p
+  {-# INLINE (!$) #-}
+  
+instance Movable t a => Movable (Dual [t]) a where
+  (!$) (Dual m) p = foldl' (flip (!$)) p m 
+  {-# INLINE (!$) #-}
 --so much for agressive inlining... class methods dont get rewrited... class methods are harder to inline.. sad..
 
 
+-- instance Num a => Movable (Dual [(L.V4 (L.V4 a))]) (Absolute a) where
+--   tran !$ (Abs a b c) = let (L.V4 am bm cm dm) = coerce tran L.!* (L.V4 a b c (a*a+b*b+c*c)) in Abs am bm cm
