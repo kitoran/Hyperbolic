@@ -89,6 +89,7 @@ executable Hyperbolic
                      , mtl
                      , QuickCheck
                      , random
+                     , mono-traversable
                      , OpenGL
                      -- , clif
                      , containers

@@ -88,6 +88,8 @@ initialiseGraphics = do
     depthBounds $= Nothing
     lineSmooth $= Enabled
     polygonOffsetFill $= Enabled
+    blend $= Enabled
+    blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
     polygonOffset $= (-0.2, 1) 
     lineWidth $= 2
     cursor $= FullCrosshair
@@ -167,7 +169,7 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
     position (Light 0) $= lpos -- Vertex4 0.3 0.1 0.15 (1::GLfloat)
     mapM_ ( toRaw) env
 
-    color $ Color3 1 1 (1::GLdouble)
+    color $ Color4 1 1 (1::GLdouble) 0.1
     renderPrimitive Triangles $ do
       let Vertex4 x y z t = Vertex4 0.5 0 0 1 --lpos
       vertex $ Vertex4 (x+0.01::GLdouble) y z t
@@ -211,10 +213,10 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
   -- return ()
     where 
           tran = tranw
-          toRaw :: ((Double, Double, Double), HyperEntity ) -> IO ()
+          toRaw :: ((Double, Double, Double, Double), HyperEntity ) -> IO ()
           toRaw (col, (P.Polygon list)) = do
                               renderPrimitive GL.Polygon $ do
-                                color $ curry3 Color3 $ mapTuple coerceG col
+                                color $ curry4 Color4 $ mapTuple coerceG col
                                 applyNormal list
                                 mapM_ transform list
                               -- renderPrimitive GL.Polygon $ do
@@ -226,17 +228,17 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
                               --   applyNormal list
                               --   mapM_ transformnp list
                               renderPrimitive GL.Polygon $ do
-                                color $ Color3 1 1 (0::GLdouble) --curry3 Color3 $ mapTuple coerceG col
+                                color $ Color4 1 1 (0::GLdouble) 1 --curry3 Color3 $ mapTuple coerceG col
                                 applyNormal list
                                 mapM_ transformpn list
           toRaw (col, (Segment a b)) = do
                               renderPrimitive Lines $ do
-                                color $ curry3 (Color3) $ mapTuple coerceG col
+                                color $ curry4 (Color4) $ mapTuple coerceG col
                                 transform a
                                 transform b
           toRaw (col, (HPoint a )) = do
                               renderPrimitive Points $ do
-                                color $ curry3 (Color3) $ mapTuple coerceG col
+                                color $ curry4 (Color4) $ mapTuple coerceG col
                                 transform a
           transform :: Point Double -> IO ()--Vertex4 Double
 
@@ -267,9 +269,9 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
               V3 x1 y1 z1 = signorm $ cross ( klein a-klein b ) (klein a - klein c)    
               V3 x y z = if z1 < 0 then V3 x1 y1 z1 else negate (V3 x1 y1 z1)
           coerceG a = (coerce a) :: GLdouble
-          curry3 f (a,b,c)=f a b c
-          uncurry3  f a b c=f (a,b,c)
-          mapTuple f (a, b, c) = (f a, f  b, f c)
+          curry4 f (a,b,c, d)=f a b c d
+          uncurry4  f a b c d=f (a,b,c,d)
+          mapTuple f (a, b, c, d) = (f a, f  b, f c, f d)
           m44toList (V4 (V4 a b c d)
                         (V4 e f g h)
                         (V4 i j k l)
@@ -279,12 +281,12 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
           frame (Segment a b) = return ()
 
 deviator :: Mesh -- aaa-aba aba-abb abb-aab aab-aaa
-deviator = Mesh [((0.0, 0.0, 1.0), (P.Polygon [aaa, aab, abb, aba])),
-                 ((1.0, 0.7, 0.0), (P.Polygon [baa, bba, bbb, bab])),
-                 ((0.0, 0.0, 1.0), (P.Polygon [aaa, baa, bba, aba])),
-                 ((0.0, 0.0, 1.0), (P.Polygon [aab, bab, bbb, abb])),
-                 ((0.0, 1.0, 1.0), (P.Polygon [aab, aaa, baa, bab])),
-                 ((0.0, 0.0, 1.0), (P.Polygon [aba, abb, bbb, bba]))]
+deviator = Mesh [((0.0, 0.0, 1.0, 1), (P.Polygon [aaa, aab, abb, aba])),
+                 ((1.0, 0.7, 0.0, 1), (P.Polygon [baa, bba, bbb, bab])),
+                 ((0.0, 0.0, 1.0, 1), (P.Polygon [aaa, aba, bba, baa])),
+                 ((0.0, 0.0, 1.0, 1), (P.Polygon [aab, bab, bbb, abb])),
+                 ((0.0, 1.0, 1.0, 1), (P.Polygon [aab, aaa, baa, bab])),
+                 ((0.0, 0.0, 1.0, 1), (P.Polygon [aba, abb, bbb, bba]))]
   where
     r = 0.005
     aaa = H.Point (r) (r) (r) 1
@@ -295,11 +297,11 @@ deviator = Mesh [((0.0, 0.0, 1.0), (P.Polygon [aaa, aab, abb, aba])),
     bab = H.Point (-r) (r) (-r) 1
     bba = H.Point (-r) (-r) (r) 1
     bbb = H.Point (-r) (-r) (-r) 1
-selectedDeviator :: Mesh
-selectedDeviator = let (Mesh a) = deviator in Mesh $ (fmap (\((q, w, e), r) -> ((f q, f w, f e), r))) a
-  where f a = if a >= (1/3) then 1 else a+2/3
+-- selectedDeviator :: Mesh
+-- selectedDeviator = let (Mesh a) = deviator in Mesh $ (fmap (\((q, w, e), r) -> ((f q, f w, f e), r))) a
+  -- where f a = if a >= (1/3) then 1 else a+2/3
 divider :: Mesh 
-divider = let (Mesh w) = deviator in Mesh (map (\(_, he) -> ((1.0, 0.0, 1.0), he )) w)
+divider = let (Mesh w) = deviator in Mesh (map (\(_, he) -> ((1.0, 0.0, 1.0, 1.0), he )) w)
 
 viewPort :: AvatarPosition -> M44 Double
 viewPort (AP pos height nod _) = H.rotateAroundY (-nod) !*! H.moveAlongZ (-height) !*! (H.m33_to_m44M $ H.transposeMink3 pos)
@@ -314,8 +316,8 @@ toMesh s (P.LS (P.AP pos height nod _) mi (P.WS de di) sel) = (rays {-<> inv-}, 
   where
     rays = Mesh (concatMap mapping s)
 
-    mapping (P.Source pos dir) = maap (\a b -> ((1, 1, 1), P.Segment a b)) 
-                                      (\ a -> ((1, 1, 1), P.Segment a (H.Point x y z ((x*x) +(y*y)+ (z*z))) ))
+    mapping (P.Source pos dir) = maap (\a b -> ((1, 1, 1, 1), P.Segment a b)) 
+                                      (\ a -> ((1, 1, 1, 1), P.Segment a (H.Point x y z ((x*x) +(y*y)+ (z*z))) ))
                                       line --(, P.Segment pos ))
       where
         (line, (H.Abs x y z)) = unfoldRay de pos dir
@@ -326,8 +328,8 @@ toMesh s (P.LS (P.AP pos height nod _) mi (P.WS de di) sel) = (rays {-<> inv-}, 
 thatTransformation :: P.Deviator -> V4 (V4 Double)
 thatTransformation (P.Devi pos dir d) = let move = moveRightTo pos -- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
                                             dirFromStart = (toNonPhysicalPoint $ transposeMink move !$ dir)
-                                            turn = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz) dirFromStart
-                                         in (move !*! turn !*! (rotateAroundX d))
+                                            turn = (H.getPointToOxyAroundOy `andThen`  getPointToOxzAroundOz) dirFromStart
+                                         in (move !*!  transposeMink turn !*! (rotateAroundX d))
                                          -- судя по профилированию, все тормоза происходят тупо когда мы умножаем матрицу на вектор. Решение - сделать рисование в openGL (то есть менее функционатьным и типизированным) или использовать какую-нибудь библиотеку для GPU.
                                          -- второе решение лучше тем более что они планируют убрать матрицы из openGL
 -- {- myUnfoldr - практически точная копия unfoldr из base -}
@@ -338,16 +340,16 @@ thatTransformation (P.Devi pos dir d) = let move = moveRightTo pos -- если �
 --                Just (a, new_b) -> a `c` go new_b
 --                Nothing         -> (n, b)
 --   in go b0)
-
+deleteNth n xs = let (a, b) = splitAt n xs in a ++ drop 1  b
 unfoldRay :: [P.Deviator] -> H.Point Double -> H.Absolute Double -> ([H.Point Double], H.Absolute Double)
-unfoldRay list pos dir = (pos:map fst (go pos dir), last $ dir : map snd (go pos dir))
-  where go :: H.Point Double -> H.Absolute Double -> [(H.Point Double, H.Absolute Double)]
-        go pos dir = case foldMaybes list pos dir of
-                      Just a -> a:uncurry go a
-                      Nothing -> []
+unfoldRay list pos dir = (pos:map fst (go pos dir list), last $ dir : map snd (go pos dir list))
+  where go :: H.Point Double -> H.Absolute Double -> [P.Deviator] -> [(H.Point Double, H.Absolute Double)]
+        go pos dir list = case foldMaybes list pos dir of
+                           Just (i, a@(newp, newd)) -> a:go newp newd list -- (deleteNth i list)
+                           Nothing -> []
 
-foldMaybes :: [P.Deviator ] -> H.Point Double -> H.Absolute Double -> Maybe (H.Point Double, H.Absolute Double)
-foldMaybes list pos dir = fmap snd $ minimumByMay (compare `on` fst) $ listt
+foldMaybes :: [P.Deviator ] -> H.Point Double -> H.Absolute Double -> Maybe (Int, (H.Point Double, H.Absolute Double))
+foldMaybes list pos dir = fmap (\((a, (b, c)), d) -> (d, (b, c))) $ minimumByMay (compare `on` (fst.fst)) $ zip listt [0..]
   where listt :: [(Double, (H.Point Double, H.Absolute Double))]
         listt = do
                  dev <- list
@@ -362,14 +364,14 @@ function pos dir (P.Devi dpos ddir d) = if trace ("newdir = "++show newDir ++ sh
 
     trans = let move =  H.moveRightTol pos
                 dirFromStart = (toNonPhysicalPoint $ invert move !$ dir)
-                turn = (box . getPointToOxyAroundOx `andThen` box . getPointToOxzAroundOz) dirFromStart
-             in (move <> turn) {-}
+                turn = (box . H.getPointToOxyAroundOy `andThen` box . getPointToOxzAroundOz) dirFromStart
+             in (turn <> invert move ) {-}
              ((moveRightTo pos `andConsideringThat`  
                                          (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz))
                                          (toNonPhysicalPoint dir))-}
     res@(H.Point x y z t) = trans !$ dpos
     newDir = {-H.moveAlongY (0.1) !$ H.rotateAroundZ (H.tau/4) !$ ddir -} invert ( trans) <> box (rotateAroundX (-d)) <> box (H.moveAlongX (H.distance H.origin res)) !$ (H.Abs 0 1 0) -- } trans !$ (H.Abs 0 1 0)
-    cond = abs y < 0.001 && abs z < 0.001 && x*t > 0 -- и ещё условие что девиатор правильно повёрнут
+    cond = abs y < 0.001 && abs z < 0.001 && x*t > 0.00001 -- и ещё условие что девиатор правильно повёрнут
 -- вызывать гиперболический косинус от гиперболического арккосинуса очень весело
 ziip :: [a] -> [(a, a)]
 ziip list = go list

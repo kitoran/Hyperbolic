@@ -1,5 +1,6 @@
 {-# Language TemplateHaskell, ScopedTypeVariables, NoMonomorphismRestriction, DeriveFunctor, BangPatterns,
             GeneralizedNewtypeDeriving, DuplicateRecordFields, MultiParamTypeClasses, FlexibleInstances, FlexibleContexts,
+            TypeFamilies,
 
 
 
@@ -20,6 +21,7 @@ import Hyperbolic (Point(Point), (!$), tau, Absolute)
 import qualified Unsafe.Coerce
 -- import Data.Foldable
 import qualified Debug.Trace
+import Data.MonoTraversable
 -- import qualified GHC.Exts
 import qualified Control.Lens as Lens
 import Data.IORef
@@ -145,7 +147,9 @@ pushOut o s = foldr (\o1 -> pushOutOne o1) s o
 --                             (Point 0.25 (-0.5) 0 1)
 --                             (Point (-0.5) 0.25 0 1) 0
 
-newtype Mesh = Mesh [((Double, Double, Double), HyperEntity)] deriving ( Show, Read, Monoid)
+newtype Mesh = Mesh [((Double, Double, Double, Double), HyperEntity)] deriving ( Show, Read, Monoid, MonoFunctor)
+type instance Element Mesh = ((Double, Double, Double, Double), HyperEntity)
+
 data HyperEntity = Polygon [Point Double] -- как всегда, для нормального отображения многоугольник должен быть выпуклым, и точки должны идти в порядке
                  | Segment !(Point Double) !(Point Double) 
                  | HPoint !(Point Double) {- fixme this constructor isnt needed -} deriving ( Show, Read)
@@ -159,11 +163,13 @@ instance (Monoid t, H.Movable t (Point Double)) => H.Movable t Mesh where
 
 data Environment = Env { mesh :: !(Mesh),
                            obstacles :: !(Obstacles),
-                           sources :: [Source] } deriving ( Show, Read)
+                           sources :: [Source],
+                           receivers :: [Receiver] } deriving ( Show, Read)
 
 instance (Monoid t, H.Movable t (Point Double),  H.Movable t (H.Absolute Double)) => H.Movable t (Environment) where
   tr !$ Env m ob s = Env (tr !$ m) (fmap (tr !$) ob) (fmap (tr !$) s)
 
+data Source  = Source (H.Point Double) (H.Absolute Double) deriving (Show, Read)
 data Source  = Source (H.Point Double) (H.Absolute Double) deriving (Show, Read)
 instance (Monoid t, H.Movable t (H.Point Double), H.Movable t (H.Absolute Double)) => H.Movable t (Source) where
   tr !$ (Source p a) = Source (tr !$ p) (tr !$ a)
