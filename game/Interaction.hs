@@ -12,6 +12,7 @@ import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
 import Control.Monad(when, forM)
 import Control.Applicative(liftA2, liftA3)
 import Data.List((++))
+import qualified Data.MonoTraversable as DM
 import Data.Coerce
 import Data.Monoid((<>))
 import qualified Data.Vector as V
@@ -166,18 +167,19 @@ startState = LS (AP identity 0.1 0 (V3 0.0 0 0)) (Nothing) (WS [moveAlongY (0.1:
 --                        _avatarInventory :: Item,
 --                        _worldState :: WorldState
 --                      }
-thisFunc (LS (ap@(AP mat hei nod _)) (Just De) (WS des dis) _) = let nmat = m33_to_m44M mat in LS ap Nothing (WS (Devi (nmat !*! moveAlongZ hei !$ (Point 0 0 0 1)) (nmat !$ Abs 1 0 0) 0: des) (dis)) Nothing
-thisFunc s@(LS (ap@(AP mat hei nod _)) (Nothing) (WS des dis) e) = case e of
+thisFunc :: M44 Double -> (P.LevelState -> P.LevelState)
+thisFunc trans (LS (ap@(AP mat hei nod _)) (Just De) (WS des dis) _) = let nmat = m33_to_m44M mat in LS ap Nothing (WS (Devi ({-nmat !*! moveAlongZ hei-}trans !$ (Point 0 0 0 1)) ({-nmat-} trans !$ Abs (1) 0 0 ) 0: des) (dis)) Nothing
+thisFunc _ s@(LS (ap@(AP mat hei nod _)) (Nothing) (WS des dis) e) = case e of
                                                                     Nothing -> s
                                                                     Just i -> (LS (ap) (Just De) (WS [ x | (ix, x) <- zip [0..] des, ix /= i ] dis) e) -- = LS (ap@(mat hei nod)) (Nothing) (WS des dis) = LS ap Nothing (WS (Devi (mat !*! moveAlongZ hei !$ (Point 0 0 0 1)): des) (dis))
 
-preShow :: Mesh -> M44 Double -> Mesh
+preShow :: Mesh -> M44 Double -> M44 Double
 preShow rays vp = case rays of 
-    Mesh [] -> transposeMink (vp) <> H.moveAlongX 0.011 <> H.moveAlongZ (-0.012) !$ G.deviator
-    _ -> trans !$ G.deviator
+    Mesh [] -> transposeMink (vp) <> H.moveAlongX 0.011 <> H.moveAlongZ (-0.012) 
+    _ -> trans 
   where
-        ((_, ratio), index) = minimumBy (compare `on` (fst.fst)) $ zip (map (\(_::(Double, Double, Double), s) -> sqDistanceFromProj s vp) $ coerce rays) [0..]
-        (_::(Double, Double, Double), P.Segment pos dir) = (coerce rays :: [((Double, Double, Double), HyperEntity)]) !! index 
+        ((_, ratio), index) = minimumBy (compare `on` (fst.fst)) $ zip (map (\(_::(Double, Double, Double, Double), s) -> sqDistanceFromProj s vp) $ coerce rays) [0..]
+        (_::(Double, Double, Double, Double), P.Segment pos dir) = (coerce rays :: [((Double, Double, Double, Double), HyperEntity)]) !! index 
         rayToOx = let move = moveRightTo pos -- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
                       dirFromStart = (transposeMink move !$ dir)
                       turn = (getPointToOxyAroundOy `andThen`  getPointToOxzAroundOz) dirFromStart
@@ -230,7 +232,7 @@ level = Env (Mesh [(red, Polygon [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01]) [Sou
         p1' = rotateAroundZ (tau/3::Double) !$ p0'
         p2' = rotateAroundZ (-tau/3::Double) !$ p0'
         [p0, p1, p2] = map (moveAlongZ (-0.1::Double) !$) [p0', p1', p2']
-        red = (1.0, 0.0, 0.0)
+        red = (1.0, 0.0, 0.0, 1)
 
 main :: IO ()
 main = do
@@ -315,10 +317,10 @@ main = do
                             let ap = _avatarPosition state'
                                 inv = case _avatarInventory state' of
                                        Nothing -> mempty
-                                       Just De -> preShow rays (G.viewPort ap)  --
+                                       Just De -> preShow rays (G.viewPort ap) !$ DM.omap (\((r,g,b,_),e) -> ((r, g, b, 0.5::Double), e)) G.deviator  --
                             let items = case (_selected state') of
                                          Nothing -> itemss
-                                         Just i -> itemss & ix i %~ (\(Mesh a) -> Mesh (fmap (\((q, w, e), r) -> ((f q, f w, f e), r)) a))
+                                         Just i -> itemss & ix i %~ (\(Mesh a) -> Mesh (fmap (\((q, w, e, t), r) -> ((f q, f w, f e, t), r)) a))
                                   where f a = if a >= (1/3) then 1 else a+2/3 
                             G.displayGame cons wheCons (levelMesh <> fold items <> rays <> inv) frame (G.viewPort $ ap) (ap)
             passiveMotionCallback $= (Just $ (\(Position x y) -> do
@@ -343,7 +345,10 @@ main = do
                 ))
             GL.mouseCallback $= Just (\GL.LeftButton butt _ -> case butt of
                                                                 GL.Down -> do 
-                                                                              modifyIORef stateRef (thisFunc)
+                                                                              ap <- readIORef stateRef
+                                                                              (rays, _) <- readIORef mutableMeshRef
+                                                                              let trans = preShow rays (G.viewPort $ _avatarPosition ap)
+                                                                              writeIORef stateRef (thisFunc trans ap)
                                                                               so <- readIORef sourceRef
                                                                               st <- readIORef stateRef
                                                                               writeIORef mutableMeshRef (G.toMesh (so) st)
@@ -426,7 +431,7 @@ processKeyboard step jump c = case lookup c matricesMoveInPlane of
 processMouse :: Int -> Int -> (Int, Int) -> AvatarPosition -> AvatarPosition
 processMouse width height (x, y) =
     let
-        fromGradi x = (fromIntegral x / 360*tau)
+        fromGradi x = (fromIntegral x / 360*tau*7.0/30.0)
     in processTurnUp ( fromGradi $ y - (height`div`2)) . processTurnLeft ( fromGradi $ x - (width`div`2) )
 
 
