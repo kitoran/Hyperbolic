@@ -360,6 +360,7 @@ getPointToOrigin, getPointToOxzAroundOz, getPointToOxyAroundOx, getPointOnOxToOr
 getPointToOrigin = transposeMink . moveRightTo
 getPointToOxzAroundOz (Point x y _ t) = rotateAroundZ $ -(atan2 (y/t) (x/t)) --  брать синус и косинус арктангенса очень весело, конечно
 getPointToOxyAroundOx (Point _ y z t) = rotateAroundX $ -(atan2 (z/t) (y/t)) -- от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
+getPointToOxyAroundOy (Point x _ z t) = rotateAroundY $ -(atan2 (z/t) (x/t)) -- FIXME FIXME тут угол я посчитал из предположения, что Y  направлена вправо, а может быть на самом деле она направлена влево и всё надо менять
 getPointOnOxToOrigin (Point x _ _ t) = moveAlongX $ asinh $ (  - x/ sqrt (( (t*t-x*x))) * signum t) -- брать гиперболические синус и косинус аркчосинуса очень весело, конечно
 -- moveFromTo a b d = 
 -- getPointToOxyAroundOxl (Point _ y z t) = Dual [rotateAroundX $ -(atan2 (z/t) (y/t))] -- от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
