@@ -1,7 +1,7 @@
 {-# Language TemplateHaskell, ScopedTypeVariables, OverloadedStrings,
  NoMonomorphismRestriction, DataKinds,DuplicateRecordFields,
- BangPatterns, LambdaCase,
- FlexibleContexts #-}
+ BangPatterns, LambdaCase, NondecreasingIndentation,
+ FlexibleContexts, MonoLocalBinds #-}
 module Main where
 
 import Data.IORef(IORef, newIORef, readIORef, writeIORef, modifyIORef)
@@ -12,6 +12,7 @@ import Data.Time.Clock(UTCTime(UTCTime), getCurrentTime, diffUTCTime)
 import Control.Monad(when, forM)
 import Control.Applicative(liftA2, liftA3)
 import Data.List((++))
+import Data.Coerce
 import Data.Monoid((<>))
 import qualified Data.Vector as V
 import Codec.Wavefront hiding (Point, Triangle)
@@ -166,9 +167,54 @@ startState = LS (AP identity 0.1 0 (V3 0.0 0 0)) (Nothing) (WS [moveAlongY (0.1:
 --                        _worldState :: WorldState
 --                      }
 thisFunc (LS (ap@(AP mat hei nod _)) (Just De) (WS des dis) _) = let nmat = m33_to_m44M mat in LS ap Nothing (WS (Devi (nmat !*! moveAlongZ hei !$ (Point 0 0 0 1)) (nmat !$ Abs 1 0 0) 0: des) (dis)) Nothing
-thisFunc (LS (ap@(AP mat hei nod _)) (Nothing) (WS des dis) e) = (LS (ap) (Nothing) (WS des dis) e) -- = LS (ap@(mat hei nod)) (Nothing) (WS des dis) = LS ap Nothing (WS (Devi (mat !*! moveAlongZ hei !$ (Point 0 0 0 1)): des) (dis))
+thisFunc s@(LS (ap@(AP mat hei nod _)) (Nothing) (WS des dis) e) = case e of
+                                                                    Nothing -> s
+                                                                    Just i -> (LS (ap) (Just De) (WS [ x | (ix, x) <- zip [0..] des, ix /= i ] dis) e) -- = LS (ap@(mat hei nod)) (Nothing) (WS des dis) = LS ap Nothing (WS (Devi (mat !*! moveAlongZ hei !$ (Point 0 0 0 1)): des) (dis))
 
+preShow :: Mesh -> M44 Double -> Mesh
+preShow rays vp = case rays of 
+    Mesh [] -> transposeMink (vp) <> H.moveAlongX 0.011 <> H.moveAlongZ (-0.012) !$ G.deviator
+    _ -> trans !$ G.deviator
+  where
+        ((_, ratio), index) = minimumBy (compare `on` (fst.fst)) $ zip (map (\(_::(Double, Double, Double), s) -> sqDistanceFromProj s vp) $ coerce rays) [0..]
+        (_::(Double, Double, Double), P.Segment pos dir) = (coerce rays :: [((Double, Double, Double), HyperEntity)]) !! index 
+        rayToOx = let move = moveRightTo pos -- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
+                      dirFromStart = (transposeMink move !$ dir)
+                      turn = (getPointToOxyAroundOy `andThen`  getPointToOxzAroundOz) dirFromStart
+                   in (move <> transposeMink turn)
+        Point dx dy dz dt = dir
+        Point px py pz pt = pos
+        trans = Debug.Trace.trace ("qqqq "++show x1) $ ( rayToOx) <> (moveAlongX (   (distance ( vp !$ pos) p)))
+        (p::Point Double) = ((\a b -> (a)*(1-ratio)+b*( ratio)) <$> normalizeKlein (vp !$ pos) <*> normalizeKlein (vp !$ dir)::Point Double)
+        (Point xh1 yh1 zh1 (th1::Double)) = vp !$ p
+        (x1::Double) = ((negate yh1)/xh1)
+        
+        -- 
+traceComm s a = Debug.Trace.trace (s ++ " " ++ show a) a
+sqDistanceFromProj :: HyperEntity -> M44 Double -> (Double, {-lazy-}Double)
+sqDistanceFromProj (P.Segment a b) trans = (dis, rr)
+  where (L.V2 x1 y1) = L.V2 ((-yh1)/xh1) (zh1/xh1)
+        (L.V2 x2 y2) = L.V2 ((-yh2)/xh2) (zh2/xh2)
+        (Point xh1 yh1 zh1 th1) = trans !$ a 
+        (Point xh2 yh2 zh2 th2) = trans !$ b
 
+        numeratorRoot = (x2)*y1 - y2*(x1)
+        denominator = (y2-y1)*(y2-y1) + ((traceComm "x2" x2)-(traceComm "x1" x1))*(x2-x1)
+        dis = numeratorRoot*numeratorRoot / denominator
+        ratio = traceComm "ratio" $ (x1*(x1-x2) + y1*(y1-y2) )/denominator
+        nx = traceComm "nx" $ x1 + ratio*(x2-x1)
+        rr = (nx*xh1 - yh1)/((-yh1)+yh2*(th1/th2)+nx*xh1-nx*xh2*(th1/th2))
+-- castedRay = transpose trans !$ Ray (0 0 0 1) neare
+-- castedRay = transpose trans !$ Point (1 nx ny t)
+-- (t nx*t ny*t 1) = (1-a)*(x1 y1 z1 t1) + a*(x2 y2 z2 t2) where everthing is normalizedKlein
+-- t = (1-a)*x1+a*x2
+-- nx*t = (1-a)*y1+a*y2
+-- (1-a)*y1+a*y2 = nx*((1-a)*x1+a*x2)
+-- y1 + a*(-y1+y2) = nx*x1-nx*a*x1+nx*a*x2
+-- a*(-y1+y2+nx*x1-nx*x2) = nx*x1 - y1
+-- a = (nx*x1 - y1)/(-y1+y2+nx*x1-nx*x2)
+-- если восстановить t: 
+-- a = (nx*x1 - y1)/(-y1+y2(t1/t2)+nx*x1-nx*x2(t1/t2))
 tick :: Double -> [RuntimeObstacle ] -> AvatarPosition -> AvatarPosition
 tick gravity level = (\s@(AP pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (level) . applyGravity gravity . applySpeed
 
@@ -179,7 +225,7 @@ matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3
 runtimeObstacles :: [RuntimeObstacle ]
 runtimeObstacles = computeObs (obstacles level)
 level :: Environment  
-level = Env (Mesh [(red, Polygon [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01]) [Source (Point 0 0 0 1) (Abs 0 1 0), Source (Point 0 0 0 1) (Abs (-1) 0 0)]
+level = Env (Mesh [(red, Polygon [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01]) [Source (Point 0.1 (-0.001) 0.0001 2) (Abs 0.0001 0.9999 (-0.0001))]
   where p0' = Point (sinh 1) 0.0 0.0 (cosh 1)
         p1' = rotateAroundZ (tau/3::Double) !$ p0'
         p2' = rotateAroundZ (-tau/3::Double) !$ p0'
@@ -261,7 +307,7 @@ main = do
                           do
                             state' <- readIORef stateRef
                             levelMesh <- readIORef levelMeshRef
-                            (mesh, itemss) <- readIORef mutableMeshRef
+                            (rays, itemss) <- readIORef mutableMeshRef
                             cons <- readIORef consoleRef
                             frame <- readIORef frameRef
                             sources <- readIORef sourceRef
@@ -269,12 +315,12 @@ main = do
                             let ap = _avatarPosition state'
                                 inv = case _avatarInventory state' of
                                        Nothing -> mempty
-                                       Just De -> transposeMink (G.viewPort ap)!*! H.moveAlongX 0.011 !*! H.moveAlongZ (-0.012) !$ G.deviator
+                                       Just De -> preShow rays (G.viewPort ap)  --
                             let items = case (_selected state') of
                                          Nothing -> itemss
                                          Just i -> itemss & ix i %~ (\(Mesh a) -> Mesh (fmap (\((q, w, e), r) -> ((f q, f w, f e), r)) a))
                                   where f a = if a >= (1/3) then 1 else a+2/3 
-                            G.displayGame cons wheCons (levelMesh <> fold items <> inv) frame (G.viewPort $ ap) (ap)
+                            G.displayGame cons wheCons (levelMesh <> fold items <> rays <> inv) frame (G.viewPort $ ap) (ap)
             passiveMotionCallback $= (Just $ (\(Position x y) -> do
                 last' <- readIORef last
                 now <- getCurrentTime
@@ -286,7 +332,7 @@ main = do
                          newLected = case vatarInventory of
                                        Nothing -> findSelected orldState newap --vatarPosition
                                        _ -> Nothing
-                     let neww = traceShowId (LS newap vatarInventory orldState newLected)
+                     let neww = (LS newap vatarInventory orldState newLected)
                      writeIORef stateRef  neww
                      -- modifyIORef stateRef $ ((avatarPosition %~ ) . (selected %~ p))
                      pointerPosition $= (Position (newap `seq`

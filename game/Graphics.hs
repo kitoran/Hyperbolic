@@ -286,7 +286,7 @@ deviator = Mesh [((0.0, 0.0, 1.0), (P.Polygon [aaa, aab, abb, aba])),
                  ((0.0, 1.0, 1.0), (P.Polygon [aab, aaa, baa, bab])),
                  ((0.0, 0.0, 1.0), (P.Polygon [aba, abb, bbb, bba]))]
   where
-    r = 0.01
+    r = 0.005
     aaa = H.Point (r) (r) (r) 1
     aab = H.Point (r) (r) (-r) 1
     aba = H.Point (r) (-r) (r) 1
@@ -315,7 +315,7 @@ toMesh s (P.LS (P.AP pos height nod _) mi (P.WS de di) sel) = (rays {-<> inv-}, 
     rays = Mesh (concatMap mapping s)
 
     mapping (P.Source pos dir) = maap (\a b -> ((1, 1, 1), P.Segment a b)) 
-                                      (\ a -> ((1, 1, 1), P.Segment (H.Point x y z ((x*x) +(y*y)+ (z*z))) a))
+                                      (\ a -> ((1, 1, 1), P.Segment a (H.Point x y z ((x*x) +(y*y)+ (z*z))) ))
                                       line --(, P.Segment pos ))
       where
         (line, (H.Abs x y z)) = unfoldRay de pos dir
@@ -323,6 +323,7 @@ toMesh s (P.LS (P.AP pos height nod _) mi (P.WS de di) sel) = (rays {-<> inv-}, 
     --     Nothing -> mempty
     --     Just P.De -> transposeMink (viewPort (P.AP pos height nod 0))!*! H.moveAlongX 0.011 !*! H.moveAlongZ (-0.012) !$ deviator
     items = fmap (\dede -> let dm = deviator in thatTransformation dede !$ dm) $  de
+thatTransformation :: P.Deviator -> V4 (V4 Double)
 thatTransformation (P.Devi pos dir d) = let move = moveRightTo pos -- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
                                             dirFromStart = (toNonPhysicalPoint $ transposeMink move !$ dir)
                                             turn = (getPointToOxyAroundOx `andThen`  getPointToOxzAroundOz) dirFromStart
@@ -368,7 +369,7 @@ function pos dir (P.Devi dpos ddir d) = if trace ("newdir = "++show newDir ++ sh
                                          (toNonPhysicalPoint dir))-}
     res@(H.Point x y z t) = trans !$ dpos
     newDir = {-H.moveAlongY (0.1) !$ H.rotateAroundZ (H.tau/4) !$ ddir -} invert ( trans) <> box (rotateAroundX (-d)) <> box (H.moveAlongX (H.distance H.origin res)) !$ (H.Abs 0 1 0) -- } trans !$ (H.Abs 0 1 0)
-    cond = abs y < 0.01 && abs z < 0.01 && x*t > 0 -- и ещё условие что девиатор правильно повёрнут
+    cond = abs y < 0.001 && abs z < 0.001 && x*t > 0 -- и ещё условие что девиатор правильно повёрнут
 -- вызывать гиперболический косинус от гиперболического арккосинуса очень весело
 ziip :: [a] -> [(a, a)]
 ziip list = go list
