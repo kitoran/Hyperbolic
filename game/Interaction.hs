@@ -227,11 +227,20 @@ matricesMoveInPlane = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[('w', moveAlongX3
 runtimeObstacles :: [RuntimeObstacle ]
 runtimeObstacles = computeObs (obstacles level)
 level :: Environment  
-level = Env (Mesh [(red, Polygon [p0, p1, p2])]) ([Triangle p0 p1 p2 0.01]) [Source (Point 0.1 (-0.001) 0.0001 2) (Abs 0.0001 0.9999 (-0.0001))]
+level = Env (Mesh [(red, Polygon [p0, p1, p2])]) 
+            ([Triangle p0 p1 p2 0.01]) 
+            [Source (Point 0 (-0.001) 0.0001 2) (Abs 1.0001 0.00009999 (-0.0001))] 
+            [Receiver l1, Receiver l2]
   where p0' = Point (sinh 1) 0.0 0.0 (cosh 1)
         p1' = rotateAroundZ (tau/3::Double) !$ p0'
         p2' = rotateAroundZ (-tau/3::Double) !$ p0'
         [p0, p1, p2] = map (moveAlongZ (-0.1::Double) !$) [p0', p1', p2']
+        r0' = Point 0 0.1 0.1 2
+        r1' = rotateAroundX (tau/4::Double) !$ r0'
+        r2' = rotateAroundX (tau/4::Double) !$ r1'
+        r3' = rotateAroundX (tau/4::Double) !$ r2'
+        l1 = map (moveAlongX (0.1::Double) !$) [r0', r1', r2', r3']
+        l2 = map (moveAlongX (0.2::Double) !$) [r0', r3', r2', r1']
         red = (1.0, 0.0, 0.0, 1)
 
 main :: IO ()
@@ -245,11 +254,12 @@ main = do
          stepRef <- newIORef 0.01
          jumpRef <- newIORef 0.01
          gravityRef <- newIORef 0.0002
-         mutableMeshRef <- newIORef (G.toMesh (sources level) startState)
+         mutableMeshRef <- newIORef (G.toMesh (sources level) (receivers level) startState)
          frameRef <- newIORef True
          wheConsoleRef <- newIORef False
          consoleRef <- newIORef (Console "" [] 0)
          stateRef <- newIORef $ startState 
+         receiversRef <- newIORef (receivers level)
         -- glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef
         -- console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef
   -- where glut thId obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef wheConsoleRef consoleRef =
@@ -262,7 +272,7 @@ main = do
 
             let
                 commands = (T.Node ( Command "" "" (io (return ())) True) [T.Node (setGravity gravityRef) [],
-                                                                           T.Node (loadLevel obsRef levelMeshRef sourceRef) [],
+                                                                           T.Node (loadLevel obsRef levelMeshRef sourceRef receiversRef) [],
                                                                            T.Node (loadObj obsRef levelMeshRef) [],
                                                                            T.Node (setStep stepRef) [],
                                                                            T.Node (setJump jumpRef) [],
@@ -309,7 +319,7 @@ main = do
                           do
                             state' <- readIORef stateRef
                             levelMesh <- readIORef levelMeshRef
-                            (rays, itemss) <- readIORef mutableMeshRef
+                            (rays, itemss, recvs) <- readIORef mutableMeshRef
                             cons <- readIORef consoleRef
                             frame <- readIORef frameRef
                             sources <- readIORef sourceRef
@@ -322,7 +332,7 @@ main = do
                                          Nothing -> itemss
                                          Just i -> itemss & ix i %~ (\(Mesh a) -> Mesh (fmap (\((q, w, e, t), r) -> ((f q, f w, f e, t), r)) a))
                                   where f a = if a >= (1/3) then 1 else a+2/3 
-                            G.displayGame cons wheCons (levelMesh <> fold items <> rays <> inv) frame (G.viewPort $ ap) (ap)
+                            G.displayGame cons wheCons (levelMesh <> fold items <> rays <> inv <> recvs) frame (G.viewPort $ ap) (ap)
             passiveMotionCallback $= (Just $ (\(Position x y) -> do
                 last' <- readIORef last
                 now <- getCurrentTime
@@ -337,21 +347,23 @@ main = do
                      let neww = (LS newap vatarInventory orldState newLected)
                      writeIORef stateRef  neww
                      -- modifyIORef stateRef $ ((avatarPosition %~ ) . (selected %~ p))
-                     pointerPosition $= (Position (newap `seq`
-                                                   newLected `seq` 
-                                                   (width'`div`2)) (height'`div`2))
+                     pointerPosition $= (neww `seq` (Position (newap `seq`
+                                                               newLected `seq` 
+                                                               (width'`div`2)) 
+                                                              (height'`div`2)))
                      -- display
                      )
                 ))
             GL.mouseCallback $= Just (\GL.LeftButton butt _ -> case butt of
                                                                 GL.Down -> do 
                                                                               ap <- readIORef stateRef
-                                                                              (rays, _) <- readIORef mutableMeshRef
+                                                                              (rays, _, _) <- readIORef mutableMeshRef
                                                                               let trans = preShow rays (G.viewPort $ _avatarPosition ap)
                                                                               writeIORef stateRef (thisFunc trans ap)
                                                                               so <- readIORef sourceRef
                                                                               st <- readIORef stateRef
-                                                                              writeIORef mutableMeshRef (G.toMesh (so) st)
+                                                                              re <- readIORef receiversRef
+                                                                              writeIORef mutableMeshRef (G.toMesh (so) re st)
                                                                 GL.Up -> return ())
             displayCallback $= display
             escape <- newIORef (""::String) -- это должна быть mutable bytestring
