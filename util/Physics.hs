@@ -167,12 +167,15 @@ data Environment = Env { mesh :: !(Mesh),
                            receivers :: [Receiver] } deriving ( Show, Read)
 
 instance (Monoid t, H.Movable t (Point Double),  H.Movable t (H.Absolute Double)) => H.Movable t (Environment) where
-  tr !$ Env m ob s = Env (tr !$ m) (fmap (tr !$) ob) (fmap (tr !$) s)
+  tr !$ Env m ob s a = Env (tr !$ m) (fmap (tr !$) ob) (fmap (tr !$) s) (fmap (tr !$) a)
 
-data Source  = Source (H.Point Double) (H.Absolute Double) deriving (Show, Read)
-data Source  = Source (H.Point Double) (H.Absolute Double) deriving (Show, Read)
+data Source = Source (H.Point Double) (H.Absolute Double) deriving (Show, Read)
+newtype Receiver = Receiver [ (H.Point Double) ] deriving (Show, Read, MonoFunctor)
+type instance Element Receiver = H.Point Double
 instance (Monoid t, H.Movable t (H.Point Double), H.Movable t (H.Absolute Double)) => H.Movable t (Source) where
   tr !$ (Source p a) = Source (tr !$ p) (tr !$ a)
+instance (Monoid t, H.Movable t (H.Point Double), H.Movable t (H.Absolute Double)) => H.Movable t (Receiver) where
+  (!$) m = omap $ (!$) m
 
 data RuntimeObstacle = SphereR !(Point Double) Double | TriangleR (M44 Double) Double Double Double Double deriving ( Show, Read)
 

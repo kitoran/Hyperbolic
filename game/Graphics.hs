@@ -2,6 +2,7 @@
     ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses, OverloadedStrings, MonoLocalBinds #-}
 module Graphics where
 import Control.Monad(when)
+import Control.Arrow
 import Graphics.UI.GLUT as GL
 {-(($=), 
                          lineSmooth, 
@@ -306,21 +307,29 @@ divider = let (Mesh w) = deviator in Mesh (map (\(_, he) -> ((1.0, 0.0, 1.0, 1.0
 viewPort :: AvatarPosition -> M44 Double
 viewPort (AP pos height nod _) = H.rotateAroundY (-nod) !*! H.moveAlongZ (-height) !*! (H.m33_to_m44M $ H.transposeMink3 pos)
 
-maap :: (a -> a -> b) -> (a -> b) -> [a] -> [b]-- я видел эту функцию где-то
-maap f g [] = []
-maap f g (a:[]) = [g a]
-maap f g (a:b:as) = f a b:maap f g (b:as)
+maapLast :: (a -> a -> b) -> (a -> b) -> [a] -> [b]-- я видел эту функцию где-то
+maapLast f g (a:b:as) = f a b:maapLast f g (b:as)
+maapLast f g (a:[]) = [g a]
+maapLast f g [] = []
 
-toMesh :: [P.Source ] -> P.LevelState -> (Mesh, [Mesh]) 
-toMesh s (P.LS (P.AP pos height nod _) mi (P.WS de di) sel) = (rays {-<> inv-}, items)
+maap :: (a -> a -> b) -> [a] -> [b]-- я видел эту функцию где-то
+maap f (a:b:as) = f a b:maap f (b:as)
+maap f _ = []
+
+toMesh :: [P.Source ] -> [P.Receiver] -> P.LevelState -> (Mesh, [Mesh], Mesh) 
+toMesh s r (P.LS (P.AP pos height nod _) mi (P.WS de di) sel) = (rays {-<> inv-}, items, recvs)
   where
-    rays = Mesh (concatMap mapping s)
-
-    mapping (P.Source pos dir) = maap (\a b -> ((1, 1, 1, 1), P.Segment a b)) 
-                                      (\ a -> ((1, 1, 1, 1), P.Segment a (H.Point x y z ((x*x) +(y*y)+ (z*z))) ))
-                                      line --(, P.Segment pos ))
+    rays = Mesh lines
+    (lines, indices) = foldMap mapping s
+    mapping (P.Source pos dir) = case eit of
+                                  Left abs -> (maapLast (\a b -> ((1, 1, 1, 1), P.Segment a b)) 
+                                                        (\ a -> ((1, 1, 1, 1), P.Segment a (H.toNonPhysicalPoint abs) ))
+                                                        line, []) --(, P.Segment pos ))
+                                  Right i -> (maap (\a b -> ((1, 1, 1, 1), P.Segment a b)) line, [i]) 
       where
-        (line, (H.Abs x y z)) = unfoldRay de pos dir
+        (line, eit) = unfoldRay de r pos dir
+                                                   
+    recvs = Mesh $ Control.Lens.imap (\ind (P.Receiver li) -> ((if elem ind indices then 1 else 0, 1, 0, 1), P.Polygon li)) r 
     -- inv = case mi of
     --     Nothing -> mempty
     --     Just P.De -> transposeMink (viewPort (P.AP pos height nod 0))!*! H.moveAlongX 0.011 !*! H.moveAlongZ (-0.012) !$ deviator
@@ -341,25 +350,49 @@ thatTransformation (P.Devi pos dir d) = let move = moveRightTo pos -- если �
 --                Nothing         -> (n, b)
 --   in go b0)
 deleteNth n xs = let (a, b) = splitAt n xs in a ++ drop 1  b
-unfoldRay :: [P.Deviator] -> H.Point Double -> H.Absolute Double -> ([H.Point Double], H.Absolute Double)
-unfoldRay list pos dir = (pos:map fst (go pos dir list), last $ dir : map snd (go pos dir list))
-  where go :: H.Point Double -> H.Absolute Double -> [P.Deviator] -> [(H.Point Double, H.Absolute Double)]
-        go pos dir list = case foldMaybes list pos dir of
-                           Just (i, a@(newp, newd)) -> a:go newp newd list -- (deleteNth i list)
-                           Nothing -> []
+unfoldRay :: [P.Deviator] -> [P.Receiver] -> H.Point Double -> H.Absolute Double -> ([(H.Point Double)], Either (H.Absolute Double)  Int)
+unfoldRay listd listr pos dir = first (pos:) $ go pos dir -- (pos:map fst (go pos dir ), last $ dir : map snd (go pos dir ))
+  where go :: H.Point Double -> H.Absolute Double ->  ([(H.Point Double)], Either (H.Absolute Double)  Int)
+        go pos dir  = case foldMaybes listd listr pos dir of
+                           Infinity -> ([], Left dir)
+                           Receiver (p, i) -> ([p], Right i)
+                           Deviator (p, newd) -> case go p newd of (ps, re) -> (p:ps, re)  -- (deleteNth i list)
 
-foldMaybes :: [P.Deviator ] -> H.Point Double -> H.Absolute Double -> Maybe (Int, (H.Point Double, H.Absolute Double))
-foldMaybes list pos dir = fmap (\((a, (b, c)), d) -> (d, (b, c))) $ minimumByMay (compare `on` (fst.fst)) $ zip listt [0..]
-  where listt :: [(Double, (H.Point Double, H.Absolute Double))]
-        listt = do
-                 dev <- list
-                 case function pos dir dev of
+data FoldMaybesResult = Infinity | Receiver (H.Point Double, Int) | Deviator (H.Point Double, H.Absolute Double)
+
+maxFst Nothing Nothing = Infinity -- if f a > f b then a else b
+maxFst Nothing (Just (a,c)) = Receiver c
+maxFst (Just (a, b)) Nothing = Deviator b 
+maxFst (Just (a1, b)) (Just (a2, c)) = if a1 < a2 then Deviator b else Receiver c 
+foldMaybes :: [P.Deviator ] -> [P.Receiver] -> H.Point Double -> H.Absolute Double -> FoldMaybesResult
+foldMaybes listd lists pos dir = maxFst (minimumByMay (compare `on` fst) $  listDe) (minimumByMay (compare `on` fst) $ listRcv) 
+  where listDe :: [(Double, (H.Point Double, H.Absolute Double))]
+        listDe = do
+                 dev <- listd
+                 case functionDe pos dir dev of
                    Nothing -> []
                    Just (dis, diir) -> 
                      return (dis, ((P._devPos) dev, diir)) --]filter (map (\e@(P.Devi poos _ _) -> ) list)
+        listRcv :: [(Double, (H.Point Double, Int))]
+        listRcv = do
+                  (src, i) <- zip lists [0..]
+                  case functionRcv pos dir src of
+                   Nothing -> []
+                   Just (int) -> 
+                     return (H.distance pos int, (int, i))
 
-function :: H.Point Double -> H.Absolute Double -> P.Deviator -> Maybe (Double, H.Absolute Double)
-function pos dir (P.Devi dpos ddir d) = if trace ("newdir = "++show newDir ++ show trans ++ show pos ++ (show $ toNonPhysicalPoint dir)) cond then Just (x/t, newDir) else Nothing
+functionRcv :: H.Point Double -> H.Absolute Double -> P.Receiver -> Maybe (H.Point Double)
+functionRcv pos dir (P.Receiver ss@(p1:p2:p3:ps)) = if (containsZero projs) then Just $ transposeMink trans !$ intersect else Nothing
+  where
+    trans = H.getTriangleToOxy p1 p2 p3 
+    p@(H.Point px py pz pt) = trans !$ pos
+    a@(H.Point ax ay az at) = trans !$ (toNonPhysicalPoint dir)
+    intersect = (\pc ac -> pc + (-pz/az) * ac) <$> p <*> a
+    L.V2 ix iy = case H.normalizeKlein (intersect) of (H.Point a b c d) -> L.V2 a b
+    projs = map ((\p -> case H.normalizeKlein (trans !$ p) of (H.Point a b c d) -> L.V2 (a-ix) (b-iy)) :: H.Point Double -> L.V2 Double) ss
+-- (px py pz pt)+a*(ax ay az at) = (smt smt 0 smt) -> a  = -pz/az
+functionDe :: H.Point Double -> H.Absolute Double -> P.Deviator -> Maybe (Double, H.Absolute Double)
+functionDe pos dir (P.Devi dpos ddir d) = if trace ("newdir = "++show newDir ++ show trans ++ show pos ++ (show $ toNonPhysicalPoint dir)) cond then Just (x/t, newDir) else Nothing
   where
 
     trans = let move =  H.moveRightTol pos
