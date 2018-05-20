@@ -120,7 +120,7 @@ initialiseGraphics = do
     blend              $= Enabled
     -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) -- ??????????????????????????
     colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
-    matrixMode $= Projection
+    -- matrixMode $= Projection
     perspective 45 (1024/600) (0.001) (1.1)
     lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
 
@@ -246,7 +246,7 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
           transform p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
-                     (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
+                     (vertex $ traceShowId $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
           transformpn :: Point Double -> IO ()--Vertex4 Double
 
           transformpn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ id) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
