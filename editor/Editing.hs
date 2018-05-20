@@ -192,7 +192,7 @@ displayButton (a, b) butt = do
     GL.vertex $ GL.Vertex2 (0::GLfloat) 0
     GL.vertex $ GL.Vertex2 (0.5::GLfloat) 0
     GL.vertex $ GL.Vertex2 (0::GLfloat) 0.5
-    mapPixelVertex wid 700 -- a (b - h - 20)
+    mapPixelVertex width 700 -- a (b - h - 20)
     color $ GL.Color3 0 1 (0::GLdouble)
     mapPixelVertex (1000) (600) -- (a + i + 20) (b - h - 20)
     color $ GL.Color3 0 0 (1::GLdouble)
