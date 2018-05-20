@@ -55,7 +55,7 @@ ziipWith f list = go list
 model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ 
                                              [((1.0, 0.0, 0.0, 1.0),  
                                               (P.Polygon ) $
-                                              map ((\a -> rotateAroundZ a !$ (Point 1 0 (-0) 1)) .
+                                              map ((\a -> rotateAroundZ a !$ (Point 1 0 (-0.1) 1)) .
                                                    (/360.0) .
                                                    (*(tau::Double)) .
                                                    fromIntegral::Integer->Point Double) $ [0..35{-9-}])])
@@ -148,12 +148,14 @@ editorDisplay  = do
     GL.vertex $ GL.Vertex4 x y (z+0.01::GLdouble) t
   mapM_ (frame.snd) env  
   -- GL.clear [GL.DepthBuffer]
-  -- GL.depthFunc $= Nothing
-  -- GL.depthMask $= GL.Disabled
-  for_ gui (uncurry displayButton) 
+  GL.depthFunc $= Nothing
+  GL.depthMask $= GL.Disabled
+  GL.preservingMatrix $ do 
+    -- GL.loadIdentity
+    for_ gui (uncurry displayButton) 
   color $ GL.Color3 0 0 (0::GLdouble)
-  -- GL.depthFunc $= Just GL.Less
-  -- GL.depthMask $= GL.Enabled
+  GL.depthFunc $= Just GL.Less
+  GL.depthMask $= GL.Enabled
   color $ GL.Color3 0 0 (1::GLdouble)
   GL.swapBuffers
   -- return ()
@@ -176,7 +178,7 @@ editorSpecialCallback _ _ = return ()
 editorKeyboardCallback a = return ()
 
 newtype Button = Button { _text::String }
-mapPixelVertex a b = GL.vertex $ traceShowId $ GL.Vertex2 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) ((fromIntegral b)*2/(fromIntegral height) - 1)
+mapPixelVertex a b = GL.vertex $ traceShowId $ GL.Vertex3 0.8 ((fromIntegral a)*2/(fromIntegral width) - 1 + 0.8535871156661786 + 0.573576436351046:: GLdouble) ((fromIntegral b)*2/(fromIntegral height) - 1 + 0.8671875 - 0.1)
 -- displayButton :: Button -> ( -> IO ()
 buttRectangle :: (GL.GLint :!: GL.GLint) -> Button -> IO ((GL.GLint :!: GL.GLint) :!: (GL.GLint :!: GL.GLint))
 buttRectangle (a :!: b) butt = do
@@ -194,8 +196,11 @@ displayRectangle ((lx :!: ly) :!: (hx :!: hy))= (GL.renderPrimitive GL.Quads $ d
 
 displayButton :: (GL.GLint :!: GL.GLint) -> Button -> IO ()
 displayButton p@(a :!: b) butt = do
+  -- GL.ortho 
   color $ GL.Color4 0.5 0.5 (0.5::GLdouble) 1
   displayRectangle =<< buttRectangle p butt
+  color $ GL.Color4 1 0.5 (0.5::GLdouble) 1
+  displayRectangle =<< buttRectangle (0:!:0) butt
   color $ GL.Color3 0 0 (1::GLdouble)
   h <- fmap round $ GL.fontHeight GL.TimesRoman24
   GL.windowPos $ GL.Vertex2 (a + 10) (b - h - 10) 
