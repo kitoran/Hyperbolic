@@ -55,7 +55,7 @@ ziipWith f list = go list
 model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ 
                                              [((1.0, 0.0, 0.0, 1.0),  
                                               (P.Polygon ) $
-                                              map ((\a -> rotateAroundZ a !$ (Point 1 0 (-0.1) 1)) .
+                                              map ((\a -> rotateAroundZ a !$ (Point 1 0 (-0) 1)) .
                                                    (/360.0) .
                                                    (*(tau::Double)) .
                                                    fromIntegral::Integer->Point Double) $ [0..35{-9-}])])
@@ -179,7 +179,7 @@ newtype Button = Button { _text::String }
 mapPixelVertex a b = GL.vertex $ traceShowId $ GL.Vertex2 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) ((fromIntegral b)*2/(fromIntegral height) - 1)
 -- displayButton :: Button -> ( -> IO ()
 buttRectangle :: (GL.GLint :!: GL.GLint) -> Button -> IO ((GL.GLint :!: GL.GLint) :!: (GL.GLint :!: GL.GLint))
-buttRectangle (a :!: b) butt = do 
+buttRectangle (a :!: b) butt = do
   h <- fmap round $ GL.fontHeight GL.TimesRoman24
   i <- GL.stringWidth GL.TimesRoman24 $ _text butt
   return (((a :!: (b - h - 20)) :!:  (((a + i + 20) :!: b))))
@@ -200,4 +200,4 @@ displayButton p@(a :!: b) butt = do
   h <- fmap round $ GL.fontHeight GL.TimesRoman24
   GL.windowPos $ GL.Vertex2 (a + 10) (b - h - 10) 
   color $ GL.Color3 0 1 (0::GLdouble)
-  GL.renderString GL.TimesRoman24 (_text butt) 
+  GL.renderString GL.TimesRoman24 (_text butt)
