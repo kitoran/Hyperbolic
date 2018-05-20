@@ -47,14 +47,15 @@ cabal-version:       >=1.10
 
 executable Hyperbolic
   -- .hs or .lhs file containing the Main module.
-  main-is:             Interaction.hs
+  main-is:             Main.hs
   
   -- Modules included in this executable, other than Main.
   other-modules:       Console
                      , Graphics
                      , Physics
-     --                , Riemann
+                     , GameLoop
                      , Hyperbolic
+                     , Editing
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
 
@@ -117,6 +118,7 @@ executable Hyperbolic
   -- Directories containing source files.
   hs-source-dirs:  game
                  , util   
+                 , editor
            --      , bytestring 
            --      , GLUT-2.7.0.12/src
   
