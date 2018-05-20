@@ -6,10 +6,12 @@
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE Strict #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE MonoLocalBinds #-} 
 {-# LANGUAGE ExistentialQuantification #-}
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
 -- # LANGUAGE PatternSynonyms  #
@@ -18,169 +20,195 @@ module Editing where
 import System.IO
 import System.Exit
 -- import Data.Sequence
+import Debug.Trace
 import Data.IORef
+import Data.Foldable
 import Data.Char
+import Hyperbolic
 import Data.Proxy
-import Data.Singletons.TH
 import GHC.Exts
 import Control.Concurrent
+import Control.Lens ((^.), (%~), (&))
 import Control.Concurrent.Chan
 import Control.Concurrent.MVar 
 import Debug.Trace
-import Control.Monad
+import Physics  as P (Mesh(..), HyperEntity(..), AvatarPosition(..))
+import qualified Physics  as P
+
+import Linear as L
+import System.IO.Unsafe
+import qualified Graphics.UI.GLUT as GL
 -- import qualified Linear as L
-data Coordinates = C Int
+import  Graphics.UI.GLUT (GLdouble, color, ($=), GLfloat, GLint)
 
-$(singletons [d|
-  data Menu = R | L
-  |])
-$(singletons [d|
-  data EditorState = AddingVertices | AddingEdges | MenuOpened Menu
-  |])
+-- model :: IORef (Environment)
+model = unsafePerformIO $ newIORef $ P.Env (Mesh []) 
+            ([]) 
+            [] 
+            []
 
-data Doing (a::EditorState) (b::EditorState) where -- разбить на изменение view, изменение model и действия типа выхода ( они могут быть в одном типе с изменениями view)  
-    AddVertex :: Coordinates -> Doing AddingVertices AddingVertices
-    RemoveVertex :: Coordinates -> Doing AddingEdges AddingEdges
-    ToggleModeV :: Doing AddingEdges AddingVertices
-    ToggleModeE :: Doing AddingVertices AddingEdges
-    ClickMenu :: forall a (m::Menu) . Doing a (MenuOpened m) -- dependent much? singletons bla bla type inference
-    Quit :: Doing a Any
-toggle AddingVertices = AddingEdges
-toggle  AddingEdges =AddingVertices
-toggle _ = error "this should be a type error"
--- class Brack (e::EditorState) where
-    -- brack :: Proxy e -> Model -> String
--- data Singl (e::EditorState) where
-   -- Av :: Singl AddingVertices
-   -- Ae :: Singl AddingEdges
-   -- Mo :: forall (m::Menu) . SMenu m -> Singl (MenuOpened (m))
--- reify :: Singl e -> EditorState
--- reify Av = AddingVertices
--- reify Ae = AddingEdges
--- reify (Mo m) = MenuOpened $ reifym m
+view = unsafePerformIO $ newIORef $ (L.identity::L.M44 Double)
 
--- instance Brack AddingVertices where
-    -- brack _ m =  ("\"" ++ show m ++ "\"")
--- instance Brack AddingEdges where
-    -- brack _ m =  ("[" ++ show m ++ "]")
--- instance Brack Any where
-    -- brack _ m = error "this is precisely the code i don't want to write"-- ("\"" ++ show m ++ "\"")
-data State where 
-    S :: forall e. SEditorState e -> Model -> State  
--- data SomeState where
-    -- SS :: forall e. State -> SomeState
-app :: Doing a b -> Doing b c -> Doing a c
-app = app
+lpos = GL.Vertex4 (-1.4313725157195931) 2.663858068380254e-6 (0.3::GLfloat) 1.8460891382643082 
 
-type Number = Double 
-data WRER (a::EditorState)
--- data Action = A 
--- type family Apply a b where
-    -- Apply (Doing a b) (WRER a) = WRER b
--- apply :: forall a b. Doing a b -> State -> State 
--- apply (AddVertex (C e)) (S _ (M d)) = S (Proxy @b) $ M (e+d)
-apply2 :: forall a b. Doing a b -> WRER a -> WRER b
-apply2 = apply2
--- apply3 :: forall a b. a -> b -> (Apply a b)
--- apply3 = apply3
--- data Action
+gui :: [((GL.GLint, GL.GLint), Button)] 
+gui = [((100, 100), Button "wall")] 
+(GL.Size width height) = unsafePerformIO $ GL.get GL.screenSize
+editorDisplay :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)Matri
+                                         => -}
+                IO ()
+editorDisplay  = do
+  siii@(GL.Size w h) <- GL.get GL.screenSize
 
-newtype Model = M {unM::Int} deriving ( Show, Num)
+  tran  <- readIORef view
+  let     toRaw :: ((Double, Double, Double, Double), HyperEntity ) -> IO ()
+          toRaw (col, (P.Polygon list)) = do
+                              GL.renderPrimitive GL.Polygon $ do
+                                color $ curry4 GL.Color4 $ mapTuple coerceG col
+                                applyNormal list
+                                mapM_ transform list
+                              -- GL.renderPrimitive GL.Polygon $ do
+                              --   color $ Color3 0 0 (1::GLdouble) --curry3 Color3 $ mapTuple coerceG col
+                              --   applyNormal list
+                              --   mapM_ transformnn list
+                              -- GL.renderPrimitive GL.Polygon $ do
+                              --   color $ Color3 0 1 (0::GLdouble) --curry3 Color3 $ mapTuple coerceG col
+                              --   applyNormal list
+                              --   mapM_ transformnp list
+                              GL.renderPrimitive GL.Polygon $ do
+                                color $ GL.Color4 1 1 (0::GLdouble) 1 --curry3 Color3 $ mapTuple coerceG col
+                                applyNormal list
+                                mapM_ transformpn list
+          toRaw (col, (Segment a b)) = do
+                              GL.renderPrimitive GL.Lines $ do
+                                color $ curry4 (GL.Color4) $ mapTuple coerceG col
+                                transform a
+                                transform b
+          toRaw (col, (HPoint a )) = do
+                              GL.renderPrimitive GL.Points $ do
+                                color $ curry4 (GL.Color4) $ mapTuple coerceG col
+                                transform a
+          transform :: Point Double -> IO ()--GL.Vertex4 Double
 
--- data ViewOptions = VO (L.M44 Double) deriving (Show, Read)
+          transform p {- (H.Point x y z t) -} =  let (L.V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
+                    {- when ((x/t)>0) -}
+                     do
+                     (GL.vertex $ GL.Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
+          transformpn :: Point Double -> IO ()--GL.Vertex4 Double
 
-data Event = Keyboard Char | Show deriving ( Eq)
+          transformpn p {- (H.Point x y z t) -} =  let (L.V4 x y z t) = tran !* ((p & _t %~ id) ^. _v4 )  in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
+                    {- when ((x/t)>0) -}
+                     do
+                     (GL.vertex $ GL.Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
+          transformnn :: Point Double -> IO ()--GL.Vertex4 Double
 
-data EditingMode = EM deriving (Enum, Eq)
+          transformnn p {- (H.Point x y z t) -} =  let (L.V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
+                    {- when ((x/t)>0) -}
+                     do
+                     (GL.vertex $ GL.Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
+          transformnp :: Point Double -> IO ()--GL.Vertex4 Double
 
--- data State = S ViewOptions EditingMode Model 
-function :: Doing a b -> Proxy a -> Proxy b
-function = function
-type family Fam d f where
-    Fam (Doing a b) a = b
--- data SpecialEvent = Quit | ToggleView | ToggleMode
--- data Exists = forall e  t . E (Doing e t) 
--- interpret :: forall (r::EditorState) t . Char -> Maybe (Doing r t) 
--- interpret c = Just (AddVertex (C $ read [c]))
-pu :: forall k. SEditorState k
-pu = pu
-processKeyboard :: IORef (State ) -> Char -> IO Bool
-processKeyboard stateRef c = do
-     atomicModifyIORef stateRef (\s@(S v m ) -> case interpret v c of
-        (Just (SD _ (AddVertex (C ff)))) -> (S SAddingVertices (M $ unM m+ff), True)
-        (Just (SD _ (RemoveVertex (C ff)))) -> (S SAddingEdges (M $ unM m-ff), True)
-        (Just (SD _ Quit)) -> (S pu m, False)
-        -- (Just (Left ToggleView)) -> (S (toggle v) e m, True)
-        (Just (SD _ ToggleModeE)) -> (S (SAddingEdges) m , True)
-        (Just (SD _ ToggleModeV)) -> (S (SAddingVertices) m , True)
-        (Nothing) -> (S v m , True))
+          transformnp p {- (H.Point x y z t) -} =  let (L.V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
+                    {- when ((x/t)>0) -}
+                     do
+                     (GL.vertex $ GL.Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG ( t)))
+          frame (P.Polygon list) = 
+              GL.renderPrimitive GL.LineLoop $ mapM_ transform list
+          frame (Segment a b) = return ()
+  (Mesh env) <- fmap P.mesh $ GL.get model
+  GL.matrixMode $= GL.Projection
+  -- print cons1
+  GL.clear [GL.ColorBuffer, GL.DepthBuffer]
+  -- putStrLn $ "What displayGame sees:" <> show tranw
+  GL.lighting           $= GL.Enabled 
+  GL.preservingMatrix $ do
+    -- matrixx <- (newMatrix RowMajor $ m44toList tran :: IO (GLmatrix GLdouble))
+    -- multMatrix matrixx
+    GL.position (GL.Light 0) $= lpos -- GL.Vertex4 0.3 0.1 0.15 (1::GLfloat)
+    mapM_ ( toRaw) env
 
-brack :: SEditorState e -> Model -> String
-brack SAddingVertices m =  ("\"" ++ show m ++ "\"")
-brack SAddingEdges m =  ("[" ++ show m ++ "]")
-brack _ _ =  [] -- ("[" ++ show m ++ "]")
-processEvent stateRef event = do
-    (S v m ) <- readIORef stateRef
-    case event of
-     Show -> putStrLn (brack v m) >> return True
-            -- AddingEdges -> putStrLn ("(" ++ show m ++ ")") >> return True
-     Keyboard c -> processKeyboard stateRef c
+    color $ GL.Color4 1 1 (1::GLdouble) 0.1
+    GL.renderPrimitive GL.Triangles $ do
+      let GL.Vertex4 x y z t = GL.Vertex4 0.5 0 0 1 --lpos
+      GL.vertex $ GL.Vertex4 (x+0.01::GLdouble) y z t
 
-data SomeDoing r = forall t . SD (SEditorState t) (Doing r t)
-interpret :: SEditorState e -> Char -> Maybe (SomeDoing e)
-interpret SAddingVertices c 
-  | isDigit c  = Just $ SD SAddingVertices $ AddVertex (C $ read [c]) 
-  | (c == 'q') = Just $ SD undefined $ Quit
-  | (c == 's') = Just $ SD SAddingEdges $ ToggleModeE
-  | otherwise = Nothing
-interpret SAddingEdges c 
-  | isDigit c = Just $ SD SAddingEdges $ RemoveVertex (C $ read [c]) 
-  | (c == 'q') = Just $ SD undefined $ Quit
-  | (c == 's') = Just $ SD SAddingVertices $ ToggleModeV -- последние две строки уместить в одну?
-  | otherwise = Nothing
+      GL.vertex $ GL.Vertex4 x (y+0.01::GLdouble) z t
+      GL.vertex $ GL.Vertex4 x y (z+0.01::GLdouble) t
+    GL.matrixMode $= GL.Projection
+    GL.loadIdentity
+    GL.ortho 0.0 (fromIntegral w) 0.0 (fromIntegral h) (-1.0) (1.0)
+    GL.matrixMode $= GL.Modelview 0
+    GL.loadIdentity 
 
-  -- | (c == 'd') = Just $ Right $ Double
-  -- | (c == 'v') = Just $ Left ToggleView
+    GL.matrixMode $= GL.Modelview 1
+    GL.loadIdentity 
 
-eventLoop :: IORef (State ) -> Chan Event -> IO ()
-eventLoop stateRef queueRef = do
-    event <- readChan queueRef
-    cont <- processEvent stateRef event
-    when cont $ eventLoop stateRef queueRef
-    
+    GL.matrixMode $= GL.Modelview 2
+    GL.loadIdentity 
+    -- GL.viewport $= (GL.Position 0 0, siii)
 
-main :: IO ()
-main = do
-    hSetBuffering stdin NoBuffering
-    i <- myThreadId
-    y <- newIORef (S (SAddingVertices) 4)
-    var <- newChan
-    sho <- forkIO $ showM var
-    rea <- forkIO $ readM var
-    eventLoop y var
-    killThread sho
-    killThread rea
-  where
-    -- go :: MVar Action -> IORef Model -> IO ()
-    -- go y i = do 
-    --   d <- takeMVar y
-    --   modifyIORef i (apply d)
-    --   go y i
+    -- GL.ortho 0.0 (fromIntegral w) 0.0 (fromIntegral h) (-1.0) 1.0
+    for_ gui (uncurry displayButton) 
+    color $ GL.Color3 0 0 (0::GLdouble)
+    mapM_ (frame.snd) env
 
+  GL.preservingMatrix $ do
+    color $ GL.Color3 0 0 (1::GLdouble)
+    -- clear [ColorBuffer, DepthBuffer]
+    GL.windowPos $ GL.Vertex3 0 0 (0::GLdouble) 
+    GL.lighting           $= GL.Disabled 
+  GL.swapBuffers
+  -- return ()
+    where 
+          -- tran = tranw
+          applyNormal (a:b:c:_) = GL.normal $ GL.Normal3 (coerce x :: GLdouble) (coerce y) (coerce z)
+            where
+              V3 x1 y1 z1 = signorm $ cross ( klein a-klein b ) (klein a - klein c)    
+              V3 x y z = if z1 < 0 then V3 x1 y1 z1 else negate (V3 x1 y1 z1)
+          coerceG a = (coerce a) :: GLdouble
+          curry4 f (a,b,c, d)=f a b c d
+          uncurry4  f a b c d=f (a,b,c,d)
+          mapTuple f (a, b, c, d) = (f a, f  b, f c, f d)
+          m44toList (L.V4 (L.V4 a b c d)
+                        (L.V4 e f g h)
+                        (L.V4 i j k l)
+                        (L.V4 m n o p)) = [coerceG a,coerceG  b,coerceG  c,coerceG  d,coerceG  e,coerceG  f,coerceG  g,coerceG  h,coerceG  i,coerceG  j,coerceG  k ,coerceG  l,coerceG  m,coerceG  n,coerceG  o,coerceG  p]
+editorMouseCallback _ _ _ = return ()
+editorSpecialCallback _ _ = return ()
+editorKeyboardCallback a = return ()
 
-readM :: Chan Event -> IO ()
-readM y = do
-      d <- getChar
-      putStr "\n"
-      writeChan y (Keyboard d) 
-      readM y
+newtype Button = Button { _text::String }
+mapPixelVertex a b = GL.vertex $ traceShowId $ GL.Vertex2 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) ((fromIntegral b)*2/(fromIntegral height) - 1)
+-- displayButton :: Button -> ( -> IO ()
+displayButton :: (GL.GLint, GL.GLint) -> Button -> IO ()
+displayButton (a, b) butt = do
+  GL.lighting           $= GL.Disabled 
+  -- GL.viewport $= (GL.Position 0 0, GL.Size 1024 600)
 
-showM :: Chan Event -> IO ()
-showM y = do
-  writeChan y Show 
-  threadDelay 1000000 
-  showM y
+  h <- fmap round $ GL.fontHeight GL.TimesRoman24
+  i <- GL.stringWidth GL.TimesRoman24 $ _text butt
+  (GL.renderPrimitive GL.Triangles $ do
+    color $ GL.Color3 1 0 (0::GLdouble)
+    GL.vertex $ GL.Vertex2 (0::GLfloat) 0
+    GL.vertex $ GL.Vertex2 (0.5::GLfloat) 0
+    GL.vertex $ GL.Vertex2 (0::GLfloat) 0.5
+    mapPixelVertex 600 700 -- a (b - h - 20)
+    color $ GL.Color3 0 1 (0::GLdouble)
+    mapPixelVertex (1000) (600) -- (a + i + 20) (b - h - 20)
+    color $ GL.Color3 0 0 (1::GLdouble)
+    mapPixelVertex (1000) (512)) -- (a + i + 20) b 
+    -- GL.vertex $ GL.Vertex2 (1000) (-500::GLfloat)) -- (a) b
+  let drawDot x y = 
+       (GL.renderPrimitive GL.Quads $ do
+        GL.vertex $ GL.Vertex2 (x) (y) -- a (b - h - 20)
+        GL.vertex $ GL.Vertex2 (x+0.01) (y) -- (a + i + 20) (b - h - 20)
+        GL.vertex $ GL.Vertex2 (x+0.01) (y+0.01) -- (a + i + 20) b 
+        GL.vertex $ GL.Vertex2 (x) (y+0.01)) -- (a) b
+  color $ GL.Color3 1 0 (0::GLdouble)
+  -- drawDot (0::GLfloat) (-1000)
+  color $ GL.Color3 1 0 (0::GLdouble)
+  -- drawDot (0::GLfloat) (1000)
+  GL.windowPos $ GL.Vertex2 (a + 10) (b - h - 10) 
+  color $ GL.Color3 0 1 (0::GLdouble)
+  GL.renderString GL.TimesRoman24 (_text butt) 
 
--- Единственная проблема - мне так и не удалось использовать GADTs. Не понимаю где все находят эти юзкейсы.
-
--- https://mail.haskell.org/pipermail/haskell-cafe/2008-January/038151.html
