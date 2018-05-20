@@ -136,7 +136,7 @@ editorDisplay  = do
       GL.vertex $ GL.Vertex4 x y (z+0.01::GLdouble) t
     GL.matrixMode $= GL.Projection
     GL.loadIdentity
-    GL.ortho 0.0 (fromIntegral w) 0.0 (fromIntegral h) (-1.0) (1.0)
+    -- GL.ortho 0.0 (fromIntegral w) 0.0 (fromIntegral h) (-1.0) (1.0)
     GL.matrixMode $= GL.Modelview 0
     GL.loadIdentity 
 
@@ -192,7 +192,7 @@ displayButton (a, b) butt = do
     GL.vertex $ GL.Vertex2 (0::GLfloat) 0
     GL.vertex $ GL.Vertex2 (0.5::GLfloat) 0
     GL.vertex $ GL.Vertex2 (0::GLfloat) 0.5
-    mapPixelVertex 600 700 -- a (b - h - 20)
+    mapPixelVertex wid 700 -- a (b - h - 20)
     color $ GL.Color3 0 1 (0::GLdouble)
     mapPixelVertex (1000) (600) -- (a + i + 20) (b - h - 20)
     color $ GL.Color3 0 0 (1::GLdouble)
