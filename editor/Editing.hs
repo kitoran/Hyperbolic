@@ -85,14 +85,8 @@ static void my_PerspectiveFOV(double fov, double aspect, double near, double far
                 -- yScale = 1.0 / tan (d2R * fov / 2)
                 -- xScale = yScale / aspect
                 -- den = near - far
-persMatrix :: M44 Double
-persMatrix = perspective 45 (fromIntegral width/fromIntegral height) (0.001) (1.1)
-viewMatrix = lookAt (V3 (0) 0 0) (V3 1 (0) (0)) (V3 (0.0::Double) 0 1)
-persViewMatrix :: M44 Double
-persViewMatrix = persMatrix !*!  viewMatrix
 gui :: [((GL.GLint :!: GL.GLint), Button)] 
 gui = [((300 :!: 200), Button "wall")] 
-(GL.Size width height) = unsafePerformIO $ GL.get GL.screenSize
 editorDisplay :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)Matri
                                          => -}
                 IO ()

@@ -1,6 +1,7 @@
 {-# Language NoMonomorphismRestriction, BangPatterns, TupleSections, TemplateHaskell,
     ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses, OverloadedStrings, MonoLocalBinds #-}
 module Graphics where
+import System.IO.Unsafe
 import Control.Monad(when)
 import Control.Arrow
 import Graphics.UI.GLUT as GL
@@ -67,6 +68,13 @@ import qualified Graphics.Rendering.OpenGL.GL.CoordTrans (loadIdentity)
 --import qualified Control.Lens
 -- --import qualified Debug.Trace 
 --В этом модуле находится столько всякой нефункциональности, что от двух маленьких unsafeperformio вреда не будет особого
+
+(GL.Size width height) = unsafePerformIO $ GL.get GL.screenSize
+persMatrix :: M44 Double
+persMatrix = L.perspective 45 (fromIntegral width/fromIntegral height) (0.001) (1.1)
+viewMatrix = L.lookAt (V3 (0) 0 0) (V3 1 (0) (0)) (V3 (0.0::Double) 0 1)
+persViewMatrix :: M44 Double
+persViewMatrix = persMatrix !*!  viewMatrix
 
 origin :: Point Double
 origin = H.origin
@@ -193,7 +201,7 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
     -- renderS1tring Helvetica18 $
     -- windowPos $ Vertex3 0 (h) (0::GLfloat)
     let transform2 :: Point Double -> V4 GLdouble
-        transform2 p {- (H.Point x y z t)-} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+        transform2 p {- (H.Point x y z t)-} =  let (V4 x y z t) = persViewMatrix !* (tran !* ((p & _t %~ negate) ^. _v4 ))  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                     V4 (coerce $ x/t) (coerceG $ y/t) (coerceG $ z/t) (1)
         P.Polygon tri = snd $ head env
@@ -243,7 +251,7 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
                                 transform a
           transform :: Point Double -> IO ()--Vertex4 Double
 
-          transform p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* (p ^. _v4)  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+          transform p {- (H.Point x y z t) -} =  let (V4 x y z t) =  persViewMatrix !* (tran !* (p ^. _v4))  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
                      (vertex $ traceShowId $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
