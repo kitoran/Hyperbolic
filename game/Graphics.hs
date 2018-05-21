@@ -121,8 +121,8 @@ initialiseGraphics = do
     -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) -- ??????????????????????????
     colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
     -- matrixMode $= Projection
-    perspective 45 (1024/600) (0.001) (1.1)
-    lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
+--    perspective 45 (1024/600) (0.001) (1.1)
+--    lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
 
 lpos = Vertex4 (-1.4313725157195931) 2.663858068380254e-6 (0.3::GLfloat) 1.8460891382643082 
 renderConsole :: T.Text -> IO () 
