@@ -60,23 +60,23 @@ executable Hyperbolic
   -- other-extensions:    
 
   ghc-options:
-      -O0 
+    --  -O0 
 --      -Wunused-imports
      -- -fno-code
    -- -Wall
-  --  -Odph
-  --  -fdicts-strict
-  --  -fexpose-all-unfoldings 
-  --  -flate-dmd-anal 
-  --  -fregs-iterative
-  --  -funbox-strict-fields 
-  --  -threaded
+    -Odph
+    -fdicts-strict
+    -fexpose-all-unfoldings 
+    -flate-dmd-anal 
+    -fregs-iterative
+    -funbox-strict-fields 
+    -threaded
   --  -rtsopts
     -- -fplugin ConstMath.Plugin
  --  -Wno-name-shadowing
  --   -Wcompat 
     -Wmonomorphism-restriction
-   -- "-with-rtsopts=-N -threaded"
+    "-with-rtsopts=-N -threaded"
   -- {- -fdefer-type-errors -} 
   --  -prof
   --  -fprof-auto 

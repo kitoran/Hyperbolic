@@ -69,12 +69,16 @@ import qualified Graphics.Rendering.OpenGL.GL.CoordTrans (loadIdentity)
 -- --import qualified Debug.Trace 
 --В этом модуле находится столько всякой нефункциональности, что от двух маленьких unsafeperformio вреда не будет особого
 
+type GLDouble = GLdouble
+traceComm s a = Debug.Trace.trace (s ++ " " ++ show a) a
 (GL.Size width height) = unsafePerformIO $ GL.get GL.screenSize
 persMatrix :: M44 Double
-persMatrix = L.perspective 45 (fromIntegral width/fromIntegral height) (0.001) (1.1)
-viewMatrix = L.lookAt (V3 (0) 0 0) (V3 1 (0) (0)) (V3 (0.0::Double) 0 1)
+persMatrix = L.perspective (H.tau/4) (1024/600{-fromIntegral width/fromIntegral height-}) (0.01) (1)
+viewMatrix = L.lookAt (V3 (0) 0 0) (V3 (1) (0) (0)) (V3 (0.0::Double) 0 (1))
 persViewMatrix :: M44 Double
-persViewMatrix = persMatrix !*!  viewMatrix
+persViewMatrix = persMatrix {-!*! (L.V4 (L.V4 (1) 0 0 0) (L.V4 0 1 0 0) (L.V4 0 0 (-1) 0) (L.V4 0 0 0 1)) -} !*! viewMatrix
+saneVertex4  :: GLDouble -> GLDouble -> GLDouble -> GLDouble -> Vertex4 GLDouble
+saneVertex4 a b c d = if d*d >= 0 then traceComm "vert" $ Vertex4 (a) (b) (c) d else  Vertex4 (-a) (-b) (-c) (-d) -- error "w negaive" -- d -- (-1) 
 
 origin :: Point Double
 origin = H.origin
@@ -123,16 +127,35 @@ initialiseGraphics = do
     -- attachShader p f2
     -- linkProgram p
     -- currentProgram $= Just p 
-   
+    get matrixMode >>= print
     diffuse (Light 0)  $= Color4 1 1 1 1
     blend              $= Enabled
     -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) -- ??????????????????????????
     colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
     -- matrixMode $= Projection
---    perspective 45 (1024/600) (0.001) (1.1)
---    lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
+    let printc s a = putStrLn $ s ++ ": " ++ show a
+    (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
+    
+    print "callingp erspective"
+    -- perspective 45 (1024/600) (0.001) (1.1)
+    (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
+    
+    (get (matrix $ Just $ Modelview 0) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLMV"
+    -- print "calling lookat"
+    -- lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
+    (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
+    (get (matrix $ Just Projection) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLPR"
+    (get (matrix $ Just $ Modelview 0) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLMV"
+    printc "persMatrix" persMatrix
+    printc "viewMatrix" viewMatrix
+    printc "persViewMatrix" persViewMatrix
+    printc "viewMatrix !*! persMatrix" $ viewMatrix !*! persMatrix
+    -- fail "0"
+    -- Just a <- return Nothing
+    return ()
 
 lpos = Vertex4 (-1.4313725157195931) 2.663858068380254e-6 (0.3::GLfloat) 1.8460891382643082 
+
 renderConsole :: T.Text -> IO () 
 renderConsole s = do
       h <- fontHeight Helvetica10
@@ -175,15 +198,15 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
   preservingMatrix $ do
     -- matrixx <- (newMatrix RowMajor $ m44toList tran :: IO (GLmatrix GLdouble))
     -- multMatrix matrixx
-    position (Light 0) $= lpos -- Vertex4 0.3 0.1 0.15 (1::GLfloat)
+    position (Light 0) $= lpos -- saneVertex4 0.3 0.1 0.15 (1::GLfloat)
     mapM_ ( toRaw) env
 
     color $ Color4 1 1 (1::GLdouble) 0.1
     renderPrimitive Triangles $ do
-      let Vertex4 x y z t = Vertex4 0.5 0 0 1 --lpos
-      vertex $ Vertex4 (x+0.01::GLdouble) y z t
-      vertex $ Vertex4 x (y+0.01::GLdouble) z t
-      vertex $ Vertex4 x y (z+0.01::GLdouble) t
+      let [x, y, z, t] = [0.5, 0, 0, 1] --lpos
+      vertex $ saneVertex4 (x+0.01::GLdouble) y z t
+      vertex $ saneVertex4 x (y+0.01::GLdouble) z t
+      vertex $ saneVertex4 x y (z+0.01::GLdouble) t
     when drawFrame $ do
       color $ Color3 0 0 (0::GLdouble)
       mapM_ (frame.snd) env
@@ -201,7 +224,7 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
     -- renderS1tring Helvetica18 $
     -- windowPos $ Vertex3 0 (h) (0::GLfloat)
     let transform2 :: Point Double -> V4 GLdouble
-        transform2 p {- (H.Point x y z t)-} =  let (V4 x y z t) = persViewMatrix !* (tran !* ((p & _t %~ negate) ^. _v4 ))  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
+        transform2 p {- (H.Point x y z t)-} =  let (V4 x y z t) = persViewMatrix !* ( tran !*((p & _t %~ negate) ^. _v4 ) )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                     V4 (coerce $ x/t) (coerceG $ y/t) (coerceG $ z/t) (1)
         P.Polygon tri = snd $ head env
@@ -236,10 +259,10 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
                               --   color $ Color3 0 1 (0::GLdouble) --curry3 Color3 $ mapTuple coerceG col
                               --   applyNormal list
                               --   mapM_ transformnp list
-                              renderPrimitive GL.Polygon $ do
-                                color $ Color4 1 1 (0::GLdouble) 1 --curry3 Color3 $ mapTuple coerceG col
-                                applyNormal list
-                                mapM_ transformpn list
+                              -- renderPrimitive GL.Polygon $ do
+                              --   color $ Color4 1 1 (0::GLdouble) 1 --curry3 Color3 $ mapTuple coerceG col
+                              --   applyNormal list
+                              --   mapM_ transformpn list
           toRaw (col, (Segment a b)) = do
                               renderPrimitive Lines $ do
                                 color $ curry4 (Color4) $ mapTuple coerceG col
@@ -249,35 +272,35 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
                               renderPrimitive Points $ do
                                 color $ curry4 (Color4) $ mapTuple coerceG col
                                 transform a
-          transform :: Point Double -> IO ()--Vertex4 Double
+          transform :: Point Double -> IO ()--saneVertex4 Double
 
           transform p {- (H.Point x y z t) -} =  let (V4 x y z t) =  persViewMatrix !* (tran !* (p ^. _v4))  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
-                     (vertex $ traceShowId $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
+                     (vertex $ traceShowId $ saneVertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
           transformpn :: Point Double -> IO ()--Vertex4 Double
 
           transformpn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ id) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
-                     (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
-          transformnn :: Point Double -> IO ()--Vertex4 Double
+                     (vertex $ saneVertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
+          transformnn :: Point Double -> IO ()--saneVertex4 Double
 
           transformnn p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
-                     (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
-          transformnp :: Point Double -> IO ()--Vertex4 Double
+                     (vertex $ saneVertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
+          transformnp :: Point Double -> IO ()--saneVertex4 Double
 
           transformnp p {- (H.Point x y z t) -} =  let (V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (V4 x y z t) = transposeMink tran !* toV4 p  in 
                     {- when ((x/t)>0) -}
                      do
-                     (vertex $ Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG ( t)))
+                     (vertex $ saneVertex4 (coerceG $ (x::Double)::GLdouble) (coerceG $ y) (coerceG $ z) (coerceG ( t)))
           applyNormal (a:b:c:_) = normal $ Normal3 (coerce x :: GLdouble) (coerce y) (coerce z)
             where
               V3 x1 y1 z1 = signorm $ cross ( klein a-klein b ) (klein a - klein c)    
               V3 x y z = if z1 < 0 then V3 x1 y1 z1 else negate (V3 x1 y1 z1)
-          coerceG a = (coerce a) :: GLdouble
+          coerceG (a::Double) = (coerce a) :: GLdouble
           curry4 f (a,b,c, d)=f a b c d
           uncurry4  f a b c d=f (a,b,c,d)
           mapTuple f (a, b, c, d) = (f a, f  b, f c, f d)
