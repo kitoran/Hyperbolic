@@ -18,12 +18,22 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
 -- # LANGUAGE PatternSynonyms  #
+{-
+
+i'm sorry for the extensive use of unsafeperformio but not really because for example GL.stringWidth is really a pure function for my uses
+and it would very much suck to obtain its value in io function and pass it all the way down to pure function that uses it
+these uses of unsafeperformio are much safer than say reading file with hGetContents which is a standard function 
+
+-}
+
 module Editing where
 
 import System.IO
+import Control.Exception.Base (assert)
 import System.Exit
 -- import Data.Sequence
 import Debug.Trace
+import Control.Monad
 import Data.IORef
 import Data.Foldable
 import Data.Strict.Tuple hiding (snd, uncurry)
@@ -31,7 +41,9 @@ import qualified Data.Strict.Tuple as S
 import Data.Char
 import Hyperbolic
 import Data.Proxy
-import GHC.Exts
+import GHC.Exts (coerce)
+
+import Data.Monoid
 import Control.Concurrent
 import Control.Lens ((^.), (%~), (&))
 import Control.Concurrent.Chan
@@ -39,79 +51,75 @@ import Control.Concurrent.MVar
 import Debug.Trace
 import Physics  as P (Mesh(..), HyperEntity(..), AvatarPosition(..))
 import qualified Physics  as P
-
+import Control.Concurrent.Chan
 import Linear as L
 import System.IO.Unsafe
 import qualified Graphics.UI.GLUT as GL
 -- import qualified Linear as L
 import  Graphics.UI.GLUT (GLdouble, color, ($=), GLfloat, GLint)
 import  Graphics
-
+-- eventQueue = unsafePerformIO $ newChan
+-- data Event = User UserEvent GL.Modifiers | Leave
+-- data UserEvent = Mouse GL.MouseButton GL.KeyState GL.Position
 -- model :: IORef (Environment)
-model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ 
-                                             [((1.0, 0.0, 0.0, 1.0),  
-                                              (P.Polygon ) $
-                                              map ((\a -> rotateAroundZ (a-0.1) !$ (Point 1 0 (-0.05) 1)) .
-                                                   (/3.0) .
-                                                   (*(tau::Double)) .
-                                                   fromIntegral::Integer->Point Double) $ [0..3{-9-}])])
+data State = AddingWall | Ground deriving (Read, Show, Eq)
+windowPos (GL.Position x y) = GL.windowPos (GL.Vertex2 x (height-y)) 
+model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ [
+                                             ((0.9, 0.1, 0.1, 1.0),  
+                                             (P.Polygon ) $
+                                             map ((\a -> rotateAroundZ (a-0.1) !$ moveAlongZ (-0.1::Double) !$ (Point 0.9999 0 (0.0) 1)) .
+                                                  (/4) . --360) .
+                                                  (*(tau::Double)) .
+                                                  fromIntegral::Integer->Point Double) $ [0, 1, 2, 3 {-59-}])])
 
             ([]) 
             [] 
             []
 
-view = unsafePerformIO $ newIORef $ (L.identity::L.M44 Double)
+view = unsafePerformIO $ newIORef $ ( {-rotateAroundY (-tau/4-0.1) !*! moveAlongZ (-0.1) !*! moveAlongX (0.01)) --}L.identity::L.M44 Double)
+mouse = unsafePerformIO $ newIORef $ GL.Position 0 0 
+state = unsafePerformIO $ newIORef Ground
+editorPassiveMotionCallback :: (GL.Position ) -> IO ()
+editorPassiveMotionCallback pos = (mouse $= pos) >> GL.postRedisplay Nothing
+-- editorThread = evalState editor
+-- editor = new
+mapVertexPixel :: GL.Position -> L.V2 GLdouble
+mapVertexPixel (GL.Position a b) = L.V2 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) 
+                                        (1 - (fromIntegral b)*2/(fromIntegral height) ) --0 1beingAddedWall :: GL.Position -> Mesh 
+beingAddedWall :: GL.Position -> L.M44 Double -> Mesh
+beingAddedWall pos view = --(GL.Position xi yi) =  
+                                      assert (abs rz < 0.04) $ Mesh $ 
+                                                            [((1.0, 1.0, 1.0, 1.0),  
+                                                              (P.Polygon ) [Point (rx+0.5) ry rz rt, Point rx ry (rz+0.5) rt,  Point rx (ry+0.5) rz rt]
+                                                             )
+                                                            ]
+   where
+         -- x = fromIntegral xi
+         -- y = traceComm "y" $ fromIntegral yi
+         L.V2 x y =  mapVertexPixel pos
+         (L.V4 i j k l) = traceComm "ijkl" $ invpv ^. L._z
+         c = -(l+i*x+j*y)/k
+         invpv = traceComm "invpv" $ L.inv44  $ traceComm "persViewMatrix" (persViewMatrix !*! view)
+         d@(L.V4 rx ry rz rt) = traceComm "d" $ invpv !* if abs k > 0.00001 then L.V4 x y c 1 else L.V4 0 0 1 0 
+-- x, y <- (0, 1)
+-- rx ry 0 rt = persViewMatrix !* (tran !* (p ^. _v4))
+gui :: [Button] 
+gui = [Button "wall" (GL.Position 300 200) (print "action" >> state $= AddingWall)]
 
-{-
-static void my_PerspectiveFOV(double fov, double aspect, double near, double far, double* mret) {
-    double D2R = M_PI / 180.0;
-    double yScale = 1.0 / tan(D2R * fov / 2);
-    double xScale = yScale / aspect;
-    double nearmfar = near - far;
-    double m[] = {
-        xScale, 0, 0, 0,
-        0, yScale, 0, 0,
-        0, 0, (far + near) / nearmfar, -1,
-        0, 0, 2*far*near / nearmfar, 0 
-    };
-    geom_matrix4_copy(m, mret);
-}
--}
--- perspective fovy aspect zNear zFar = L.V4 (L.V4 xScale 0 0 0)
-                                          -- (L.V4 0 yScale 0 0)
-                                          -- (L.V4 0 0 (zFar+zNear)/den (-1))
-                                          -- (L.V4 0 0 (2*zFar*zNear)/den 0)
-          -- where d2R = pi / 180.0
-                -- yScale = 1.0 / tan (d2R * fov / 2)
-                -- xScale = yScale / aspect
-                -- den = near - far
-gui :: [((GL.GLint :!: GL.GLint), Button)] 
-gui = [((300 :!: 200), Button "wall")] 
 editorDisplay :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)Matri
                                          => -}
                 IO ()
 editorDisplay  = do
+  print "editorDisplay"
   siii@(GL.Size w h) <- GL.get GL.screenSize
-
+  state' <- GL.get state
   tran  <- readIORef view
   let     toRaw :: ((Double, Double, Double, Double), HyperEntity ) -> IO ()
           toRaw (col, (P.Polygon list)) = do
                               GL.renderPrimitive GL.Polygon $ do
-                                color $ curry4 GL.Color4 $ mapTuple coerceG col
+                                color $ curry4 GL.Color4 $ if state' == Ground then mapTuple coerceG col else mapTuple coerceG col -- (1, 1, 1, 1) 
                                 applyNormal list
                                 mapM_ transform list
-                              -- GL.renderPrimitive GL.Polygon $ do
-                              --   color $ Color3 0 0 (1::GLdouble) --curry3 Color3 $ mapTuple coerceG col
-                              --   applyNormal list
-                              --   mapM_ transformnn list
-                              -- GL.renderPrimitive GL.Polygon $ do
-                              --   color $ Color3 0 1 (0::GLdouble) --curry3 Color3 $ mapTuple coerceG col
-                              --   applyNormal list
-                              --   mapM_ transformnp list
-                              GL.renderPrimitive GL.Polygon $ do
-                                color $ GL.Color4 1 1 (0::GLdouble) 1 --curry3 Color3 $ mapTuple coerceG col
-                                applyNormal list
-                                mapM_ transformpn list
           toRaw (col, (Segment a b)) = do
                               GL.renderPrimitive GL.Lines $ do
                                 color $ curry4 (GL.Color4) $ mapTuple coerceG col
@@ -121,47 +129,54 @@ editorDisplay  = do
                               GL.renderPrimitive GL.Points $ do
                                 color $ curry4 (GL.Color4) $ mapTuple coerceG col
                                 transform a
-          transform :: Point Double -> IO ()--GL.Vertex4 Double
+          transform :: Point Double -> IO ()--saneVertex4 Double
 
-          transform p {- (H.Point x y z t) -} =  let (L.V4 x y z t) = persViewMatrix !* (tran !* (p ^. _v4))  in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
+          transform p {- (H.Point x y z t) -} =  let (L.V4 x y z t) =  persViewMatrix  !* ( traceComm "VVV" $ tran !* (p ^. _v4)) in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
                     {- when ((x/t)>0) -}
                      do
-                     (GL.vertex $ traceShowId $  GL.Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
-          transformpn :: Point Double -> IO ()--GL.Vertex4 Double
-
-          transformpn p {- (H.Point x y z t) -} =  let (L.V4 x y z t) = tran !* ((p & _t %~ id) ^. _v4 )  in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
-                    {- when ((x/t)>0) -}
-                     do
-                     (GL.vertex $ GL.Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
-          transformnn :: Point Double -> IO ()--GL.Vertex4 Double
-
-          transformnn p {- (H.Point x y z t) -} =  let (L.V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
-                    {- when ((x/t)>0) -}
-                     do
-                     (GL.vertex $ GL.Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG (negate t)))
-          transformnp :: Point Double -> IO ()--GL.Vertex4 Double
-
-          transformnp p {- (H.Point x y z t) -} =  let (L.V4 x y z t) = tran !* ((p & _t %~ negate) ^. _v4 )  in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
-                    {- when ((x/t)>0) -}
-                     do
-                     (GL.vertex $ GL.Vertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG ( t)))
+                     (GL.vertex  $  saneVertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
           frame (P.Polygon list) = 
               GL.renderPrimitive GL.LineLoop $ mapM_ transform list
           frame (Segment a b) = return ()
-  (Mesh env) <- fmap P.mesh $ GL.get model
+  (Mesh env) <- fmap P.mesh $ GL.get model 
   -- print cons1
   GL.clear [GL.ColorBuffer, GL.DepthBuffer]
   
-  GL.position (GL.Light 0) $= lpos -- GL.Vertex4 0.3 0.1 0.15 (1::GLfloat)
-  mapM_ ( toRaw) env
+  GL.position (GL.Light 0) $= lpos -- saneVertex4 0.3 0.1 0.15 (1::GLfloat)
+  -- mapM_ ( toRaw) (env)--  <> (coerce @Mesh @[((Double, Double, Double, Double), HyperEntity)] $ (let tt =  thatTransformation $  (P.Devi (Point 0.00001 0.0001 0.00001 1) (Abs 0.01 1 0.1) (0.1)) 
+                                                                                               -- in traceComm "iden" (tt !*! transposeMink tt) `seq` tt) !$ deviator ))
 
+  GL.renderPrimitive GL.Triangles $ do
+    let v a b c d s = let L.V4 x y z t = (L.perspective (tau/4) (1024/600) (0.01) (1)) !* L.V4 a b c d in GL.vertex $ traceComm s $ saneVertex4 x y z t
+    color $ GL.Color3 1 1 (0::GLdouble)
+    v (0) (-0.4) (-0.5-0) 1 "yellow"
+    color $ GL.Color3 0 1 (1::GLdouble)
+    v (0.5*sin(tau/3)) (-0.4) (-0.5*cos(tau/3)-0) 1 "blue"
+    color $ GL.Color3 1 0 (1::GLdouble) 
+    v (-0.5*sin(tau/3)) (-0.4) (-0.5*cos(tau/3)-0) 1 "pink"
+  -- color $ GL.Color3 1 0 (1::GLdouble)
+  -- GL.renderPrimitive GL.Quads $ do
+  --    GL.vertex $ GL.Vertex4 (-1::GLdouble) (-1) (-0.5) 1
+  --    GL.vertex $ GL.Vertex4 (0.5) (-1::GLdouble) (-0.5) 1
+  --    GL.vertex $ GL.Vertex4 (0.5) (0.5) (-0.5::GLdouble) 1
+  --    GL.vertex $ GL.Vertex4 (-1) (0.5) (-0.5) (1::GLdouble)
+  -- color $ GL.Color3 0 1 (1::GLdouble)
+  -- GL.renderPrimitive GL.Quads $ do
+  --    GL.vertex $ GL.Vertex4 (-0.5::GLdouble) (-0.5) (0.5) 1
+  --    GL.vertex $ GL.Vertex4 (1) (-0.5) (0.5::GLdouble) 1
+  --    GL.vertex $ GL.Vertex4 (1) (1) (0.5::GLdouble) 1
+  --    GL.vertex $ GL.Vertex4 (-0.5) (1) (0.5::GLdouble) 1 
+  uselessName <- GL.get state
+  when (uselessName == AddingWall) $ do
+    m <- GL.get mouse
+    mapM_ @[] ( toRaw) $ coerce $ beingAddedWall m  tran
   color $ GL.Color4 1 1 (1::GLdouble) 0.1
   GL.renderPrimitive GL.Triangles $ do
-    let GL.Vertex4 x y z t = GL.Vertex4 0.5 0 0 1 --lpos
-    GL.vertex $ GL.Vertex4 (x-0.01::GLdouble) y z t
+    let [x, y, z, t] = [ 0.5, 0, 0, 1] --lpos
+    GL.vertex $ saneVertex4 (x-0.01::GLdouble) y z t
 
-    GL.vertex $ GL.Vertex4 x (y-0.01::GLdouble) z t
-    GL.vertex $ GL.Vertex4 x y (z-0.01::GLdouble) t
+    GL.vertex $ saneVertex4 x (y-0.01::GLdouble) z t
+    GL.vertex $ saneVertex4 x y (z-0.01::GLdouble) t
   mapM_ (frame.snd) env  
   -- GL.clear [GL.DepthBuffer]
   GL.depthFunc $= Nothing
@@ -171,7 +186,9 @@ editorDisplay  = do
     -- GL.loadIdentity 
     -- GL.matrixMode $= GL.Modelview 0
     -- GL.loadIdentity
-  for_ gui (uncurry displayButton) 
+
+  for_ gui displayButton 
+
   color $ GL.Color3 0 0 (0::GLdouble)
   GL.depthFunc $= Just GL.Less
   GL.depthMask $= GL.Enabled
@@ -192,35 +209,54 @@ editorDisplay  = do
                         (L.V4 e f g h)
                         (L.V4 i j k l)
                         (L.V4 m n o p)) = [coerceG a,coerceG  b,coerceG  c,coerceG  d,coerceG  e,coerceG  f,coerceG  g,coerceG  h,coerceG  i,coerceG  j,coerceG  k ,coerceG  l,coerceG  m,coerceG  n,coerceG  o,coerceG  p]
-editorMouseCallback _ _ _ = return ()
+editorMouseCallback butt buttState pos =  do
+  -- windowPos $ (traceComm "pos") pos 
+  -- color $ GL.Color3 0 1 (0::GLdouble)
+  -- GL.renderString GL.TimesRoman24 "Lol"
+  -- GL.swapBuffers
+   print "editorMouseCallback" 
+   mouse $= pos
+   case find (\guiButt -> 
+    buttRectangle guiButt `contains` pos ) gui :: Maybe Button of
+     Nothing -> state $= Ground
+     Just (Button _ _ a) -> a
+   GL.postRedisplay Nothing
+
 editorSpecialCallback _ _ = return ()
 editorKeyboardCallback a = return ()
 
-traceComm s a = Debug.Trace.trace (s ++ " " ++ show a) a
-newtype Button = Button { _text::String }
-mapPixelVertex a b = GL.vertex $ traceComm "qweqw" $ GL.Vertex4 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) ((fromIntegral b)*2/(fromIntegral height) - 1 ) 0 1
+data Button = Button { _text:: !String, _pos:: !GL.Position, _action::IO () }
 -- displayButton :: Button -> ( -> IO ()
-buttRectangle :: (GL.GLint :!: GL.GLint) -> Button -> IO ((GL.GLint :!: GL.GLint) :!: (GL.GLint :!: GL.GLint))
-buttRectangle (a :!: b) butt = do
-  h <- fmap round $ GL.fontHeight GL.TimesRoman24
-  i <- GL.stringWidth GL.TimesRoman24 $ _text butt
-  return (((a :!: (b - h - 20)) :!:  (((a + i + 20) :!: b))))
-displayRectangle :: ((GL.GLint :!: GL.GLint) :!: (GL.GLint :!: GL.GLint)) -> IO ()
-displayRectangle ((lx :!: ly) :!: (hx :!: hy))= (GL.renderPrimitive GL.Quads $ do
-                                                    -- let re@(GL.Vertex4 x y z t) = GL.Vertex4 0.5 (-0.5) 0 1 --lpos
-                                                    -- GL.vertex $ GL.Vertex4 (x+0.01::GLdouble) y z t
+type Rectangle = ((GL.GLint :!: GL.GLint) :!: (GL.GLint :!: GL.GLint))
+fontHeight = round $ unsafePerformIO $ GL.fontHeight GL.TimesRoman24
+margin = 3
+buttRectangle :: Button -> Rectangle
+buttRectangle (Button text (GL.Position a b) _) =
 
-                                                    -- GL.vertex $ GL.Vertex4 x (y+0.01::GLdouble) z t
-                                                    -- GL.vertex $ GL.Vertex4 x y (z+0.01::GLdouble) t
+  let i = unsafePerformIO $ GL.stringWidth GL.TimesRoman24 $ text 
+   in (((a :!: (b )) :!:  (((a + i + 2*margin) :!: (b + fontHeight + 2*margin)))))
+contains :: Rectangle -> GL.Position -> Bool
+contains ((lx :!: ly) :!: (hx :!: hy)) (GL.Position x y) = 
+  traceComm "lx" lx <= traceComm "x" x && traceComm "ly" ly <= traceComm "y" y && traceComm "hx" hx >= x && traceComm "hx" hy >= y
+
+mapPixelVertex a b = GL.vertex $  saneVertex4 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) 
+                                             (1 - (fromIntegral b)*2/(fromIntegral height) ) 0 1
+displayRectangle :: Rectangle -> IO ()
+displayRectangle ((lx :!: ly) :!: (hx :!: hy)) = (GL.renderPrimitive GL.Quads $ do
+                                                    -- let re@(saneVertex4 x y z t) = saneVertex4 0.5 (-0.5) 0 1 --lpos
+                                                    -- GL.vertex $ saneVertex4 (x+0.01::GLdouble) y z t
+
+                                                    -- GL.vertex $ saneVertex4 x (y+0.01::GLdouble) z t
+                                                    -- GL.vertex $ saneVertex4 x y (z+0.01::GLdouble) t
                                                     -- GL.vertex $ re
 
                                                     mapPixelVertex  lx ly
 
-                                                    -- let GL.Vertex4 x y z t = GL.Vertex4 0.55 0 0 1 --lpos
-                                                    -- GL.vertex $ GL.Vertex4 (x+0.01::GLdouble) y z t
+                                                    -- let saneVertex4 x y z t = saneVertex4 0.55 0 0 1 --lpos
+                                                    -- GL.vertex $ saneVertex4 (x+0.01::GLdouble) y z t
 -- 
-                                                    -- GL.vertex $ GL.Vertex4 x (y+0.01::GLdouble) z t
-                                                    -- GL.vertex $ GL.Vertex4 x y (z+0.01::GLdouble) t                            
+                                                    -- GL.vertex $ saneVertex4 x (y+0.01::GLdouble) z t
+                                                    -- GL.vertex $ saneVertex4 x y (z+0.01::GLdouble) t                            
                                                     mapPixelVertex  hx ly
                                                     mapPixelVertex  hx hy 
                                                     mapPixelVertex  lx hy
@@ -228,15 +264,14 @@ displayRectangle ((lx :!: ly) :!: (hx :!: hy))= (GL.renderPrimitive GL.Quads $ d
 
 
 
-displayButton :: (GL.GLint :!: GL.GLint) -> Button -> IO ()
-displayButton p@(a :!: b) butt = do
+displayButton :: Button -> IO ()
+displayButton butt@(Button text (GL.Position a b) _) = do
   -- GL.ortho 
   color $ GL.Color4 0 1 (0.5::GLdouble) 1
-  displayRectangle =<< buttRectangle p butt
-  color $ GL.Color4 1 0.5 (0.5::GLdouble) 1
-  displayRectangle =<< buttRectangle (0:!:0) butt
+
+  displayRectangle $ buttRectangle butt
   color $ GL.Color3 0 0 (1::GLdouble)
   h <- fmap round $ GL.fontHeight GL.TimesRoman24
-  GL.windowPos $ GL.Vertex2 (a + 10) (b - h - 10) 
+  windowPos $ GL.Position (a + margin) (b + h + margin) 
   color $ GL.Color3 0 1 (0::GLdouble)
-  GL.renderString GL.TimesRoman24 (_text butt)
+  GL.renderString GL.TimesRoman24 (text)
