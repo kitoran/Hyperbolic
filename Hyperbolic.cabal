@@ -50,12 +50,12 @@ executable Hyperbolic
   main-is:             Main.hs
   
   -- Modules included in this executable, other than Main.
-  other-modules:       Console
-                     , Graphics
-                     , Physics
-                     , GameLoop
-                     , Hyperbolic
-                     , Editing
+--  other-modules:       Console
+  --                   , Graphics
+    --                 , Physics
+      --               , GameLoop
+        --             , Hyperbolic
+          --           , Editing
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
 
@@ -64,19 +64,19 @@ executable Hyperbolic
 --      -Wunused-imports
      -- -fno-code
    -- -Wall
-    -Odph
-    -fdicts-strict
-    -fexpose-all-unfoldings 
-    -flate-dmd-anal 
-    -fregs-iterative
-    -funbox-strict-fields 
-    -threaded
+ --   -Odph
+   -- -fdicts-strict
+--    -fexpose-all-unfoldings 
+  --  -flate-dmd-anal 
+--    -fregs-iterative
+  --  -funbox-strict-fields 
+ --   -threaded
   --  -rtsopts
     -- -fplugin ConstMath.Plugin
  --  -Wno-name-shadowing
  --   -Wcompat 
     -Wmonomorphism-restriction
-    "-with-rtsopts=-N -threaded"
+ --   "-with-rtsopts=-N -threaded"
   -- {- -fdefer-type-errors -} 
   --  -prof
   --  -fprof-auto 
@@ -86,7 +86,10 @@ executable Hyperbolic
                      , lens >=4.14
                      , time >=1.5
                      , split
-                     , GLUT == 69.1488.666.31415926
+                    -- , GLUT == 69.1488.666.31415926
+                     -- , bindings-GLFW
+                    -- , GLFW-b
+                     , sdl2
                      , template-haskell
                      , mtl
                      , QuickCheck
@@ -95,6 +98,7 @@ executable Hyperbolic
                      , OpenGL
                      -- , clif
                      , containers
+                     , OpenGLRaw
                      -- , console-program
                      -- deps of console-program:
                      , ansi-wl-pprint 
