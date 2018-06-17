@@ -65,7 +65,7 @@ import  Graphics
 data State = AddingWall | Ground deriving (Read, Show, Eq)
 windowPos (GL.Position x y) = GL.windowPos (GL.Vertex2 x (height-y)) 
 model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ [
-                                             ((0.9, 0.1, 0.1, 1.0),  
+                                             ((0.9, 0.1, 1, 1.0),  
                                              (P.Polygon ) $
                                              map ((\a -> rotateAroundZ (a-0.1) !$ moveAlongZ (-0.1::Double) !$ (Point 0.9999 0 (0.0) 1)) .
                                                   (/4) . --360) .
@@ -76,31 +76,32 @@ model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ [
             [] 
             []
 
-view = unsafePerformIO $ newIORef $ ( {-rotateAroundY (-tau/4-0.1) !*! moveAlongZ (-0.1) !*! moveAlongX (0.01)) --}L.identity::L.M44 Double)
+view = unsafePerformIO $ newIORef $ (  rotateAroundY (-0.2 {-tau/(4-0.1)-})  !*! {- moveAlongZ (-0.1) !*! moveAlongX (0.01)) --}  L.identity::L.M44 Double)
 mouse = unsafePerformIO $ newIORef $ GL.Position 0 0 
-state = unsafePerformIO $ newIORef Ground
+state = unsafePerformIO $ newIORef Ground 
 editorPassiveMotionCallback :: (GL.Position ) -> IO ()
 editorPassiveMotionCallback pos = (mouse $= pos) >> GL.postRedisplay Nothing
--- editorThread = evalState editor
--- editor = new
+
 mapVertexPixel :: GL.Position -> L.V2 GLdouble
 mapVertexPixel (GL.Position a b) = L.V2 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) 
                                         (1 - (fromIntegral b)*2/(fromIntegral height) ) --0 1beingAddedWall :: GL.Position -> Mesh 
 beingAddedWall :: GL.Position -> L.M44 Double -> Mesh
-beingAddedWall pos view = --(GL.Position xi yi) =  
+beingAddedWall pos view = traceComm "RES POINT = " res `seq` --(GL.Position xi yi) =  
                                       assert (abs rz < 0.04) $ Mesh $ 
-                                                            [((1.0, 1.0, 1.0, 1.0),  
-                                                              (P.Polygon ) [Point (rx+0.5) ry rz rt, Point rx ry (rz+0.5) rt,  Point rx (ry+0.5) rz rt]
+                                                            [((0.0, 0.0, 1.0, 1.0), 
+                                                              (P.Polygon ) [Point (rx) ry rz rt, Point rx ry (rz+0.5) rt,  Point rx (ry+0.5) rz rt]
                                                              )
                                                             ]
    where
          -- x = fromIntegral xi
          -- y = traceComm "y" $ fromIntegral yi
          L.V2 x y =  mapVertexPixel pos
-         (L.V4 i j k l) = traceComm "ijkl" $ invpv ^. L._z
+         (L.V4 i j k l) = traceComm "ijkl" $ tran ^. L._z
          c = -(l+i*x+j*y)/k
-         invpv = traceComm "invpv" $ L.inv44  $ traceComm "persViewMatrix" (persViewMatrix !*! view)
-         d@(L.V4 rx ry rz rt) = traceComm "d" $ invpv !* if abs k > 0.00001 then L.V4 x y c 1 else L.V4 0 0 1 0 
+         tran = persViewMatrix !*! view
+         invpv = traceComm "invpv" $ L.inv44  $ traceComm "persViewMatrix" (tran)
+         (d@(L.V4 rx ry rz rt)) = traceComm "d" $ invpv !* if  traceComm "COND!!!!" $ abs (traceComm "K =" k) > 0.00001 then (L.V4 x y c 1) else (L.V4 0 0 1 0) 
+         res  = (tran !* d, L.V2 x y)  
 -- x, y <- (0, 1)
 -- rx ry 0 rt = persViewMatrix !* (tran !* (p ^. _v4))
 gui :: [Button] 
@@ -111,13 +112,14 @@ editorDisplay :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, 
                 IO ()
 editorDisplay  = do
   print "editorDisplay"
+
   siii@(GL.Size w h) <- GL.get GL.screenSize
   state' <- GL.get state
   tran  <- readIORef view
   let     toRaw :: ((Double, Double, Double, Double), HyperEntity ) -> IO ()
           toRaw (col, (P.Polygon list)) = do
                               GL.renderPrimitive GL.Polygon $ do
-                                color $ curry4 GL.Color4 $ if state' == Ground then mapTuple coerceG col else mapTuple coerceG col -- (1, 1, 1, 1) 
+                                color $ curry4 GL.Color4 $  mapTuple coerceG col  
                                 applyNormal list
                                 mapM_ transform list
           toRaw (col, (Segment a b)) = do
@@ -131,7 +133,7 @@ editorDisplay  = do
                                 transform a
           transform :: Point Double -> IO ()--saneVertex4 Double
 
-          transform p {- (H.Point x y z t) -} =  let (L.V4 x y z t) =  persViewMatrix  !* ( traceComm "VVV" $ tran !* (p ^. _v4)) in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
+          transform p {- (H.Point x y z t) -} =  let (L.V4 x y z t) =  persViewMatrix  !* ( {-traceComm "VVV" $-} tran !* (p ^. _v4)) in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
                     {- when ((x/t)>0) -}
                      do
                      (GL.vertex  $  saneVertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
@@ -143,7 +145,7 @@ editorDisplay  = do
   GL.clear [GL.ColorBuffer, GL.DepthBuffer]
   
   GL.position (GL.Light 0) $= lpos -- saneVertex4 0.3 0.1 0.15 (1::GLfloat)
-  -- mapM_ ( toRaw) (env)--  <> (coerce @Mesh @[((Double, Double, Double, Double), HyperEntity)] $ (let tt =  thatTransformation $  (P.Devi (Point 0.00001 0.0001 0.00001 1) (Abs 0.01 1 0.1) (0.1)) 
+  mapM_ ( toRaw) (env)--  <> (coerce @Mesh @[((Double, Double, Double, Double), HyperEntity)] $ (let tt =  thatTransformation $  (P.Devi (Point 0.00001 0.0001 0.00001 1) (Abs 0.01 1 0.1) (0.1)) 
                                                                                                -- in traceComm "iden" (tt !*! transposeMink tt) `seq` tt) !$ deviator ))
 
   GL.renderPrimitive GL.Triangles $ do

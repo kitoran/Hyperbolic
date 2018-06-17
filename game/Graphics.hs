@@ -2,7 +2,7 @@
     ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses, OverloadedStrings, MonoLocalBinds #-}
 module Graphics where
 import System.IO.Unsafe
-import Control.Monad(when)
+import Control.Monad
 import Control.Arrow
 import Graphics.UI.GLUT as GL
 {-(($=), 
@@ -73,12 +73,12 @@ type GLDouble = GLdouble
 traceComm s a = Debug.Trace.trace (s ++ " " ++ show a) a
 (GL.Size width height) = unsafePerformIO $ GL.get GL.screenSize
 persMatrix :: M44 Double
-persMatrix = L.perspective (H.tau/4) (1024/600{-fromIntegral width/fromIntegral height-}) (0.01) (1)
+persMatrix = L.perspective (H.tau/8) (1024/600{-fromIntegral width/fromIntegral height-}) (0.01) (1)
 viewMatrix = L.lookAt (V3 (0) 0 0) (V3 (1) (0) (0)) (V3 (0.0::Double) 0 (1))
 persViewMatrix :: M44 Double
 persViewMatrix = persMatrix {-!*! (L.V4 (L.V4 (1) 0 0 0) (L.V4 0 1 0 0) (L.V4 0 0 (-1) 0) (L.V4 0 0 0 1)) -} !*! viewMatrix
 saneVertex4  :: GLDouble -> GLDouble -> GLDouble -> GLDouble -> Vertex4 GLDouble
-saneVertex4 a b c d = if d*d >= 0 then traceComm "vert" $ Vertex4 (a) (b) (c) d else  Vertex4 (-a) (-b) (-c) (-d) -- error "w negaive" -- d -- (-1) 
+saneVertex4 a b c d = if d*d >= 0 then {-traceComm "vert" $ -}Vertex4 (a) (b) (c) d else  Vertex4 (-a) (-b) (-c) (-d) -- error "w negaive" -- d -- (-1) 
 
 origin :: Point Double
 origin = H.origin
