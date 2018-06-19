@@ -1,12 +1,20 @@
 {-# Language NoMonomorphismRestriction, BangPatterns, TupleSections, TemplateHaskell,
-    ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses, OverloadedStrings, MonoLocalBinds #-}
+    ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses, OverloadedStrings, MonoLocalBinds,
+      PatternSynonyms #-}
 module Graphics where
 import System.IO.Unsafe
 import Control.Monad
+import SDL.Raw.Enum(pattern SDL_SYSTEM_CURSOR_CROSSHAIR)
 import Control.Arrow
-import Graphics.UI.GLUT as GL
+import SDL.Video
+import qualified SDL.Vect as SDL
+import SDL.Init
+import SDL.Raw.Event
+import qualified SDL.Font as F 
+import SDL.Input.Mouse (activeCursor)
+import Graphics.Rendering.OpenGL as GL
 {-(($=), 
-                         lineSmooth, 
+                           lineSmooth, 
                          initialDisplayMode, 
                          DisplayMode( WithDepthBuffer, DoubleBuffered), 
                          Cursor( None ), 
@@ -41,6 +49,7 @@ import Linear hiding (perspective, lookAt, trace, distance)
 import qualified Linear as L
 import Data.Coerce
 import Debug.Trace
+import Data.IORef
 import Safe
 import Data.List
 import Data.Function
@@ -52,9 +61,9 @@ import Text.Show.Pretty
 import qualified Data.Set as S
 import Formatting
 import TextShow
+import Foreign.C.Types
 import TextShow.TH
 import Data.List (intercalate)
-import Graphics.UI.GLUT.Objects --fixme
 import qualified System.Random
 import qualified Control.Lens
 import Console
@@ -69,9 +78,22 @@ import qualified Graphics.Rendering.OpenGL.GL.CoordTrans (loadIdentity)
 -- --import qualified Debug.Trace 
 --В этом модуле находится столько всякой нефункциональности, что от двух маленьких unsafeperformio вреда не будет особого
 
+$(deriveTextShow ''V3)
+$(deriveTextShow ''Point)
+$(deriveTextShow ''V4)
+
+----------------------------------------------
+
+-- systemCursor :: SystemCursor -> Cursor
+-- systemCursor a = unsafePerformIO $ createSystemCursor SDL_SYSTEM_CURSOR_CROSSHAIR 
+
+----------------------------------------------
+
 type GLDouble = GLdouble
 traceComm s a = Debug.Trace.trace (s ++ " " ++ show a) a
-(GL.Size width height) = unsafePerformIO $ GL.get GL.screenSize
+(V2 width height) = let w = (fmap fromJust $ get sdlWindow :: IO Window)
+                      in unsafePerformIO $ ( fmap windowSize w  ) >>= get  -- GL.screenSize
+sans = unsafePerformIO $ F.load "Sans.ttf" 10
 persMatrix :: M44 Double
 persMatrix = L.perspective (H.tau/8) (1024/600{-fromIntegral width/fromIntegral height-}) (0.01) (1)
 viewMatrix = L.lookAt (V3 (0) 0 0) (V3 (1) (0) (0)) (V3 (0.0::Double) 0 (1))
@@ -79,23 +101,21 @@ persViewMatrix :: M44 Double
 persViewMatrix = persMatrix {-!*! (L.V4 (L.V4 (1) 0 0 0) (L.V4 0 1 0 0) (L.V4 0 0 (-1) 0) (L.V4 0 0 0 1)) -} !*! viewMatrix
 saneVertex4  :: GLDouble -> GLDouble -> GLDouble -> GLDouble -> Vertex4 GLDouble
 saneVertex4 a b c d = if d*d >= 0 then {-traceComm "vert" $ -}Vertex4 (a) (b) (c) d else  Vertex4 (-a) (-b) (-c) (-d) -- error "w negaive" -- d -- (-1) 
-
 origin :: Point Double
 origin = H.origin
-$(deriveTextShow ''V3)
-$(deriveTextShow ''Point)
-$(deriveTextShow ''V4)
+
+sdlWindow = unsafePerformIO $ newIORef (Nothing::Maybe Window)
+
 initialiseGraphics ::  IO ()
 initialiseGraphics = do
     putStrLn "68"
-    initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered]
+    -- initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered]
     putStrLn "70"
-    _ <- getArgsAndInitialize
+    SDL.Init.initialize [InitVideo]
+    F.initialize
     putStrLn "72"
-    _window <- createWindow "Hyperbolic"
+    (sdlWindow $=) =<< fmap Just (createWindow "Hyperbolic" defaultWindow {windowMode = FullscreenDesktop})
     putStrLn "74"
-    fullScreen
-    putStrLn "76"
     depthFunc $= Just Less
     putStrLn "77"
     depthBounds $= Nothing
@@ -105,7 +125,10 @@ initialiseGraphics = do
     blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
     polygonOffset $= (-0.2, 1) 
     lineWidth $= 2
-    cursor $= FullCrosshair
+    cursor <- createSystemCursor SDL_SYSTEM_CURSOR_CROSSHAIR
+    setCursor cursor
+    putStrLn "78"  
+    -- matrixMode $=  Projection
     lighting           $= Enabled 
     light (Light 0)    $= Enabled
     lightModelAmbient  $= Color4 0.5 0.5 0.5 1 
@@ -126,60 +149,67 @@ initialiseGraphics = do
     -- attachShader p f
     -- attachShader p f2
     -- linkProgram p
-    -- currentProgram $= Just p 
-    get matrixMode >>= print
+    -- currentProgram $= Just p
+
+    putStrLn "79" 
+    -- get matrixMode >>= print
     diffuse (Light 0)  $= Color4 1 1 1 1
     blend              $= Enabled
     -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) -- ??????????????????????????
     colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
     -- matrixMode $= Projection
     let printc s a = putStrLn $ s ++ ": " ++ show a
-    (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
+    -- (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
     
-    print "callingp erspective"
+    -- print "callingp erspective"
     -- perspective 45 (1024/600) (0.001) (1.1)
-    (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
+    -- (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
     
-    (get (matrix $ Just $ Modelview 0) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLMV"
+    -- (get (matrix $ Just $ Modelview 0) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLMV"
     -- print "calling lookat"
     -- lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
-    (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
-    (get (matrix $ Just Projection) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLPR"
-    (get (matrix $ Just $ Modelview 0) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLMV"
-    printc "persMatrix" persMatrix
-    printc "viewMatrix" viewMatrix
-    printc "persViewMatrix" persViewMatrix
-    printc "viewMatrix !*! persMatrix" $ viewMatrix !*! persMatrix
+    -- (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
+    -- (get (matrix $ Just Projection) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLPR"
+    -- (get (matrix $ Just $ Modelview 0) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLMV"
+    -- printc "persMatrix" persMatrix
+    -- printc "viewMatrix" viewMatrix
+    -- printc "persViewMatrix" persViewMatrix
+    -- printc "viewMatrix !*! persMatrix" $ viewMatrix !*! persMatrix
     -- fail "0"
     -- Just a <- return Nothing
     return ()
 
 lpos = Vertex4 (-1.4313725157195931) 2.663858068380254e-6 (0.3::GLfloat) 1.8460891382643082 
 
-renderConsole :: T.Text -> IO () 
+renderConsole :: T.Text -> IO () -- Maybe (Rectangle CInt)) 
 renderConsole s = do
-      h <- fontHeight Helvetica10
-      let liness = T.lines s
-      go liness 0 h
-   where
-     go []  _  _ = return ()
-     go (f:ff) r h = do
-       windowPos $ Vertex3 0 (fromIntegral r*h) (0::GLfloat)
-       renderString Helvetica10 $ T.unpack f
-       go ff (r+1) h
+      (_, h) <- F.size sans s
+      sur <- F.solid sans (L.V4 0 0 255 255) s
+      Just win <- get  sdlWindow
+      winsur <- getWindowSurface win
+      void $ surfaceBlit sur Nothing winsur $ Just $ SDL.P $ V2 0 (height - (fromIntegral h))
 
-renderText :: T.Text -> IO () 
-renderText s = do
-      h <- fontHeight Helvetica10
-      let liness = T.lines s
-          qwe = length liness
-      go liness qwe  h
+      -- let liness = T.lines s
+      -- go liness 0 h -- теперь это всё не надо считать, можно просто высоту текста тра та та
    where
-     go [] 0  h = return ()
-     go (f:ff) r h = do
-       windowPos $ Vertex3 0 (fromIntegral r*h) (0::GLfloat)
-       renderString Helvetica10 $ T.unpack f
-       go ff (r-1) h
+     -- go []  _  _ = return ()
+     -- go (f:ff) r (h) = do
+       -- windowPos $ Vertex3 0 (r*h) (0)
+       -- go ff (r+1) h
+
+renderText :: T.Text -> IO () --   Maybe (Rectangle CInt)) 
+renderText s = do
+      -- h <- F.lineSkip sans
+      renderConsole s  
+      -- let liness = T.lines s
+          -- qwe = length liness
+      -- go liness qwe  h
+   where
+     -- go [] 0  h = return ()
+     -- go (f:ff) r h = do
+       -- windowPos $ Vertex3 0 (r*h) (0)
+       -- renderString Helvetica10 $ T.unpack f 
+       -- go ff (r-1) h
 mareix :: Coercible Double a => M44 a -> T.Text
 mareix m = T.unlines $ fmap wer [a, s, d, f]
   where q = (fmap.fmap) coerce m
@@ -192,7 +222,7 @@ displayGame :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Co
 displayGame cons whecons (Mesh env) drawFrame tranw state = do
   matrixMode $= Projection
   -- print cons
-  clear [ColorBuffer, DepthBuffer]
+  GL.clear [ColorBuffer, DepthBuffer]
   -- putStrLn $ "What displayGame sees:" <> show tranw
   lighting           $= Enabled 
   preservingMatrix $ do
@@ -241,7 +271,7 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
     --                                          "insanity " <> showt (H.insanity tran),
     --                                          mareix tran]))
 
-  swapBuffers
+  glSwapWindow =<< (fmap fromJust $ get sdlWindow)
   -- return ()
     where 
           tran = tranw

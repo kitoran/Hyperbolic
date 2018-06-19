@@ -90,6 +90,7 @@ executable Hyperbolic
                      -- , bindings-GLFW
                     -- , GLFW-b
                      , sdl2
+                     , sdl2-ttf
                      , template-haskell
                      , mtl
                      , QuickCheck

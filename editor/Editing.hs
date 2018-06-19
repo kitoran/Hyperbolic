@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE DataKinds #-}
@@ -36,34 +37,36 @@ import Debug.Trace
 import Control.Monad
 import Data.IORef
 import Data.Foldable
+import qualified Data.Text as T
 import Data.Strict.Tuple hiding (snd, uncurry)
+import qualified SDL.Font as F 
 import qualified Data.Strict.Tuple as S
 import Data.Char
 import Hyperbolic
 import Data.Proxy
 import GHC.Exts (coerce)
-
+import qualified SDL  
 import Data.Monoid
 import Control.Concurrent
 import Control.Lens ((^.), (%~), (&))
 import Control.Concurrent.Chan
 import Control.Concurrent.MVar 
 import Debug.Trace
+import Foreign.C.Types
+import Graphics.Rendering.OpenGL as GL hiding (Point)
 import Physics  as P (Mesh(..), HyperEntity(..), AvatarPosition(..))
 import qualified Physics  as P
 import Control.Concurrent.Chan
 import Linear as L
 import System.IO.Unsafe
-import qualified Graphics.UI.GLUT as GL
 -- import qualified Linear as L
-import  Graphics.UI.GLUT (GLdouble, color, ($=), GLfloat, GLint)
 import  Graphics
 -- eventQueue = unsafePerformIO $ newChan
 -- data Event = User UserEvent GL.Modifiers | Leave
 -- data UserEvent = Mouse GL.MouseButton GL.KeyState GL.Position
 -- model :: IORef (Environment)
 data State = AddingWall | Ground deriving (Read, Show, Eq)
-windowPos (GL.Position x y) = GL.windowPos (GL.Vertex2 x (height-y)) 
+-- windowPos (V2 x y) = set?windowPos (V2 x (height-y)) 
 model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ [
                                              ((0.9, 0.1, 1, 1.0),  
                                              (P.Polygon ) $
@@ -77,15 +80,13 @@ model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ [
             []
 
 view = unsafePerformIO $ newIORef $ (  rotateAroundY (-0.2 {-tau/(4-0.1)-})  !*! {- moveAlongZ (-0.1) !*! moveAlongX (0.01)) --}  L.identity::L.M44 Double)
-mouse = unsafePerformIO $ newIORef $ GL.Position 0 0 
+mouse = unsafePerformIO $ newIORef $ SDL.P (V2 0 0) 
 state = unsafePerformIO $ newIORef Ground 
-editorPassiveMotionCallback :: (GL.Position ) -> IO ()
-editorPassiveMotionCallback pos = (mouse $= pos) >> GL.postRedisplay Nothing
 
-mapVertexPixel :: GL.Position -> L.V2 GLdouble
-mapVertexPixel (GL.Position a b) = L.V2 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) 
+mapVertexPixel :: SDL.Point V2 CInt -> L.V2 GLdouble
+mapVertexPixel (SDL.P (V2 a b)) = L.V2 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) 
                                         (1 - (fromIntegral b)*2/(fromIntegral height) ) --0 1beingAddedWall :: GL.Position -> Mesh 
-beingAddedWall :: GL.Position -> L.M44 Double -> Mesh
+beingAddedWall :: SDL.Point V2 CInt -> L.M44 Double -> Mesh
 beingAddedWall pos view = traceComm "RES POINT = " res `seq` --(GL.Position xi yi) =  
                                       assert (abs rz < 0.04) $ Mesh $ 
                                                             [((0.0, 0.0, 1.0, 1.0), 
@@ -105,7 +106,7 @@ beingAddedWall pos view = traceComm "RES POINT = " res `seq` --(GL.Position xi y
 -- x, y <- (0, 1)
 -- rx ry 0 rt = persViewMatrix !* (tran !* (p ^. _v4))
 gui :: [Button] 
-gui = [Button "wall" (GL.Position 300 200) (print "action" >> state $= AddingWall)]
+gui = [Button "wall" (SDL.P $ V2 300 200) (print "action" >> state $= AddingWall)]
 
 editorDisplay :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)Matri
                                          => -}
@@ -113,9 +114,9 @@ editorDisplay :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, 
 editorDisplay  = do
   print "editorDisplay"
 
-  siii@(GL.Size w h) <- GL.get GL.screenSize
-  state' <- GL.get state
-  tran  <- readIORef view
+  
+  state' <- get state
+  tran  <- get view
   let     toRaw :: ((Double, Double, Double, Double), HyperEntity ) -> IO ()
           toRaw (col, (P.Polygon list)) = do
                               GL.renderPrimitive GL.Polygon $ do
@@ -170,7 +171,7 @@ editorDisplay  = do
   --    GL.vertex $ GL.Vertex4 (-0.5) (1) (0.5::GLdouble) 1 
   uselessName <- GL.get state
   when (uselessName == AddingWall) $ do
-    m <- GL.get mouse
+    (m ::SDL.Point V2 CInt) <- get mouse
     mapM_ @[] ( toRaw) $ coerce $ beingAddedWall m  tran
   color $ GL.Color4 1 1 (1::GLdouble) 0.1
   GL.renderPrimitive GL.Triangles $ do
@@ -195,7 +196,9 @@ editorDisplay  = do
   GL.depthFunc $= Just GL.Less
   GL.depthMask $= GL.Enabled
   color $ GL.Color3 0 0 (1::GLdouble)
-  GL.swapBuffers
+  Just win <- get sdlWindow
+  -- ren <- SDL.createRenderer  sdlWindow defaultRenderer
+  SDL.glSwapWindow win
   -- return ()
     where 
           -- tran = tranw
@@ -211,6 +214,7 @@ editorDisplay  = do
                         (L.V4 e f g h)
                         (L.V4 i j k l)
                         (L.V4 m n o p)) = [coerceG a,coerceG  b,coerceG  c,coerceG  d,coerceG  e,coerceG  f,coerceG  g,coerceG  h,coerceG  i,coerceG  j,coerceG  k ,coerceG  l,coerceG  m,coerceG  n,coerceG  o,coerceG  p]
+--editorMouseCallback ::  
 editorMouseCallback butt buttState pos =  do
   -- windowPos $ (traceComm "pos") pos 
   -- color $ GL.Color3 0 1 (0::GLdouble)
@@ -222,29 +226,25 @@ editorMouseCallback butt buttState pos =  do
     buttRectangle guiButt `contains` pos ) gui :: Maybe Button of
      Nothing -> state $= Ground
      Just (Button _ _ a) -> a
-   GL.postRedisplay Nothing
-
+   -- GL.postRedisplay Nothing
+buttRectangle :: Button -> SDL.Rectangle CInt
+buttRectangle = error "buttRectangle is undefined" 
 editorSpecialCallback _ _ = return ()
 editorKeyboardCallback a = return ()
-
-data Button = Button { _text:: !String, _pos:: !GL.Position, _action::IO () }
+ 
+data Button = Button { _text:: !T.Text, _pos:: !(SDL.Point V2 CInt), _action::IO () }
 -- displayButton :: Button -> ( -> IO ()
-type Rectangle = ((GL.GLint :!: GL.GLint) :!: (GL.GLint :!: GL.GLint))
-fontHeight = round $ unsafePerformIO $ GL.fontHeight GL.TimesRoman24
+type Rectangle = SDL.Rectangle CInt-- ((GL.GLint :!: GL.GLint) :!: (GL.GLint :!: GL.GLint))
+fontHeight = 24
 margin = 3
-buttRectangle :: Button -> Rectangle
-buttRectangle (Button text (GL.Position a b) _) =
-
-  let i = unsafePerformIO $ GL.stringWidth GL.TimesRoman24 $ text 
-   in (((a :!: (b )) :!:  (((a + i + 2*margin) :!: (b + fontHeight + 2*margin)))))
-contains :: Rectangle -> GL.Position -> Bool
-contains ((lx :!: ly) :!: (hx :!: hy)) (GL.Position x y) = 
-  traceComm "lx" lx <= traceComm "x" x && traceComm "ly" ly <= traceComm "y" y && traceComm "hx" hx >= x && traceComm "hx" hy >= y
+contains :: Rectangle -> SDL.Point V2 CInt -> Bool
+contains (SDL.Rectangle (SDL.P (V2 lx ly)) (V2 sx sy)) (SDL.P (V2 x y)) = 
+  traceComm "lx" lx <= traceComm "x" x && traceComm "ly" ly <= traceComm "y" y && traceComm "hx" (lx+sx) >= x && traceComm "hx" (ly+sy) >= y
 
 mapPixelVertex a b = GL.vertex $  saneVertex4 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) 
                                              (1 - (fromIntegral b)*2/(fromIntegral height) ) 0 1
 displayRectangle :: Rectangle -> IO ()
-displayRectangle ((lx :!: ly) :!: (hx :!: hy)) = (GL.renderPrimitive GL.Quads $ do
+displayRectangle (SDL.Rectangle (SDL.P (V2 lx ly)) (V2 sx sy)) = (GL.renderPrimitive GL.Quads $ do
                                                     -- let re@(saneVertex4 x y z t) = saneVertex4 0.5 (-0.5) 0 1 --lpos
                                                     -- GL.vertex $ saneVertex4 (x+0.01::GLdouble) y z t
 
@@ -259,21 +259,23 @@ displayRectangle ((lx :!: ly) :!: (hx :!: hy)) = (GL.renderPrimitive GL.Quads $ 
 -- 
                                                     -- GL.vertex $ saneVertex4 x (y+0.01::GLdouble) z t
                                                     -- GL.vertex $ saneVertex4 x y (z+0.01::GLdouble) t                            
-                                                    mapPixelVertex  hx ly
-                                                    mapPixelVertex  hx hy 
-                                                    mapPixelVertex  lx hy
+                                                    mapPixelVertex  (lx+sx) ly
+                                                    mapPixelVertex  (lx+sx) (ly+sy) 
+                                                    mapPixelVertex  lx (ly+sy)
                                                     )
 
 
 
 displayButton :: Button -> IO ()
-displayButton butt@(Button text (GL.Position a b) _) = do
+displayButton butt@(Button text (SDL.P (V2 a b)) _) = do
   -- GL.ortho 
   color $ GL.Color4 0 1 (0.5::GLdouble) 1
+  (_, h) <- F.size sans text
 
-  displayRectangle $ buttRectangle butt
   color $ GL.Color3 0 0 (1::GLdouble)
-  h <- fmap round $ GL.fontHeight GL.TimesRoman24
-  windowPos $ GL.Position (a + margin) (b + h + margin) 
+  -- windowPos $ GL.Position (a + margin) (b + h + margin)
+  sur <- F.solid sans (L.V4 0 0 255 255) text
+  Just win <- get  sdlWindow
+  winsur <- SDL.getWindowSurface win
+  void $ SDL.surfaceBlit sur Nothing winsur $ Just $ SDL.P $ V2 0 (height - (fromIntegral h))
   color $ GL.Color3 0 1 (0::GLdouble)
-  GL.renderString GL.TimesRoman24 (text)
