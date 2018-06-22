@@ -4,11 +4,13 @@
 module Graphics where
 import System.IO.Unsafe
 import Control.Monad
+import Graphics.GL
 import SDL.Raw.Enum(pattern SDL_SYSTEM_CURSOR_CROSSHAIR)
 import Control.Arrow
 import SDL.Video
 import qualified SDL.Vect as SDL
 import SDL.Init
+import qualified SDL.Raw as Raw
 import SDL.Raw.Event
 import qualified SDL.Font as F 
 import SDL.Input.Mouse (activeCursor)
@@ -39,7 +41,7 @@ import Graphics.Rendering.OpenGL as GL
                          vertex,
                          Vertex3(Vertex3),
                          Vector3(..) )-}
-import qualified Graphics.Rendering.OpenGL.GLU.Matrix (perspective, lookAt)
+import qualified Graphics.Rendering.OpenGL
 import Physics  as P (Mesh(..), HyperEntity(..), AvatarPosition(..))
 import qualified Physics  as P
 import Hyperbolic as H (box, Point(..), transposeMink, normalizeWass, _v4, klein, origin3, _t, distance, (!$)
@@ -56,11 +58,13 @@ import Data.Function
 import Data.Maybe
 import Data.Monoid
 import Data.Group
+import Foreign.C.String
 import qualified Data.Text as T
 import Text.Show.Pretty
 import qualified Data.Set as S
 import Formatting
 import TextShow
+import Foreign hiding ( void)
 import Foreign.C.Types
 import TextShow.TH
 import Data.List (intercalate)
@@ -91,7 +95,7 @@ $(deriveTextShow ''V4)
 
 type GLDouble = GLdouble
 traceComm s a = Debug.Trace.trace (s ++ " " ++ show a) a
-(V2 width height) = let w = (fmap fromJust $ get sdlWindow :: IO Window)
+(V2 width height) = let w = ( get sdlWindow :: IO Window)
                       in unsafePerformIO $ ( fmap windowSize w  ) >>= get  -- GL.screenSize
 sans = unsafePerformIO $ F.load "Sans.ttf" 10
 persMatrix :: M44 Double
@@ -103,8 +107,63 @@ saneVertex4  :: GLDouble -> GLDouble -> GLDouble -> GLDouble -> Vertex4 GLDouble
 saneVertex4 a b c d = if d*d >= 0 then {-traceComm "vert" $ -}Vertex4 (a) (b) (c) d else  Vertex4 (-a) (-b) (-c) (-d) -- error "w negaive" -- d -- (-1) 
 origin :: Point Double
 origin = H.origin
+sdlWindow :: IORef Window
+sdlWindow = unsafePerformIO $ newIORef (error "thissssssssdlWindow")
 
-sdlWindow = unsafePerformIO $ newIORef (Nothing::Maybe Window)
+glContext :: IORef GLContext
+glContext = unsafePerformIO $ newIORef (error "thissssssglcossdlWindow")
+
+initGL :: IO Bool
+initGL = do
+  gProgramID <- glCreateProgram
+  vertexShader <- glCreateShader 1
+  src <- newCString "#version 140\nin vec2 LVertexPos2D; void main() { gl_Position = vec4( LVertexPos2D.x, LVertexPos2D.y, 0, 1 ); }"
+  strings <- new src
+  glShaderSource vertexShader 1 strings nullPtr
+  glCompileShader vertexShader
+  vShaderCompiled <- fmap castPtr $ new GL_FALSE
+  glGetShaderiv vertexShader GL_COMPILE_STATUS (vShaderCompiled)
+  nre <- peek vShaderCompiled
+  when (nre == 0)
+      (error "shader1")
+  glAttachShader gProgramID vertexShader
+  fragmentShader <- glCreateShader GL_FRAGMENT_SHADER
+  src <- newCString "#version 140\nout vec4 LFragment; void main() { LFragment = vec4( 1.0, 1.0, 1.0, 1.0 ); }"
+  fragmentShaderSource <- new src
+  glShaderSource fragmentShader 1 fragmentShaderSource nullPtr
+  glCompileShader fragmentShader
+  fShaderCompiled <- fmap castPtr $ new GL_FALSE
+  glGetShaderiv fragmentShader GL_COMPILE_STATUS (fShaderCompiled)
+  nre <- peek vShaderCompiled
+  when (nre == 0)
+      (error "shader2")
+  glAttachShader gProgramID fragmentShader
+  glLinkProgram gProgramID
+  programSuccess <- fmap castPtr $ new GL_FALSE
+  glGetShaderiv gProgramID GL_LINK_STATUS (programSuccess)
+  nre <- peek programSuccess
+  when (nre == 0)
+      (error "Error linking program")
+  -- gVertexPos2DLocation <- withCString "LVertexPos2D" $ glGetAttribLocation gProgramID 
+  -- when (gVertexPos2DLocation == (-1))
+    -- (error "LVertexPos2D is not a valid glsl program variable!")
+  glClearColor 0 0 0 1
+  vertexData <- newArray [-0.5, -0.5,
+                         0.5::GLfloat, -0.5,
+                         0.5,  0.5,
+                        -0.5,  0.5]
+  indexData <-  newArray [0, 1, 2, 3::GLuint]
+  gVBO <- malloc
+  glGenBuffers 1 gVBO
+  glBindBuffer GL_ARRAY_BUFFER 0 --gVBO ? хуй пойми блять
+  glBufferData GL_ARRAY_BUFFER (fromIntegral $ 2 * 4 * sizeOf(0::GLfloat)) vertexData GL_STATIC_DRAW 
+  gIBO <- malloc
+  glGenBuffers 1 gIBO 
+
+  glBindBuffer  GL_ELEMENT_ARRAY_BUFFER 0 -- gIBO 
+  glBufferData  GL_ELEMENT_ARRAY_BUFFER (fromIntegral $  4 * sizeOf(0::GLuint)) indexData GL_STATIC_DRAW 
+  error "Success"
+  
 
 initialiseGraphics ::  IO ()
 initialiseGraphics = do
@@ -114,24 +173,29 @@ initialiseGraphics = do
     SDL.Init.initialize [InitVideo]
     F.initialize
     putStrLn "72"
-    (sdlWindow $=) =<< fmap Just (createWindow "Hyperbolic" defaultWindow {windowMode = FullscreenDesktop})
-    putStrLn "74"
-    depthFunc $= Just Less
-    putStrLn "77"
-    depthBounds $= Nothing
-    lineSmooth $= Enabled
-    polygonOffsetFill $= Enabled
-    blend $= Enabled
-    blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
-    polygonOffset $= (-0.2, 1) 
-    lineWidth $= 2
-    cursor <- createSystemCursor SDL_SYSTEM_CURSOR_CROSSHAIR
-    setCursor cursor
-    putStrLn "78"  
-    -- matrixMode $=  Projection
-    lighting           $= Enabled 
-    light (Light 0)    $= Enabled
-    lightModelAmbient  $= Color4 0.5 0.5 0.5 1 
+    (sdlWindow $=) =<< createWindow "Hyperbolic" defaultWindow {windowMode = FullscreenDesktop, windowOpenGL = Just defaultOpenGL {glProfile = Core Normal 3 1}}
+    (glContext $=) =<< glCreateContext =<< get sdlWindow
+    er <- Raw.glSetSwapInterval 1
+    when (er < 0) 
+      (putStrLn "Warning: Unable to set VSync! SDL Error: (SDL_GetError())")
+    res <- initGL  
+    return ()
+    -- putStrLn "74"
+    -- depthFunc $= Just Less
+    -- putStrLn "77"
+    -- depthBounds $= Nothing
+    -- lineSmooth $= Enabled
+    -- polygonOffsetFill $= Enabled
+    -- blend $= Enabled
+    -- blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
+    -- polygonOffset $= (-0.2, 1) 
+    -- lineWidth $= 2
+    -- cursor <- createSystemCursor SDL_SYSTEM_CURSOR_CROSSHAIR
+    -- setCursor cursor
+    -- putStrLn "78"  
+    -- lighting           $= Enabled 
+    -- light (Light 0)    $= Enabled
+    -- lightModelAmbient  $= Color4 0.5 0.5 0.5 1 
     -- v <- createShader VertexShader
     -- f <- createShader FragmentShader
     -- f2 <- createShader FragmentShader
@@ -185,7 +249,7 @@ renderConsole :: T.Text -> IO () -- Maybe (Rectangle CInt))
 renderConsole s = do
       (_, h) <- F.size sans s
       sur <- F.solid sans (L.V4 0 0 255 255) s
-      Just win <- get  sdlWindow
+      win <- get sdlWindow
       winsur <- getWindowSurface win
       void $ surfaceBlit sur Nothing winsur $ Just $ SDL.P $ V2 0 (height - (fromIntegral h))
 
@@ -271,7 +335,7 @@ displayGame cons whecons (Mesh env) drawFrame tranw state = do
     --                                          "insanity " <> showt (H.insanity tran),
     --                                          mareix tran]))
 
-  glSwapWindow =<< (fmap fromJust $ get sdlWindow)
+  glSwapWindow =<< ( get sdlWindow)
   -- return ()
     where 
           tran = tranw
