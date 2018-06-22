@@ -196,7 +196,7 @@ editorDisplay  = do
   GL.depthFunc $= Just GL.Less
   GL.depthMask $= GL.Enabled
   color $ GL.Color3 0 0 (1::GLdouble)
-  Just win <- get sdlWindow
+  win <- get sdlWindow
   -- ren <- SDL.createRenderer  sdlWindow defaultRenderer
   SDL.glSwapWindow win
   -- return ()
@@ -275,7 +275,7 @@ displayButton butt@(Button text (SDL.P (V2 a b)) _) = do
   color $ GL.Color3 0 0 (1::GLdouble)
   -- windowPos $ GL.Position (a + margin) (b + h + margin)
   sur <- F.solid sans (L.V4 0 0 255 255) text
-  Just win <- get  sdlWindow
+  win <- get  sdlWindow
   winsur <- SDL.getWindowSurface win
   void $ SDL.surfaceBlit sur Nothing winsur $ Just $ SDL.P $ V2 0 (height - (fromIntegral h))
   color $ GL.Color3 0 1 (0::GLdouble)
