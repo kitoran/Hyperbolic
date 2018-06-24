@@ -1,21 +1,26 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RebindableSyntax #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE Strict #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE MonomorphismRestriction #-} 
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
 -- # LANGUAGE PatternSynonyms  #
@@ -28,13 +33,19 @@ these uses of unsafeperformio are much safer than say reading file with hGetCont
 -}
 
 module Editing where
-
+import Control.Monad.Indexed
+import Data.Time
 import System.IO
-import Control.Exception.Base (assert)
+import Foreign
+import Graphics.GL
+import Control.Concurrent
+import Data.Function
+import Data.Time
+import Control.Exception.Base (assert, bracket)
 import System.Exit
 -- import Data.Sequence
 import Debug.Trace
-import Control.Monad
+import Control.Monad hiding (return, (>>=), (>>))
 import Data.IORef
 import Data.Foldable
 import qualified Data.Text as T
@@ -42,8 +53,14 @@ import Data.Strict.Tuple hiding (snd, uncurry)
 import qualified SDL.Font as F 
 import qualified Data.Strict.Tuple as S
 import Data.Char
+import SDL hiding(Point, Rectangle)
+import qualified SDL.Raw as Raw
 import Hyperbolic
+import Control.Monad.IO.Class
 import Data.Proxy
+import Data.String 
+import Prelude hiding (return, (>>=), (>>))
+import qualified Prelude as P (return, (>>=), (>>)) 
 import GHC.Exts (coerce)
 import qualified SDL  
 import Data.Monoid
@@ -57,16 +74,21 @@ import Graphics.Rendering.OpenGL as GL hiding (Point)
 import Physics  as P (Mesh(..), HyperEntity(..), AvatarPosition(..))
 import qualified Physics  as P
 import Control.Concurrent.Chan
-import Linear as L
+import Linear as L hiding (trace) 
 import System.IO.Unsafe
 -- import qualified Linear as L
 import  Graphics
+import Data.Singletons.TH 
+$(singletons [d|
+  data State = AddingWall | Ground deriving (Read, Show, Eq)
+  |]) 
 -- eventQueue = unsafePerformIO $ newChan
 -- data Event = User UserEvent GL.Modifiers | Leave
 -- data UserEvent = Mouse GL.MouseButton GL.KeyState GL.Position
 -- model :: IORef (Environment)
-data State = AddingWall | Ground deriving (Read, Show, Eq)
--- windowPos (V2 x y) = set?windowPos (V2 x (height-y)) 
+-- windowPos (V2 x y) = set?windowPos (V2 x (height-y))
+ifThenElse True a b = a
+ifThenElse False a b = b 
 model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ [
                                              ((0.9, 0.1, 1, 1.0),  
                                              (P.Polygon ) $
@@ -106,7 +128,7 @@ beingAddedWall pos view = traceComm "RES POINT = " res `seq` --(GL.Position xi y
 -- x, y <- (0, 1)
 -- rx ry 0 rt = persViewMatrix !* (tran !* (p ^. _v4))
 gui :: [Button] 
-gui = [Button "wall" (SDL.P $ V2 300 200) (print "action" >> state $= AddingWall)]
+gui = [Button "wall" (SDL.P $ V2 300 200) ( (print "action") )]
 
 editorDisplay :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)Matri
                                          => -}
@@ -213,26 +235,29 @@ editorDisplay  = do
           m44toList (L.V4 (L.V4 a b c d)
                         (L.V4 e f g h)
                         (L.V4 i j k l)
-                        (L.V4 m n o p)) = [coerceG a,coerceG  b,coerceG  c,coerceG  d,coerceG  e,coerceG  f,coerceG  g,coerceG  h,coerceG  i,coerceG  j,coerceG  k ,coerceG  l,coerceG  m,coerceG  n,coerceG  o,coerceG  p]
---editorMouseCallback ::  
-editorMouseCallback butt buttState pos =  do
+                        (L.V4 m n o p)) = [coerceG a, coerceG b, coerceG c, coerceG d, coerceG e, coerceG f, coerceG g, coerceG h, coerceG i, coerceG j, coerceG k, coerceG l, coerceG m, coerceG n, coerceG o, coerceG p]
+          (>>=) = (P.>>=)
+          return = P.return
+          (>>) = (P.>>)
+
+-- editorMouseCallback ::    
+-- editorMouseCallback mdata = do
   -- windowPos $ (traceComm "pos") pos 
   -- color $ GL.Color3 0 1 (0::GLdouble)
   -- GL.renderString GL.TimesRoman24 "Lol"
   -- GL.swapBuffers
-   print "editorMouseCallback" 
-   mouse $= pos
-   case find (\guiButt -> 
-    buttRectangle guiButt `contains` pos ) gui :: Maybe Button of
-     Nothing -> state $= Ground
-     Just (Button _ _ a) -> a
+   -- print "editorMouseCallback" 
+   -- mouse $= SDL.P (V2 0 0)
+   -- case find (\guiButt -> 
+    -- buttRectangle guiButt `contains` SDL.P (V2 0 0) ) gui :: Maybe Button of
+     -- Nothing -> state $= Ground
+     -- Just (Button _ _ a) -> a
    -- GL.postRedisplay Nothing
 buttRectangle :: Button -> SDL.Rectangle CInt
 buttRectangle = error "buttRectangle is undefined" 
 editorSpecialCallback _ _ = return ()
 editorKeyboardCallback a = return ()
  
-data Button = Button { _text:: !T.Text, _pos:: !(SDL.Point V2 CInt), _action::IO () }
 -- displayButton :: Button -> ( -> IO ()
 type Rectangle = SDL.Rectangle CInt-- ((GL.GLint :!: GL.GLint) :!: (GL.GLint :!: GL.GLint))
 fontHeight = 24
@@ -263,7 +288,8 @@ displayRectangle (SDL.Rectangle (SDL.P (V2 lx ly)) (V2 sx sy)) = (GL.renderPrimi
                                                     mapPixelVertex  (lx+sx) (ly+sy) 
                                                     mapPixelVertex  lx (ly+sy)
                                                     )
-
+  where 
+          (>>) = (P.>>)
 
 
 displayButton :: Button -> IO ()
@@ -275,7 +301,129 @@ displayButton butt@(Button text (SDL.P (V2 a b)) _) = do
   color $ GL.Color3 0 0 (1::GLdouble)
   -- windowPos $ GL.Position (a + margin) (b + h + margin)
   sur <- F.solid sans (L.V4 0 0 255 255) text
-  win <- get  sdlWindow
-  winsur <- SDL.getWindowSurface win
-  void $ SDL.surfaceBlit sur Nothing winsur $ Just $ SDL.P $ V2 0 (height - (fromIntegral h))
+  texture <- malloc
+  glGenTextures 1 texture
+  nt <- get texture
+  Graphics.GL.glBindTexture GL_TEXTURE_2D nt
+  V2 w h <- surfaceDimensions sur
+  lockSurface sur 
+  p <- surfacePixels sur
+  glTexImage2D GL_TEXTURE_2D 0 4 (fromIntegral w) (fromIntegral h) 0 GL_RGBA GL_UNSIGNED_BYTE p
+  unlockSurface sur 
+
+  -- win <- get  sdlWindow
+  -- rend <- get rendererR
+  -- text <- createTextureFromSurface rend sur -- FIXME непонятно надо ли освобождать sur
+  -- glBindTexture text 
+  -- rasterPos 
+  -- winsur <- SDL.getWindowSurface win
+  -- void $ SDL.surfaceBlit sur Nothing winsur $ Just $ SDL.P $ V2 0 (height - (fromIntegral h))
   color $ GL.Color3 0 1 (0::GLdouble)
+ where
+          (>>=) = (P.>>=)
+          return::Monad m => a -> m a
+          return = P.return
+          (>>) = (P.>>)
+
+-- startAddingWall :: Editor Ground AddingWall ()
+-- startAddingWall = fix error
+-- stopAddingWall :: Editor AddingWall Ground P.Mesh
+-- stopAddingWall = undefined
+data Button where
+  Button :: { _text:: !T.Text, _pos:: !(SDL.Point V2 CInt), _action:: IO () } -> Button
+data Action :: State -> State -> * -> * where
+  Do :: IO a -> Action i i a
+  StartAddingWall :: Action Ground AddingWall ()
+  AddWall :: Mesh -> Action AddingWall Ground Mesh 
+deriving instance Show (Action a b c)
+instance Show (IO a) where
+  show a = "<IO action>"
+instance (Show f) => Show (CommandIxMonad Action d e f) where
+  show (CReturn a) = show a
+  show (a :? f) = "(" ++ show a ++ ":? <some function>)"
+
+run :: Show c => Editor a b c -> IO c
+-- run = print 
+run (CReturn a) = P.return a
+run ((Do a) :? j) = a P.>>= (\r -> run (j r))   
+run (StartAddingWall :? f) = run (f ())
+run ((AddWall m) :? f) = run (f m) 
+inject :: Action a b c -> Editor a b c
+inject a = a :? CReturn
+
+data CommandIxMonad :: (state -> state -> * -> *) ->
+                       (state -> state -> * -> *) where
+  CReturn  :: a -> CommandIxMonad c i i a
+  (:?)     :: c i j a -> (a -> CommandIxMonad c j k b) ->
+                CommandIxMonad c i k b 
+instance IxMonad (CommandIxMonad c) where
+  ibind k act =  ( case act of
+    (CReturn a) ->  (k a)
+    (c :? j)    ->  (c :? \ a -> ibind k (j a)))
+-- (c :? j) >>= k = (c :? \ a -> ibind k (j a)))
+-- a >> b = ibind b a
+a >> b =  ((imap (const id) a) `iap` b) -- ( a >>>= \_ -> b)
+(>>=) = (>>>=)
+return = ireturn
+instance IxApplicative (CommandIxMonad c) where
+  iap (CReturn f) (CReturn a) = CReturn (f a) -- f >>>= \nf -> a >>>= \na -> ireturn (nf na)
+  iap (CReturn f) (c :? j) = (c :? \a -> imap f (j a))
+  iap (act :? jf) q = (act :? \a1 -> jf a1 `iap` q) -- const (fix id) (fmap jf act)  
+  iap (f :? jf) q = (f :? \a -> jf a `iap` q)
+  -- iap f (c :? j) = (c :? \a -> f `iap` j a)
+instance IxPointed (CommandIxMonad c) where
+  ireturn = CReturn
+instance IxFunctor (CommandIxMonad c) where
+  imap f (CReturn a) = CReturn (f a) --  >>>= ireturn . f
+  imap (f::a->b) ((c::c i j a1) :? (j::a1 -> CommandIxMonad c j k a)) = (c :? \w -> imap f (j w))
+
+eventLoop :: ( MouseButtonEventData -> Editor a b c) -> Editor a b c
+eventLoop = fix id
+
+editorLoop :: forall a. SState a -> Editor a Ground () 
+editorLoop SGround = do
+  event <- waitEvent :: Editor a a SDL.Event
+  case eventPayload event of
+    WindowShownEvent a -> liftIO editorDisplay >> editorLoop SGround
+    WindowExposedEvent a -> liftIO editorDisplay >> editorLoop SGround
+    WindowClosedEvent a -> undefined -- return ()
+    KeyboardEvent a -> return () >> editorLoop SGround
+    TextEditingEvent a -> return () >> editorLoop SGround  
+    TextInputEvent a -> return () >> editorLoop SGround
+    MouseMotionEvent a -> return () >> editorLoop   SGround
+    MouseButtonEvent a -> mouseCase a SGround (\st ed -> ed >> editorLoop st)
+    MouseWheelEvent a -> return () >> editorLoop SGround
+    QuitEvent -> undefined -- return ()   
+    DropEvent a -> editorLoop   SGround
+    ClipboardUpdateEvent -> editorLoop SGround
+    _ -> editorLoop SGround
+data SomeState where 
+  SS :: SState s ->SomeState
+data SomeEditor a c where 
+  SE :: SState b -> Editor a b c -> SomeEditor a c
+-- SomeEditor a c = (forall b. SState b -> Editor a b c -> d) -> d 
+-- instance SingI a => Monad (SomeEditor a) where
+  -- return c = SE sing (return c)
+  -- (SE st ed) >>= f = 
+mouseCase ::forall a c d . MouseButtonEventData -> SState a ->  (forall b. SState b -> Editor a b c -> d) -> d -- Editor a Ground SomeState
+mouseCase (MouseButtonEventData window motion which buttonc clicks pos) s f =  undefined
+type Editor = CommandIxMonad Action
+instance Functor (Editor a a) where
+  fmap = imap
+instance Applicative (Editor a a) where
+  pure = ireturn
+  a <*> b = iap a b
+instance Monad (Editor a a) where
+ return = ireturn 
+ a >>= b = a >>>= b
+instance MonadIO (Editor a a) where
+  liftIO a = inject $ Do a  
+
+drawE :: Editor a a ()
+drawE = error "draw"
+
+addWall :: Editor AddingWall Ground Mesh
+addWall = do
+  a <- return ()
+  case True of
+    True -> inject $ AddWall (Mesh [])

@@ -116,10 +116,13 @@ executable Hyperbolic
                      , groups 
                      , criterion
                      , strict
+                     , indexed
+                     , singletons
 --                     , typed-process
   --                   , process
 -- for GLUT:
                      -- , StateVar
+                     -- , SDL
 
   
   -- Directories containing source files.
@@ -128,7 +131,6 @@ executable Hyperbolic
                  , editor
            --      , bytestring 
            --      , GLUT-2.7.0.12/src
-  
   -- Base language which the package is written in.
   default-language:    Haskell2010
 
