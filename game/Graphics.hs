@@ -2,7 +2,9 @@
     ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses, OverloadedStrings, MonoLocalBinds,
       PatternSynonyms #-}
 module Graphics where
+import System.IO
 import System.IO.Unsafe
+import System.Exit
 import Control.Monad
 import Graphics.GL
 import SDL.Raw.Enum(pattern SDL_SYSTEM_CURSOR_CROSSHAIR)
@@ -52,6 +54,8 @@ import qualified Linear as L
 import Data.Coerce
 import Debug.Trace
 import Data.IORef
+import Control.Exception
+import SDL.Exception
 import Safe
 import Data.List
 import Data.Function
@@ -64,6 +68,7 @@ import Text.Show.Pretty
 import qualified Data.Set as S
 import Formatting
 import TextShow
+import Data.Time
 import Foreign hiding ( void)
 import Foreign.C.Types
 import TextShow.TH
@@ -92,12 +97,25 @@ $(deriveTextShow ''V4)
 -- systemCursor a = unsafePerformIO $ createSystemCursor SDL_SYSTEM_CURSOR_CROSSHAIR 
 
 ----------------------------------------------
+{-# NOINLINE traceT #-}
+traceT :: String -> a -> a
+traceT string expr = unsafePerformIO $ do
+    traceTIO string
+    return expr
+traceTIO :: String -> IO ()
+traceTIO msg = do
+  time <- getCurrentTime
+  traceIO (show time ++ ": " ++ msg)
 
 type GLDouble = GLdouble
 traceComm s a = Debug.Trace.trace (s ++ " " ++ show a) a
 (V2 width height) = let w = ( get sdlWindow :: IO Window)
                       in unsafePerformIO $ ( fmap windowSize w  ) >>= get  -- GL.screenSize
-sans = unsafePerformIO $ F.load "Sans.ttf" 10
+sans = unsafePerformIO $ do
+                          r <- try (F.load "Sans.ttf" 10) 
+                          case r of
+                            Right a -> return a
+                            Left (e::SDLException) -> (F.load "/usr/share/fonts/truetype/freefont/FreeSans.ttf" 10)
 persMatrix :: M44 Double
 persMatrix = L.perspective (H.tau/8) (1024/600{-fromIntegral width/fromIntegral height-}) (0.01) (1)
 viewMatrix = L.lookAt (V3 (0) 0 0) (V3 (1) (0) (0)) (V3 (0.0::Double) 0 (1))
@@ -109,63 +127,66 @@ origin :: Point Double
 origin = H.origin
 sdlWindow :: IORef Window
 sdlWindow = unsafePerformIO $ newIORef (error "thissssssssdlWindow")
-
+ 
 glContext :: IORef GLContext
 glContext = unsafePerformIO $ newIORef (error "thissssssglcossdlWindow")
+rendererR :: IORef (Renderer) 
+rendererR = unsafePerformIO $ newIORef (error "thissssssss") 
+-- initResources :: IO (GL.Program, GL.AttribLocation)
+-- initResources = do
+    -- compile vertex shader
+    -- vs <- GL.createShader GL.VertexShader
+    -- GL.shaderSourceBS vs $= vsSource
+    -- GL.compileShader vs
+    -- vsOK <- GL.get $ GL.compileStatus vs
+    -- unless vsOK $ do
+    --     hPutStrLn stderr "Error in vertex shader\n"
+    --     exitFailure
 
-initGL :: IO Bool
-initGL = do
-  gProgramID <- glCreateProgram
-  vertexShader <- glCreateShader 1
-  src <- newCString "#version 140\nin vec2 LVertexPos2D; void main() { gl_Position = vec4( LVertexPos2D.x, LVertexPos2D.y, 0, 1 ); }"
-  strings <- new src
-  glShaderSource vertexShader 1 strings nullPtr
-  glCompileShader vertexShader
-  vShaderCompiled <- fmap castPtr $ new GL_FALSE
-  glGetShaderiv vertexShader GL_COMPILE_STATUS (vShaderCompiled)
-  nre <- peek vShaderCompiled
-  when (nre == 0)
-      (error "shader1")
-  glAttachShader gProgramID vertexShader
-  fragmentShader <- glCreateShader GL_FRAGMENT_SHADER
-  src <- newCString "#version 140\nout vec4 LFragment; void main() { LFragment = vec4( 1.0, 1.0, 1.0, 1.0 ); }"
-  fragmentShaderSource <- new src
-  glShaderSource fragmentShader 1 fragmentShaderSource nullPtr
-  glCompileShader fragmentShader
-  fShaderCompiled <- fmap castPtr $ new GL_FALSE
-  glGetShaderiv fragmentShader GL_COMPILE_STATUS (fShaderCompiled)
-  nre <- peek vShaderCompiled
-  when (nre == 0)
-      (error "shader2")
-  glAttachShader gProgramID fragmentShader
-  glLinkProgram gProgramID
-  programSuccess <- fmap castPtr $ new GL_FALSE
-  glGetShaderiv gProgramID GL_LINK_STATUS (programSuccess)
-  nre <- peek programSuccess
-  when (nre == 0)
-      (error "Error linking program")
-  -- gVertexPos2DLocation <- withCString "LVertexPos2D" $ glGetAttribLocation gProgramID 
-  -- when (gVertexPos2DLocation == (-1))
-    -- (error "LVertexPos2D is not a valid glsl program variable!")
-  glClearColor 0 0 0 1
-  vertexData <- newArray [-0.5, -0.5,
-                         0.5::GLfloat, -0.5,
-                         0.5,  0.5,
-                        -0.5,  0.5]
-  indexData <-  newArray [0, 1, 2, 3::GLuint]
-  gVBO <- malloc
-  glGenBuffers 1 gVBO
-  glBindBuffer GL_ARRAY_BUFFER 0 --gVBO ? хуй пойми блять
-  glBufferData GL_ARRAY_BUFFER (fromIntegral $ 2 * 4 * sizeOf(0::GLfloat)) vertexData GL_STATIC_DRAW 
-  gIBO <- malloc
-  glGenBuffers 1 gIBO 
+    -- -- Do it again for the fragment shader
+    -- fs <- GL.createShader GL.FragmentShader
+    -- GL.shaderSourceBS fs $= fsSource
+    -- GL.compileShader fs
+    -- fsOK <- GL.get $ GL.compileStatus fs
+    -- unless fsOK $ do
+    --     hPutStrLn stderr "Error in fragment shader\n"
+    --     exitFailure
 
-  glBindBuffer  GL_ELEMENT_ARRAY_BUFFER 0 -- gIBO 
-  glBufferData  GL_ELEMENT_ARRAY_BUFFER (fromIntegral $  4 * sizeOf(0::GLuint)) indexData GL_STATIC_DRAW 
-  error "Success"
-  
+    -- program <- GL.createProgram
+    -- GL.attachShader program vs
+    -- GL.attachShader program fs
+    -- GL.attribLocation program "coord2d" $= GL.AttribLocation 0
+    -- GL.linkProgram program
+    -- linkOK <- GL.get $ GL.linkStatus program
+    -- GL.validateProgram program
+    -- status <- GL.get $ GL.validateStatus program
+    -- unless (linkOK && status) $ do
+    --     hPutStrLn stderr "GL.linkProgram error"
+    --     plog <- GL.get $ GL.programInfoLog program
+    --     putStrLn plog
+    --     exitFailure
+    -- GL.currentProgram $= Just program
 
-initialiseGraphics ::  IO ()
+    -- return (program, GL.AttribLocation 0)
+-- vsSource, fsSource :: BS.ByteString
+-- vsSource = BS.intercalate "\n"
+--            [
+--             "attribute vec2 coord2d; "
+--            , ""
+--            , "void main(void) { "
+--            , " gl_Position = vec4(coord2d, 0.0, 1.0); "
+--            , "}"
+--            ]
+
+-- fsSource = BS.intercalate "\n"
+--            [
+--             ""
+--            , "#version 120"
+--            , "void main(void) {"
+--            , "gl_FragColor = vec4((gl_FragCoord.x/640), (gl_FragCoord.y/480), 0, 1);"
+--            , "}"
+--            ]
+initialiseGraphics ::  IO ()--GL.Program, GL.AttribLocation)
 initialiseGraphics = do
     putStrLn "68"
     -- initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered]
@@ -173,25 +194,27 @@ initialiseGraphics = do
     SDL.Init.initialize [InitVideo]
     F.initialize
     putStrLn "72"
-    (sdlWindow $=) =<< createWindow "Hyperbolic" defaultWindow {windowMode = FullscreenDesktop, windowOpenGL = Just defaultOpenGL {glProfile = Core Normal 3 1}}
+    (sdlWindow $=) =<< createWindow "Hyperbolic" defaultWindow {windowMode = FullscreenDesktop, windowOpenGL = Just defaultOpenGL}
     (glContext $=) =<< glCreateContext =<< get sdlWindow
-    er <- Raw.glSetSwapInterval 1
-    when (er < 0) 
-      (putStrLn "Warning: Unable to set VSync! SDL Error: (SDL_GetError())")
-    res <- initGL  
+    -- initResources
     return ()
+    -- er <- Raw.glSetSwapInterval 1
+    -- when (er < 0) 
+    --   (putStrLn "Warning: Unable to set VSync! SDL Error: (SDL_GetError())")
+    -- res <- initGL  
+    -- return ()
     -- putStrLn "74"
-    -- depthFunc $= Just Less
-    -- putStrLn "77"
-    -- depthBounds $= Nothing
-    -- lineSmooth $= Enabled
-    -- polygonOffsetFill $= Enabled
-    -- blend $= Enabled
-    -- blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
-    -- polygonOffset $= (-0.2, 1) 
-    -- lineWidth $= 2
-    -- cursor <- createSystemCursor SDL_SYSTEM_CURSOR_CROSSHAIR
-    -- setCursor cursor
+    depthFunc $= Just Less
+    putStrLn "77"
+    depthBounds $= Nothing
+    lineSmooth $= Enabled
+    polygonOffsetFill $= Enabled
+    blend $= Enabled
+    blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
+    polygonOffset $= (-0.2, 1) 
+    lineWidth $= 2
+    cursor <- createSystemCursor SDL_SYSTEM_CURSOR_CROSSHAIR
+    setCursor cursor
     -- putStrLn "78"  
     -- lighting           $= Enabled 
     -- light (Light 0)    $= Enabled
@@ -215,33 +238,33 @@ initialiseGraphics = do
     -- linkProgram p
     -- currentProgram $= Just p
 
-    putStrLn "79" 
-    -- get matrixMode >>= print
-    diffuse (Light 0)  $= Color4 1 1 1 1
-    blend              $= Enabled
-    -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) -- ??????????????????????????
-    colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
-    -- matrixMode $= Projection
-    let printc s a = putStrLn $ s ++ ": " ++ show a
-    -- (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
+    -- putStrLn "79" 
+    -- -- get matrixMode >>= print
+    -- diffuse (Light 0)  $= Color4 1 1 1 1
+    -- blend              $= Enabled
+    -- -- blendFunc          $= (SrcAlpha, OneMinusSrcAlpha) -- ??????????????????????????
+    -- colorMaterial      $= Just (FrontAndBack, AmbientAndDiffuse)
+    -- -- matrixMode $= Projection
+    -- let printc s a = putStrLn $ s ++ ": " ++ show a
+    -- -- (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
     
-    -- print "callingp erspective"
-    -- perspective 45 (1024/600) (0.001) (1.1)
-    -- (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
+    -- -- print "callingp erspective"
+    -- -- perspective 45 (1024/600) (0.001) (1.1)
+    -- -- (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
     
-    -- (get (matrix $ Just $ Modelview 0) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLMV"
-    -- print "calling lookat"
-    -- lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
-    -- (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
-    -- (get (matrix $ Just Projection) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLPR"
-    -- (get (matrix $ Just $ Modelview 0) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLMV"
-    -- printc "persMatrix" persMatrix
-    -- printc "viewMatrix" viewMatrix
-    -- printc "persViewMatrix" persViewMatrix
-    -- printc "viewMatrix !*! persMatrix" $ viewMatrix !*! persMatrix
-    -- fail "0"
-    -- Just a <- return Nothing
-    return ()
+    -- -- (get (matrix $ Just $ Modelview 0) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLMV"
+    -- -- print "calling lookat"
+    -- -- lookAt (Vertex3 (0::GLdouble) 0 0) (Vertex3 1 (0::GLdouble) (0)) (Vector3 (0::GLdouble) 0 1)
+    -- -- (get (matrix $ Nothing) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "cur"
+    -- -- (get (matrix $ Just Projection) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLPR"
+    -- -- (get (matrix $ Just $ Modelview 0) :: IO (GLmatrix GLdouble)) >>= getMatrixComponents RowMajor >>= printc "GLMV"
+    -- -- printc "persMatrix" persMatrix
+    -- -- printc "viewMatrix" viewMatrix
+    -- -- printc "persViewMatrix" persViewMatrix
+    -- -- printc "viewMatrix !*! persMatrix" $ viewMatrix !*! persMatrix
+    -- -- fail "0"
+    -- -- Just a <- return Nothing
+    -- return ()
 
 lpos = Vertex4 (-1.4313725157195931) 2.663858068380254e-6 (0.3::GLfloat) 1.8460891382643082 
 
