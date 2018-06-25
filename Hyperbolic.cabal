@@ -86,7 +86,8 @@ executable Hyperbolic
                      , lens >=4.14
                      , time >=1.5
                      , split
-                    -- , GLUT == 69.1488.666.31415926
+                     , GLUT 
+                     -- == 69.1488.666.31415926
                      -- , bindings-GLFW
                     -- , GLFW-b
                      , sdl2
