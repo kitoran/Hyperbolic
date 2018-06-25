@@ -32,6 +32,21 @@ import Linear(M44, (!*!), (!*), (*!), normalizePoint, V3(..), M33)
 --текущее положение  матрица куда надо пойти   результат (?) 
 -- correct :: M44 Double -> M44 Double -> M44 Double
 -- correct 
+data Source = Source (H.Point Double) (H.Absolute Double) deriving (Show, Read)
+newtype Receiver = Receiver [ (H.Point Double) ] deriving (Show, Read, MonoFunctor)
+type instance Element Receiver = H.Point Double
+type Obstacles = [Obstacle]
+data Obstacle = Sphere !(Point Double) Double | Triangle !(Point Double) !(Point Double) !(Point Double) !Double deriving ( Show, Read)
+data HyperEntity = Polygon [Point Double] -- как всегда, для нормального отображения многоугольник должен быть выпуклым, и точки должны идти в порядке
+                 | Segment !(Point Double) !(Point Double) 
+                 | HPoint !(Point Double) {- fixme this constructor isnt needed -} deriving ( Show, Read)
+newtype Mesh = Mesh [((Double, Double, Double, Double), HyperEntity)] deriving ( Show, Read, Monoid, MonoFunctor)
+type instance Element Mesh = ((Double, Double, Double, Double), HyperEntity)
+data Environment = Env {  _mesh :: !(Mesh),
+                          _obstacles :: !(Obstacles),
+                          _sources :: [Source],
+                          _receivers :: [Receiver] } deriving ( Show, Read)
+$(Lens.makeLenses ''Environment)
 data AvatarPosition = AP { _pos :: !(M33 Double ) -- проекция на плоскость z=0
                                      , _height :: !Double
                                      , _nod :: !Double
@@ -66,8 +81,6 @@ $(Lens.makeLenses ''LevelState)
 currentPosition (AP (!pos) (!height) _ _) =  H.m33_to_m44M pos !*! H.moveAlongZ height !$ H.origin
 ourSize = 0.1
 
-type Obstacles = [Obstacle]
-data Obstacle = Sphere !(Point Double) Double | Triangle !(Point Double) !(Point Double) !(Point Double) !Double deriving ( Show, Read)
 instance (Monoid t, H.Movable t (Point Double)) => H.Movable t Obstacle where
   (!tr) !$ (Sphere !p !r) = Sphere (tr !$ p) r
   (!tr) !$ (Triangle !q !w !e !r) = Triangle (tr !$ q) (tr !$ w) (tr !$ e) r
@@ -147,12 +160,7 @@ pushOut o s = foldr (\o1 -> pushOutOne o1) s o
 --                             (Point 0.25 (-0.5) 0 1)
 --                             (Point (-0.5) 0.25 0 1) 0
 
-newtype Mesh = Mesh [((Double, Double, Double, Double), HyperEntity)] deriving ( Show, Read, Monoid, MonoFunctor)
-type instance Element Mesh = ((Double, Double, Double, Double), HyperEntity)
 
-data HyperEntity = Polygon [Point Double] -- как всегда, для нормального отображения многоугольник должен быть выпуклым, и точки должны идти в порядке
-                 | Segment !(Point Double) !(Point Double) 
-                 | HPoint !(Point Double) {- fixme this constructor isnt needed -} deriving ( Show, Read)
 
 instance (Monoid t, H.Movable t (Point Double)) => H.Movable t HyperEntity where
   a !$ (Polygon list) = Polygon $ map (a !$) list
@@ -161,17 +169,9 @@ instance (Monoid t, H.Movable t (Point Double)) => H.Movable t HyperEntity where
 instance (Monoid t, H.Movable t (Point Double)) => H.Movable t Mesh where
   a !$ (Mesh l) = Mesh $ fmap (\(c, he) -> (c, a !$ he)) l
 
-data Environment = Env { mesh :: !(Mesh),
-                           obstacles :: !(Obstacles),
-                           sources :: [Source],
-                           receivers :: [Receiver] } deriving ( Show, Read)
-
 instance (Monoid t, H.Movable t (Point Double),  H.Movable t (H.Absolute Double)) => H.Movable t (Environment) where
   tr !$ Env m ob s a = Env (tr !$ m) (fmap (tr !$) ob) (fmap (tr !$) s) (fmap (tr !$) a)
 
-data Source = Source (H.Point Double) (H.Absolute Double) deriving (Show, Read)
-newtype Receiver = Receiver [ (H.Point Double) ] deriving (Show, Read, MonoFunctor)
-type instance Element Receiver = H.Point Double
 instance (Monoid t, H.Movable t (H.Point Double), H.Movable t (H.Absolute Double)) => H.Movable t (Source) where
   tr !$ (Source p a) = Source (tr !$ p) (tr !$ a)
 instance (Monoid t, H.Movable t (H.Point Double), H.Movable t (H.Absolute Double)) => H.Movable t (Receiver) where
