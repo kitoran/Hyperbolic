@@ -44,6 +44,7 @@ import Control.Monad.Indexed
 import Data.Time
 import System.IO
 import System.IO  
+import qualified Control.Lens as Lens
 import SDL.Internal.Numbered
 import Foreign
 import Graphics.GL
@@ -174,7 +175,7 @@ editorDisplay st = liftIO $ do
           frame (P.Polygon list) = 
               GL.renderPrimitive GL.LineLoop $ mapM_ transform list
           frame (Segment a b) = return ()
-  (Mesh env) <- fmap P.mesh $ GL.get model 
+  (Mesh env) <- fmap P._mesh $ GL.get model 
   -- print cons1
   GL.clear [GL.ColorBuffer, GL.DepthBuffer]
   
@@ -371,7 +372,7 @@ run :: Show c => Editor a b c -> IO c
 run (CReturn a) = P.return a
 run ((Do a) :? j) = a P.>>= (\r -> run (j r))   
 run (StartAddingWall :? f) = run (f ())
-run ((AddWall m) :? f) = run (f m)
+run ((AddWall m) :? f) = (modifyIORef model (Lens.over P.mesh (<> m))) P.>> run (f m)
 run ((Exit) :? f) = run (f ())
 inject :: Action a b c -> Editor a b c
 inject a = a :? CReturn
@@ -426,7 +427,7 @@ editorLoop s = do
     Just (MouseMotionEvent a) -> (mouseMCase a) >> editorLoop  s
     Just (MouseButtonEvent a) -> mouseCCase a s (\st ed -> ed >> editorLoop st)
     Just (MouseWheelEvent a) -> return () >> editorLoop s
-    Just (QuitEvent) -> undefined -- return ()   
+    Just (QuitEvent) -> inject Exit   
     Just (DropEvent a) -> editorLoop   s
     Just (ClipboardUpdateEvent) -> editorLoop s
     Just _ -> editorLoop s
@@ -456,15 +457,21 @@ mouseMCase (MouseMotionEventData {..}) = liftIO $ do
            (>>=) :: m a -> (a -> m b) -> m b
            (>>=) = (P.>>=)
     
-mouseCCase :: forall a d . MouseButtonEventData -> SState a -> (forall b c. SState b -> Editor a b c -> d) -> d -- Editor a Ground SomeState
+mouseCCase :: forall a d . MouseButtonEventData -> SState a -> (forall b c. SState b -> Editor a b c -> Editor a Quit d) -> Editor a Quit d -- Editor a Ground SomeState
 -- _action :: (SingI i, SingI o) => Action i o () 
-mouseCCase (MouseButtonEventData window motion which buttonc clicks pos) s f = go gui -- FIXME заменить go на for, mapM или fold*
-  where go [] = f s (ireturn ()) 
+mouseCCase (MouseButtonEventData window motion which buttonc clicks pos) SGround f = go gui -- FIXME заменить go на for, mapM или fold*
+  where go [] = f SGround (ireturn ()) 
         go (b@(Button _ _ i o _action ):bs) =  if buttRectangle b `contains` pos 
-          then case testEquality i s of
+          then case testEquality i SGround of
             Just Refl -> f o (inject _action)
-            Nothing -> f s (ireturn ())
+            Nothing -> f SGround (ireturn ())
           else go bs
+mouseCCase (MouseButtonEventData window motion which ButtonLeft 2 pos) SAddingWall f = do
+      (m ::SDL.Point V2 CInt) <- iliftIO getAbsoluteMouseLocation
+      view_ <- get view
+      let (mesh::Mesh) = beingAddedWall 0 m view_
+      f SGround (inject (AddWall mesh))
+mouseCCase _  SAddingWall f = f SAddingWall (ireturn ())
 keyboardCase :: MonadIO m => KeyboardEventData -> m () 
 keyboardCase (KeyboardEventData {..}) 
   | keyboardEventKeyMotion == Pressed = let
@@ -489,7 +496,7 @@ instance Monad (Editor a a) where
  a >>= b = a >>>= b
 instance MonadIO (Editor a a) where
   liftIO a = inject $ Do a  
-
+iliftIO a = inject $ Do a 
 drawE :: Editor a a ()
 drawE = error "draw"
 
