@@ -3,6 +3,7 @@
       PatternSynonyms #-}
 module Graphics where
 import System.IO
+import Graphics.UI.GLUT.Initialization
 import System.IO.Unsafe
 import System.Exit
 import Control.Monad
@@ -109,6 +110,8 @@ traceTIO msg = do
 
 type GLDouble = GLdouble
 traceComm s a = Debug.Trace.trace (s ++ " " ++ show a) a
+{-# NOINLINE width #-} -- FIXME непонятно нужно ли всё
+{-# NOINLINE height #-}
 (V2 width height) = let w = ( get sdlWindow :: IO Window)
                       in unsafePerformIO $ ( fmap windowSize w  ) >>= get  -- GL.screenSize
 sans = unsafePerformIO $ do
@@ -126,8 +129,7 @@ saneVertex4 a b c d = if d*d >= 0 then {-traceComm "vert" $ -}Vertex4 (a) (b) (c
 origin :: Point Double
 origin = H.origin
 sdlWindow :: IORef Window
-sdlWindow = unsafePerformIO $ newIORef (error "thissssssssdlWindow")
- 
+sdlWindow = unsafePerformIO $ newIORef (error "thissssssssdlWindow") 
 glContext :: IORef GLContext
 glContext = unsafePerformIO $ newIORef (error "thissssssglcossdlWindow")
 rendererR :: IORef (Renderer) 
@@ -190,6 +192,7 @@ initialiseGraphics ::  IO ()--GL.Program, GL.AttribLocation)
 initialiseGraphics = do
     putStrLn "68"
     -- initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered]
+    _ <- getArgsAndInitialize 
     putStrLn "70"
     SDL.Init.initialize [InitVideo]
     F.initialize

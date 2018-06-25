@@ -3,11 +3,14 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RebindableSyntax #-}
+{-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE DataKinds #-}
@@ -33,9 +36,15 @@ these uses of unsafeperformio are much safer than say reading file with hGetCont
 -}
 
 module Editing where
+import Graphics.UI.GLUT.Fonts
+
+import Data.Functor.Indexed
+import Data.Type.Equality
 import Control.Monad.Indexed
 import Data.Time
 import System.IO
+import System.IO  
+import SDL.Internal.Numbered
 import Foreign
 import Graphics.GL
 import Control.Concurrent
@@ -80,7 +89,7 @@ import System.IO.Unsafe
 import  Graphics
 import Data.Singletons.TH 
 $(singletons [d|
-  data State = AddingWall | Ground deriving (Read, Show, Eq)
+  data State = AddingWall | Ground | Quit deriving (Read, Show, Eq)
   |]) 
 -- eventQueue = unsafePerformIO $ newChan
 -- data Event = User UserEvent GL.Modifiers | Leave
@@ -101,20 +110,15 @@ model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ [
             [] 
             []
 
-view = unsafePerformIO $ newIORef $ (  rotateAroundY (-0.2 {-tau/(4-0.1)-})  !*! {- moveAlongZ (-0.1) !*! moveAlongX (0.01)) --}  L.identity::L.M44 Double)
-mouse = unsafePerformIO $ newIORef $ SDL.P (V2 0 0) 
-state = unsafePerformIO $ newIORef Ground 
+view = unsafePerformIO $ newIORef $ (  rotateAroundY 0.1 {- (tau/(4-0.1))-}  !*! moveAlongX (-0.1) {- moveAlongZ (-0.1) !*! ) --} !*! L.identity::L.M44 Double)
+-- type Angle = Double
 
 mapVertexPixel :: SDL.Point V2 CInt -> L.V2 GLdouble
 mapVertexPixel (SDL.P (V2 a b)) = L.V2 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) 
                                         (1 - (fromIntegral b)*2/(fromIntegral height) ) --0 1beingAddedWall :: GL.Position -> Mesh 
-beingAddedWall :: SDL.Point V2 CInt -> L.M44 Double -> Mesh
-beingAddedWall pos view = traceComm "RES POINT = " res `seq` --(GL.Position xi yi) =  
-                                      assert (abs rz < 0.04) $ Mesh $ 
-                                                            [((0.0, 0.0, 1.0, 1.0), 
-                                                              (P.Polygon ) [Point (rx) ry rz rt, Point rx ry (rz+0.5) rt,  Point rx (ry+0.5) rz rt]
-                                                             )
-                                                            ]
+beingAddedWall :: Angle -> SDL.Point V2 CInt -> L.M44 Double -> Mesh
+beingAddedWall a pos view = ({-traceComm "RES POINT = " res `seq` --(GL.Position xi yi) = -} 
+                                      (assert (abs rz < 0.04) $ (moveRightTo (fromV4 d) !$ wall::Mesh)::Mesh))::Mesh
    where
          -- x = fromIntegral xi
          -- y = traceComm "y" $ fromIntegral yi
@@ -123,22 +127,29 @@ beingAddedWall pos view = traceComm "RES POINT = " res `seq` --(GL.Position xi y
          c = -(l+i*x+j*y)/k
          tran = persViewMatrix !*! view
          invpv = traceComm "invpv" $ L.inv44  $ traceComm "persViewMatrix" (tran)
-         (d@(L.V4 rx ry rz rt)) = traceComm "d" $ invpv !* if  traceComm "COND!!!!" $ abs (traceComm "K =" k) > 0.00001 then (L.V4 x y c 1) else (L.V4 0 0 1 0) 
-         res  = (tran !* d, L.V2 x y)  
+         (d@(L.V4 rx ry rz rt)) = {- traceComm "d" $ -} invpv !* if {- traceComm "COND!!!!" $ -} abs (traceComm "K =" k) > 0.00001 then (L.V4 x y c 1) else (L.V4 0 0 1 0) 
+         res = (tran !* d, L.V2 x y)
+         wall = Mesh  [((0.0, 0.0, 1.0, 1.0), (P.Polygon ) [Point 0 0.01 0 1, 
+                                                            Point 0 (-0.01) 0 1, 
+                                                            Point 0 (-0.01) 0.01 1,
+                                                            Point 0 0.01 0.01 1
+                                                            ])]
+
+
 -- x, y <- (0, 1)
 -- rx ry 0 rt = persViewMatrix !* (tran !* (p ^. _v4))
 gui :: [Button] 
-gui = [Button "wall" (SDL.P $ V2 300 200) ( (print "action") )]
+gui = [Button "wall" (SDL.P $ V2 300 200) SGround SAddingWall ( (StartAddingWall) )]
 
 editorDisplay :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)Matri
                                          => -}
-                IO ()
-editorDisplay  = do
-  print "editorDisplay"
+             MonadIO m => SState a -> m ()
+editorDisplay st = liftIO $ do
+--  liftIO $ print "editorDisplay"
 
   
-  state' <- get state
-  tran  <- get view
+  -- state' <- get state
+  tran  <- liftIO $ get view
   let     toRaw :: ((Double, Double, Double, Double), HyperEntity ) -> IO ()
           toRaw (col, (P.Polygon list)) = do
                               GL.renderPrimitive GL.Polygon $ do
@@ -171,7 +182,7 @@ editorDisplay  = do
   mapM_ ( toRaw) (env)--  <> (coerce @Mesh @[((Double, Double, Double, Double), HyperEntity)] $ (let tt =  thatTransformation $  (P.Devi (Point 0.00001 0.0001 0.00001 1) (Abs 0.01 1 0.1) (0.1)) 
                                                                                                -- in traceComm "iden" (tt !*! transposeMink tt) `seq` tt) !$ deviator ))
 
-  GL.renderPrimitive GL.Triangles $ do
+{-  GL.renderPrimitive GL.Triangles $ do
     let v a b c d s = let L.V4 x y z t = (L.perspective (tau/4) (1024/600) (0.01) (1)) !* L.V4 a b c d in GL.vertex $ traceComm s $ saneVertex4 x y z t
     color $ GL.Color3 1 1 (0::GLdouble)
     v (0) (-0.4) (-0.5-0) 1 "yellow"
@@ -190,11 +201,12 @@ editorDisplay  = do
   --    GL.vertex $ GL.Vertex4 (-0.5::GLdouble) (-0.5) (0.5) 1
   --    GL.vertex $ GL.Vertex4 (1) (-0.5) (0.5::GLdouble) 1
   --    GL.vertex $ GL.Vertex4 (1) (1) (0.5::GLdouble) 1
-  --    GL.vertex $ GL.Vertex4 (-0.5) (1) (0.5::GLdouble) 1 
-  uselessName <- GL.get state
-  when (uselessName == AddingWall) $ do
-    (m ::SDL.Point V2 CInt) <- get mouse
-    mapM_ @[] ( toRaw) $ coerce $ beingAddedWall m  tran
+  --    GL.vertex $ GL.Vertex4 (-0.5) (1) (0.5::GLdouble) 1 -}
+  (case st of
+    SAddingWall -> do
+      (m ::SDL.Point V2 CInt) <- getAbsoluteMouseLocation
+      mapM_ @[] ( toRaw) $ coerce $ beingAddedWall 0 m  tran
+    _ -> return ())::IO ()
   color $ GL.Color4 1 1 (1::GLdouble) 0.1
   GL.renderPrimitive GL.Triangles $ do
     let [x, y, z, t] = [ 0.5, 0, 0, 1] --lpos
@@ -253,18 +265,15 @@ editorDisplay  = do
      -- Nothing -> state $= Ground
      -- Just (Button _ _ a) -> a
    -- GL.postRedisplay Nothing
-buttRectangle :: Button -> SDL.Rectangle CInt
-buttRectangle = error "buttRectangle is undefined" 
 editorSpecialCallback _ _ = return ()
 editorKeyboardCallback a = return ()
  
 -- displayButton :: Button -> ( -> IO ()
 type Rectangle = SDL.Rectangle CInt-- ((GL.GLint :!: GL.GLint) :!: (GL.GLint :!: GL.GLint))
-fontHeight = 24
-margin = 3
-contains :: Rectangle -> SDL.Point V2 CInt -> Bool
+{-# SPECIALIZE contains :: Rectangle -> SDL.Point V2 CInt -> Bool #-}
+contains :: (Integral a, Show a) => Rectangle -> SDL.Point V2 a -> Bool
 contains (SDL.Rectangle (SDL.P (V2 lx ly)) (V2 sx sy)) (SDL.P (V2 x y)) = 
-  traceComm "lx" lx <= traceComm "x" x && traceComm "ly" ly <= traceComm "y" y && traceComm "hx" (lx+sx) >= x && traceComm "hx" (ly+sy) >= y
+  traceComm "lx" lx <= fromIntegral x && fromIntegral ly <= traceComm "y" y && traceComm "hx" (lx+sx) >= fromIntegral x && traceComm "hx" (ly+sy) >= fromIntegral y
 
 mapPixelVertex a b = GL.vertex $  saneVertex4 ((fromIntegral a)*2/(fromIntegral width) - 1 :: GLdouble) 
                                              (1 - (fromIntegral b)*2/(fromIntegral height) ) 0 1
@@ -291,26 +300,31 @@ displayRectangle (SDL.Rectangle (SDL.P (V2 lx ly)) (V2 sx sy)) = (GL.renderPrimi
   where 
           (>>) = (P.>>)
 
-
+pattern Pos a b = SDL.P (V2 a b)
 displayButton :: Button -> IO ()
-displayButton butt@(Button text (SDL.P (V2 a b)) _) = do
+displayButton butt@(Button text (SDL.P (V2 a b)) _ _ _) = do
   -- GL.ortho 
   color $ GL.Color4 0 1 (0.5::GLdouble) 1
   (_, h) <- F.size sans text
 
+  color $ GL.Color3 1 1 (1::GLdouble)
+  displayRectangle $ buttRectangle butt
   color $ GL.Color3 0 0 (1::GLdouble)
-  -- windowPos $ GL.Position (a + margin) (b + h + margin)
-  sur <- F.solid sans (L.V4 0 0 255 255) text
-  texture <- malloc
-  glGenTextures 1 texture
-  nt <- get texture
-  Graphics.GL.glBindTexture GL_TEXTURE_2D nt
-  V2 w h <- surfaceDimensions sur
-  lockSurface sur 
-  p <- surfacePixels sur
-  glTexImage2D GL_TEXTURE_2D 0 4 (fromIntegral w) (fromIntegral h) 0 GL_RGBA GL_UNSIGNED_BYTE p
-  unlockSurface sur 
-
+  h <- fmap round $ fontHeight TimesRoman24
+  windowPos $ GL.Vertex2 (fromIntegral $ a + margin :: GLDouble) ((fromIntegral $ height - (b + h + margin))) 
+  color $ GL.Color3 0 1 (0::GLdouble)
+  renderString TimesRoman24 (T.unpack text)
+  -- -- windowPos $ GL.Position (a + margin) (b + h + margin)
+  -- sur <- F.solid sans (L.V4 0 0 255 255) text
+  -- texture <- malloc
+  -- glGenTextures 1 texture
+  -- nt <- get texture
+  -- Graphics.GL.glBindTexture GL_TEXTURE_2D nt
+  -- V2 w h <- surfaceDimensions sur
+  -- lockSurface sur 
+  -- p <- surfacePixels sur
+  -- glTexImage2D GL_TEXTURE_2D 0 4 (fromIntegral w) (fromIntegral h) 0 GL_RGBA GL_UNSIGNED_BYTE p
+  -- unlockSurface sur 
   -- win <- get  sdlWindow
   -- rend <- get rendererR
   -- text <- createTextureFromSurface rend sur -- FIXME непонятно надо ли освобождать sur
@@ -319,22 +333,32 @@ displayButton butt@(Button text (SDL.P (V2 a b)) _) = do
   -- winsur <- SDL.getWindowSurface win
   -- void $ SDL.surfaceBlit sur Nothing winsur $ Just $ SDL.P $ V2 0 (height - (fromIntegral h))
   color $ GL.Color3 0 1 (0::GLdouble)
- where
+ where  
           (>>=) = (P.>>=)
           return::Monad m => a -> m a
           return = P.return
           (>>) = (P.>>)
+buttRectangle :: Button -> Rectangle
+buttRectangle (Button text (Pos a b) _ _ _) =
+  let i = unsafePerformIO $ stringWidth TimesRoman24 $ T.unpack text 
+      h = unsafePerformIO $ fontHeight TimesRoman24
+      fi :: (Num b, Integral a) => a -> b
+      fi = fromIntegral
+   in SDL.Rectangle (Pos (a) (fi b)) $ V2 (fi i+2*margin) ({-traceComm "Height"  h `seq`-} (round h + 2*margin)) -- (((a :!: (b )) :!:  (((a + i + 2*margin) :!: (b + fontHeight + 2*margin)))))
+margin :: CInt
+margin = 3
 
 -- startAddingWall :: Editor Ground AddingWall ()
 -- startAddingWall = fix error
 -- stopAddingWall :: Editor AddingWall Ground P.Mesh
 -- stopAddingWall = undefined
 data Button where
-  Button :: { _text:: !T.Text, _pos:: !(SDL.Point V2 CInt), _action:: IO () } -> Button
+  Button :: { _text:: !T.Text, _pos:: !(SDL.Point V2 CInt), _i :: SState i, _o :: SState o, _action::Action i o () } -> Button
 data Action :: State -> State -> * -> * where
   Do :: IO a -> Action i i a
   StartAddingWall :: Action Ground AddingWall ()
-  AddWall :: Mesh -> Action AddingWall Ground Mesh 
+  AddWall :: Mesh -> Action AddingWall Ground Mesh
+  Exit ::  Action a Quit ()
 deriving instance Show (Action a b c)
 instance Show (IO a) where
   show a = "<IO action>"
@@ -347,7 +371,8 @@ run :: Show c => Editor a b c -> IO c
 run (CReturn a) = P.return a
 run ((Do a) :? j) = a P.>>= (\r -> run (j r))   
 run (StartAddingWall :? f) = run (f ())
-run ((AddWall m) :? f) = run (f m) 
+run ((AddWall m) :? f) = run (f m)
+run ((Exit) :? f) = run (f ())
 inject :: Action a b c -> Editor a b c
 inject a = a :? CReturn
 
@@ -362,6 +387,13 @@ instance IxMonad (CommandIxMonad c) where
     (c :? j)    ->  (c :? \ a -> ibind k (j a)))
 -- (c :? j) >>= k = (c :? \ a -> ibind k (j a)))
 -- a >> b = ibind b a
+
+itraverse_ :: (Foldable t, IxApplicative f) => (a -> f a a b) -> t a -> f a a ()
+itraverse_ f = foldr ((*>>) . f) (ireturn ())
+{-# INLINE ifor_ #-}
+ifor_ :: (Foldable t, IxApplicative f) => t a -> (a -> f a a b) -> f a a ()
+ifor_ = flip itraverse_
+(>>) :: IxMonad m => m i j a -> m j l b -> m i l b
 a >> b =  ((imap (const id) a) `iap` b) -- ( a >>>= \_ -> b)
 (>>=) = (>>>=)
 return = ireturn
@@ -380,23 +412,25 @@ instance IxFunctor (CommandIxMonad c) where
 eventLoop :: ( MouseButtonEventData -> Editor a b c) -> Editor a b c
 eventLoop = fix id
 
-editorLoop :: forall a. SState a -> Editor a Ground () 
-editorLoop SGround = do
-  event <- waitEvent :: Editor a a SDL.Event
-  case eventPayload event of
-    WindowShownEvent a -> liftIO editorDisplay >> editorLoop SGround
-    WindowExposedEvent a -> liftIO editorDisplay >> editorLoop SGround
-    WindowClosedEvent a -> undefined -- return ()
-    KeyboardEvent a -> return () >> editorLoop SGround
-    TextEditingEvent a -> return () >> editorLoop SGround  
-    TextInputEvent a -> return () >> editorLoop SGround
-    MouseMotionEvent a -> return () >> editorLoop   SGround
-    MouseButtonEvent a -> mouseCase a SGround (\st ed -> ed >> editorLoop st)
-    MouseWheelEvent a -> return () >> editorLoop SGround
-    QuitEvent -> undefined -- return ()   
-    DropEvent a -> editorLoop   SGround
-    ClipboardUpdateEvent -> editorLoop SGround
-    _ -> editorLoop SGround
+editorLoop :: forall a. SState a -> Editor a Quit () 
+editorLoop s = do
+  event <- liftIO $ pollEvent  -- :: Editor a a SDL.Event
+
+  case fmap eventPayload event of
+    -- WindowShownEvent a -> editorDisplay s >> editorLoop s
+    -- WindowExposedEvent a -> editorDisplay s >> editorLoop s
+    -- WindowClosedEvent a -> inject Exit
+    Just (KeyboardEvent a) -> (keyboardCase a) >> editorLoop s
+    Just (TextEditingEvent a) -> return () >> editorLoop s  
+    Just (TextInputEvent a) -> return () >> editorLoop s
+    Just (MouseMotionEvent a) -> (mouseMCase a) >> editorLoop  s
+    Just (MouseButtonEvent a) -> mouseCCase a s (\st ed -> ed >> editorLoop st)
+    Just (MouseWheelEvent a) -> return () >> editorLoop s
+    Just (QuitEvent) -> undefined -- return ()   
+    Just (DropEvent a) -> editorLoop   s
+    Just (ClipboardUpdateEvent) -> editorLoop s
+    Just _ -> editorLoop s
+    Nothing -> editorDisplay s >> editorLoop s
 data SomeState where 
   SS :: SState s ->SomeState
 data SomeEditor a c where 
@@ -405,8 +439,45 @@ data SomeEditor a c where
 -- instance SingI a => Monad (SomeEditor a) where
   -- return c = SE sing (return c)
   -- (SE st ed) >>= f = 
-mouseCase ::forall a c d . MouseButtonEventData -> SState a ->  (forall b. SState b -> Editor a b c -> d) -> d -- Editor a Ground SomeState
-mouseCase (MouseButtonEventData window motion which buttonc clicks pos) s f =  undefined
+-- middleButton :: MonadIO m => m Bool
+-- middleButton = Raw.getMouseState nullPtr nullPtr P.>>= \ma -> P.return (testBit ma (1))
+  
+mouseMCase :: forall m. MonadIO m => MouseMotionEventData -> m ()
+mouseMCase (MouseMotionEventData {..}) = liftIO $ do
+  -- mb <- middleButton
+  -- print mouseMotionEventState
+  when (ButtonMiddle `elem` mouseMotionEventState) (do
+        -- putStrLn "ButtonMiddle"
+        let (V2 x y) = mouseMotionEventRelMotion
+            fromGradi x = (fromIntegral x / 360*tau*7.0/30.0)
+        modifyIORef view (((rotateAroundZ (fromGradi (-x))) !*!) . (rotateAroundY (fromGradi (y)) !*!)))
+     where (>>) :: m a -> m b -> m b
+           (>>) = (P.>>)
+           (>>=) :: m a -> (a -> m b) -> m b
+           (>>=) = (P.>>=)
+    
+mouseCCase :: forall a d . MouseButtonEventData -> SState a -> (forall b c. SState b -> Editor a b c -> d) -> d -- Editor a Ground SomeState
+-- _action :: (SingI i, SingI o) => Action i o () 
+mouseCCase (MouseButtonEventData window motion which buttonc clicks pos) s f = go gui -- FIXME заменить go на for, mapM или fold*
+  where go [] = f s (ireturn ()) 
+        go (b@(Button _ _ i o _action ):bs) =  if buttRectangle b `contains` pos 
+          then case testEquality i s of
+            Just Refl -> f o (inject _action)
+            Nothing -> f s (ireturn ())
+          else go bs
+keyboardCase :: MonadIO m => KeyboardEventData -> m () 
+keyboardCase (KeyboardEventData {..}) 
+  | keyboardEventKeyMotion == Pressed = let
+   c = keysymKeycode keyboardEventKeysym
+   in liftIO $ case lookup c matricesMove of
+    Just f -> modifyIORef view (f 0.1 !*!)  
+    Nothing -> P.return () 
+  | otherwise = P.return ()
+
+matricesMove :: Floating a => [(Keycode, a -> M44 a)]
+matricesMove = {-fmap (\(a, b) -> (a, b (1/cosh a))) -}[(KeycodeW, moveAlongX . negate), (KeycodeS, moveAlongX ),
+                           (KeycodeA, moveAlongY . negate), (KeycodeD, moveAlongY ), (KeycodeZ, moveAlongZ . negate), (KeycodeC, moveAlongZ )]
+
 type Editor = CommandIxMonad Action
 instance Functor (Editor a a) where
   fmap = imap
