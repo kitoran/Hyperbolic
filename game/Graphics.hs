@@ -300,7 +300,7 @@ initialiseGraphics = do
     F.initialize
     putStrLn "72"
     Display {..} <- fmap head getDisplays 
-    (sdlWindow $=) =<< createWindow "Hyperbolic" defaultWindow { windowMode = FullscreenDesktop {-,  windowResizable = True,-}, windowInitialSize = displayBoundsSize, windowPosition = Centered, windowOpenGL = Just defaultOpenGL }
+    (sdlWindow $=) =<< createWindow "Hyperbolic" defaultWindow { {- windowMode = FullscreenDesktop , -} windowBorder = False, windowInitialSize = displayBoundsSize, windowPosition = Centered, windowOpenGL = Just defaultOpenGL }
     (glContext $=) =<< glCreateContext =<< get sdlWindow
     -- get sdlWindow >>= flip setWindowMode FullscreenDesktop 
     -- initResources
