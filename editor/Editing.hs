@@ -31,7 +31,7 @@
 
 i'm sorry for the extensive use of unsafeperformio but not really because for example GL.stringWidth is really a pure function for my uses
 and it would very much suck to obtain its value in io function and pass it all the way down to pure function that uses it
-these uses of unsafeperformio are much safer than say reading file with hGetContents which is a standard function 
+these uses of unsafeperformio are much safer than say reading a file with hGetContents which is a standard function 
 
 -}
 
@@ -44,6 +44,7 @@ import Control.Monad.Indexed
 import Data.Time
 import System.IO
 import System.IO  
+import qualified Numeric (showHex, showIntAtBase)
 import qualified Control.Lens as Lens
 import SDL.Internal.Numbered
 import Foreign
@@ -144,8 +145,8 @@ gui = [Button "wall" (SDL.P $ V2 300 200) SGround SAddingWall ( (StartAddingWall
 
 editorDisplay :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)Matri
                                          => -}
-             MonadIO m => SState a -> m ()
-editorDisplay st = liftIO $ do
+             MonadIO m => SState a -> Bool -> m ()
+editorDisplay st selection = liftIO $ do
 --  liftIO $ print "editorDisplay"
 
   
@@ -179,7 +180,7 @@ editorDisplay st = liftIO $ do
   -- print cons1
   GL.clear [GL.ColorBuffer, GL.DepthBuffer]
   
-  GL.position (GL.Light 0) $= lpos -- saneVertex4 0.3 0.1 0.15 (1::GLfloat)
+  -- GL.position (GL.Light 0) $= lpos -- saneVertex4 0.3 0.1 0.15 (1::GLfloat)
   mapM_ ( toRaw) (env)--  <> (coerce @Mesh @[((Double, Double, Double, Double), HyperEntity)] $ (let tt =  thatTransformation $  (P.Devi (Point 0.00001 0.0001 0.00001 1) (Abs 0.01 1 0.1) (0.1)) 
                                                                                                -- in traceComm "iden" (tt !*! transposeMink tt) `seq` tt) !$ deviator ))
 
@@ -209,6 +210,9 @@ editorDisplay st = liftIO $ do
       mapM_ @[] ( toRaw) $ coerce $ beingAddedWall 0 m  tran
     _ -> return ())::IO ()
   color $ GL.Color4 1 1 (1::GLdouble) 0.1
+  -- when selection 
+  (get selectionProgramID >>= glUseProgram)
+
   GL.renderPrimitive GL.Triangles $ do
     let [x, y, z, t] = [ 0.5, 0, 0, 1] --lpos
     GL.vertex $ saneVertex4 (x-0.01::GLdouble) y z t
@@ -233,7 +237,7 @@ editorDisplay st = liftIO $ do
   color $ GL.Color3 0 0 (1::GLdouble)
   win <- get sdlWindow
   -- ren <- SDL.createRenderer  sdlWindow defaultRenderer
-  SDL.glSwapWindow win
+  when (not selection) (SDL.glSwapWindow win)
   -- return ()
     where 
           -- tran = tranw
@@ -431,7 +435,8 @@ editorLoop s = do
     Just (DropEvent a) -> editorLoop   s
     Just (ClipboardUpdateEvent) -> editorLoop s
     Just _ -> editorLoop s
-    Nothing -> editorDisplay s >> editorLoop s
+    Nothing -> editorDisplay s False >> editorLoop s
+
 data SomeState where 
   SS :: SState s ->SomeState
 data SomeEditor a c where 
@@ -442,16 +447,27 @@ data SomeEditor a c where
   -- (SE st ed) >>= f = 
 -- middleButton :: MonadIO m => m Bool
 -- middleButton = Raw.getMouseState nullPtr nullPtr P.>>= \ma -> P.return (testBit ma (1))
-  
+-- horizontalCircle :: Point a -> a -> [Point a]
+showHex :: Int -> String
+showHex a
+  | a < 0 = showU (2^32 - fromIntegral a) 8
+  | True  = showU (fromIntegral a) 8
+showU :: Integer -> Int -> String
+showU a 0 = ""
+showU a n = showU (a `div` 16) (n-1) ++ (Numeric.showHex (a `mod` 16) "")
 mouseMCase :: forall m. MonadIO m => MouseMotionEventData -> m ()
-mouseMCase (MouseMotionEventData {..}) = liftIO $ do
+mouseMCase (MouseMotionEventData {..}) =  ( 
   -- mb <- middleButton
   -- print mouseMotionEventState
-  when (ButtonMiddle `elem` mouseMotionEventState) (do
+  if (ButtonMiddle `elem` mouseMotionEventState)
+    then liftIO (do
         -- putStrLn "ButtonMiddle"
-        let (V2 x y) = mouseMotionEventRelMotion
-            fromGradi x = (fromIntegral x / 360*tau*7.0/30.0)
-        modifyIORef view (((rotateAroundZ (fromGradi (-x))) !*!) . (rotateAroundY (fromGradi (y)) !*!)))
+            let (V2 x y) = mouseMotionEventRelMotion
+                fromGradi x = (fromIntegral x / 360*tau*7.0/30.0)
+            modifyIORef view (((rotateAroundZ (fromGradi (-x))) !*!) . (rotateAroundY (fromGradi (y)) !*!)))
+    else do
+      int <- selected 0 0
+      liftIO $ putStrLn $ "11111111111111111:   " ++ showHex int)
      where (>>) :: m a -> m b -> m b
            (>>) = (P.>>)
            (>>=) :: m a -> (a -> m b) -> m b
@@ -460,13 +476,13 @@ mouseMCase (MouseMotionEventData {..}) = liftIO $ do
 mouseCCase :: forall a d . MouseButtonEventData -> SState a -> (forall b c. SState b -> Editor a b c -> Editor a Quit d) -> Editor a Quit d -- Editor a Ground SomeState
 -- _action :: (SingI i, SingI o) => Action i o () 
 mouseCCase (MouseButtonEventData window motion which buttonc clicks pos) SGround f = go gui -- FIXME заменить go на for, mapM или fold*
-  where go [] = f SGround (ireturn ()) 
+  where go [] = f SGround (ireturn ())  
         go (b@(Button _ _ i o _action ):bs) =  if buttRectangle b `contains` pos 
           then case testEquality i SGround of
             Just Refl -> f o (inject _action)
             Nothing -> f SGround (ireturn ())
           else go bs
-mouseCCase (MouseButtonEventData window motion which ButtonLeft 2 pos) SAddingWall f = do
+mouseCCase (MouseButtonEventData window motion which ButtonLeft td pos) SAddingWall f = do
       (m ::SDL.Point V2 CInt) <- iliftIO getAbsoluteMouseLocation
       view_ <- get view
       let (mesh::Mesh) = beingAddedWall 0 m view_
@@ -505,3 +521,49 @@ addWall = do
   a <- return ()
   case True of
     True -> inject $ AddWall (Mesh [])
+
+selected :: MonadIO m => Int32 -> Int32 -> m Int 
+selected xx yy = liftIO $ do
+  res <- mallocBytes (4)-- char res[4];
+  viewport <- mallocBytes (4*4)-- GLint viewport[4]; 
+
+  editorDisplay SGround True
+  glGetIntegerv GL_VIEWPORT viewport 
+  v3 <- peek (viewport `plusPtr` (3*4))
+  glReadPixels xx (v3 - yy) 1 1 GL_RGBA GL_BYTE res
+  ress <- peek res
+  print "her"
+  return ress
+ where
+   (>>=) = (P.>>=)
+   (>>) = (P.>>)
+   return = P.return
+
+-- renderSelection :: MonadIO m => m () 
+-- renderSelection = do
+  -- glClearColor 0.0 0.0 0.0 (0.0::GLfloat)
+  -- glClear (GL_COLOR_BUFFER_BIT .|.  GL_DEPTH_BUFFER_BIT)
+
+  -- //set matrices to identity
+  -- ...
+  -- // set camera as in the regular rendering function
+  -- ....
+
+  -- // use the selection shader
+  -- (get selectionProgramID) >>= glUseProgram
+
+  -- //perform the geometric transformations to place the first pawn
+  -- ...
+  -- // set the uniform with the appropriate color code
+  -- (get selectionProgramID) >>= \z -> glProgramUniform1i z codeVarLocation 1
+  -- // draw first pawn
+  -- ...
+  
+  -- // repeat the above steps for the remaining objects, using different codes
+
+  -- //don't swap buffers
+  -- //glutSwapBuffers();
+
+  -- // restore clear color if needed
+  -- glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+-- }
