@@ -1,6 +1,6 @@
 {-# Language NoMonomorphismRestriction, BangPatterns, TupleSections, TemplateHaskell,
     ScopedTypeVariables, FlexibleContexts, MultiParamTypeClasses, OverloadedStrings, MonoLocalBinds,
-      PatternSynonyms #-}
+      PatternSynonyms, RecordWildCards #-}
 module Graphics where
 import System.IO
 import Graphics.UI.GLUT.Initialization
@@ -128,12 +128,19 @@ saneVertex4  :: GLDouble -> GLDouble -> GLDouble -> GLDouble -> Vertex4 GLDouble
 saneVertex4 a b c d = if d*d >= 0 then {-traceComm "vert" $ -}Vertex4 (a) (b) (c) d else  Vertex4 (-a) (-b) (-c) (-d) -- error "w negaive" -- d -- (-1) 
 origin :: Point Double
 origin = H.origin
+{-# NOINLINE sdlWindow #-}
 sdlWindow :: IORef Window
 sdlWindow = unsafePerformIO $ newIORef (error "thissssssssdlWindow") 
+{-# NOINLINE glContext #-}
 glContext :: IORef GLContext
 glContext = unsafePerformIO $ newIORef (error "thissssssglcossdlWindow")
+{-# NOINLINE rendererR #-}
 rendererR :: IORef (Renderer) 
-rendererR = unsafePerformIO $ newIORef (error "thissssssss") 
+rendererR = unsafePerformIO $ newIORef (error "thissssssss")
+{-# NOINLINE selectionProgramID #-}
+selectionProgramID :: IORef GLuint
+selectionProgramID = unsafePerformIO $ newIORef (error "empty selectionProgramID")
+
 -- initResources :: IO (GL.Program, GL.AttribLocation)
 -- initResources = do
     -- compile vertex shader
@@ -188,25 +195,126 @@ rendererR = unsafePerformIO $ newIORef (error "thissssssss")
 --            , "gl_FragColor = vec4((gl_FragCoord.x/640), (gl_FragCoord.y/480), 0, 1);"
 --            , "}"
 --            ]
+loadShaders :: FilePath -> FilePath -> IO GLuint 
+loadShaders vertex_file_path fragment_file_path = do
+--  // Create the shaders
+  vertexShaderID <- glCreateShader GL_VERTEX_SHADER
+  fragmentShaderID <- glCreateShader GL_FRAGMENT_SHADER
+
+--  // Read the Vertex Shader code from the file
+  vertexShaderCode <- readFile vertex_file_path 
+--  std::ifstream VertexShaderStream(vertex_file_path, std::ios::in);
+  -- if(VertexShaderStream.is_open()){
+    -- std::stringstream sstr;
+    -- sstr << VertexShaderStream.rdbuf();
+    -- VertexShaderCode = sstr.str();
+    -- VertexShaderStream.close();
+  -- }else{
+ -- /   printf("Impossible to open %s. Are you in the right directory ? Don't forget to read the FAQ !\n", vertex_file_path);
+    -- getchar();
+    -- return 0;
+  -- }
+
+  -- // Read the Fragment Shader code from the file
+  -- std::string FragmentShaderCode;
+  fragmentShaderCode <- readFile fragment_file_path 
+  -- std::ifstream FragmentShaderStream(fragment_file_path, std::ios::in);
+  -- if(FragmentShaderStream.is_open()){
+    -- std::stringstream sstr;
+    -- sstr << FragmentShaderStream.rdbuf();
+    -- FragmentShaderCode = sstr.str();
+    -- FragmentShaderStream.close();
+  -- }
+
+  (result::Ptr GLint) <- malloc 
+  poke result 0
+  infoLogLength <- malloc 
+
+  -- // Compile Vertex Shader
+  putStrLn $ "Compiling shader : " ++ vertex_file_path
+  vertexSourcePointerPtr <- malloc
+  vertexSourcePointer <- newCString vertexShaderCode
+  poke vertexSourcePointerPtr vertexSourcePointer
+  glShaderSource vertexShaderID 1 vertexSourcePointerPtr nullPtr
+  glCompileShader vertexShaderID
+
+  -- // Check Vertex Shader
+  glGetShaderiv vertexShaderID GL_COMPILE_STATUS result
+  glGetShaderiv vertexShaderID GL_INFO_LOG_LENGTH infoLogLength
+  cond <- peek infoLogLength
+  when (cond > 0 ) $ do return ()
+    -- std::vector<char> VertexShaderErrorMessage(InfoLogLength+1);
+    -- glGetShaderInfoLog(VertexShaderID, InfoLogLength, NULL, &VertexShaderErrorMessage[0]);
+    -- printf("%s\n", &VertexShaderErrorMessage[0]);
+ 
+
+  -- // Compile Fragment Shader
+  putStrLn $ "Compiling shader : " ++ fragment_file_path
+  fragmentSourcePointerPtr <- malloc
+  fragmentSourcePointer <- newCString fragmentShaderCode
+  poke fragmentSourcePointerPtr fragmentSourcePointer
+  glShaderSource fragmentShaderID 1 fragmentSourcePointerPtr nullPtr
+  glCompileShader fragmentShaderID
+
+  -- // Check Fragment Shader
+  glGetShaderiv fragmentShaderID GL_COMPILE_STATUS result
+  glGetShaderiv fragmentShaderID GL_INFO_LOG_LENGTH infoLogLength
+  -- if ( InfoLogLength > 0 ){
+  --   std::vector<char> FragmentShaderErrorMessage(InfoLogLength+1);
+  --   glGetShaderInfoLog(FragmentShaderID, InfoLogLength, NULL, &FragmentShaderErrorMessage[0]);
+  --   printf("%s\n", &FragmentShaderErrorMessage[0]);
+  -- }
+
+  -- // Link the program
+  putStrLn "Linking program"
+  programID <- glCreateProgram
+  glAttachShader programID vertexShaderID
+  glAttachShader programID fragmentShaderID
+  glLinkProgram programID
+
+  -- // Check the program
+  glGetProgramiv programID GL_LINK_STATUS result
+  glGetProgramiv programID GL_INFO_LOG_LENGTH infoLogLength
+  -- if ( InfoLogLength > 0 ){
+  --   std::vector<char> ProgramErrorMessage(InfoLogLength+1);
+  --   glGetProgramInfoLog(ProgramID, InfoLogLength, NULL, &ProgramErrorMessage[0]);
+  --   printf("%s\n", &ProgramErrorMessage[0]);
+  -- }
+  
+  glDetachShader programID vertexShaderID
+  glDetachShader programID fragmentShaderID
+  
+  glDeleteShader vertexShaderID
+  glDeleteShader fragmentShaderID
+  selectionProgramID $= programID 
+  return programID
+
 initialiseGraphics ::  IO ()--GL.Program, GL.AttribLocation)
 initialiseGraphics = do
     putStrLn "68"
+    
     -- initialDisplayMode $= [ WithDepthBuffer, DoubleBuffered]
     _ <- getArgsAndInitialize 
     putStrLn "70"
     SDL.Init.initialize [InitVideo]
     F.initialize
     putStrLn "72"
-    (sdlWindow $=) =<< createWindow "Hyperbolic" defaultWindow {windowMode = FullscreenDesktop, windowOpenGL = Just defaultOpenGL}
+    Display {..} <- fmap head getDisplays 
+    (sdlWindow $=) =<< createWindow "Hyperbolic" defaultWindow { windowMode = FullscreenDesktop {-,  windowResizable = True,-}, windowInitialSize = displayBoundsSize, windowPosition = Centered, windowOpenGL = Just defaultOpenGL }
     (glContext $=) =<< glCreateContext =<< get sdlWindow
+    -- get sdlWindow >>= flip setWindowMode FullscreenDesktop 
     -- initResources
-    return ()
+    -- return ()
+    loadShaders "select.vert" "select.frag"
     -- er <- Raw.glSetSwapInterval 1
     -- when (er < 0) 
     --   (putStrLn "Warning: Unable to set VSync! SDL Error: (SDL_GetError())")
     -- res <- initGL  
     -- return ()
     -- putStrLn "74"
+    sc<-get scissor
+    putStrLn ("scissor = " ++ show sc) 
+    -- scissorTest $= False
     depthFunc $= Just Less
     putStrLn "77"
     depthBounds $= Nothing
