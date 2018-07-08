@@ -70,6 +70,7 @@ import Hyperbolic
 import Control.Monad.IO.Class
 import Data.Proxy
 import Data.String 
+import qualified Data.Map as M
 import Prelude hiding (return, (>>=), (>>))
 import qualified Prelude as P (return, (>>=), (>>)) 
 import GHC.Exts (coerce)
@@ -87,9 +88,11 @@ import qualified Physics  as P
 import Control.Concurrent.Chan
 import Linear as L hiding (trace) 
 import System.IO.Unsafe
+import CommonGraphics
 -- import qualified Linear as L
 import  Graphics
-import Data.Singletons.TH 
+import Data.Singletons.TH
+
 $(singletons [d|
   data State = AddingWall | Ground | Quit deriving (Read, Show, Eq)
   |]) 
@@ -100,19 +103,24 @@ $(singletons [d|
 -- windowPos (V2 x y) = set?windowPos (V2 x (height-y))
 ifThenElse True a b = a
 ifThenElse False a b = b 
-model = unsafePerformIO $ newIORef $ P.Env ( Mesh $ [
+a i = (i `shift` 24) .&. 0xFF
+r i = (i `shift` 16) .&. 0xFF
+g i = (i `shift` 8) .&. 0xFF
+b i = i .&. 0xFF
+data ExplicitObject = Me Mesh | So P.Source | Re P.Receiver deriving(Ord, Show, Read, Eq)
+data Scene = Scene (M.Map Int32 ExplicitObject) (M.Map Int32 P.Obstacle)  
+model = unsafePerformIO $ newIORef $ Scene (M.singleton 0x44ff3388 (Me $ Mesh $ [
                                              ((0.9, 0.1, 1, 1.0),  
                                              (P.Polygon ) $
                                              map ((\a -> rotateAroundZ (a-0.1) !$ moveAlongZ (-0.1::Double) !$ (Point 0.9999 0 (0.0) 1)) .
                                                   (/4) . --360) .
                                                   (*(tau::Double)) .
-                                                  fromIntegral::Integer->Point Double) $ [0, 1, 2, 3 {-59-}])])
-
-            ([]) 
-            [] 
-            []
+                                                  fromIntegral::Integer->Point Double) $ [0, 1, 2, 3 {-59-}])])) M.empty
 
 view = unsafePerformIO $ newIORef $ (  rotateAroundY 0.1 {- (tau/(4-0.1))-}  !*! moveAlongX (-0.1) {- moveAlongZ (-0.1) !*! ) --} !*! L.identity::L.M44 Double)
+data SelectedThing = Nihil | Mes Int32 | Obs Int32 deriving(Ord, Show, Read, Eq)
+selectedThing = unsafePerformIO $ newIORef $ Nihil
+-- selected
 -- type Angle = Double
 
 mapVertexPixel :: SDL.Point V2 CInt -> L.V2 GLdouble
@@ -142,46 +150,58 @@ beingAddedWall a pos view = ({-traceComm "RES POINT = " res `seq` --(GL.Position
 -- rx ry 0 rt = persViewMatrix !* (tran !* (p ^. _v4))
 gui :: [Button] 
 gui = [Button "wall" (SDL.P $ V2 300 200) SGround SAddingWall ( (StartAddingWall) )]
-
+clamp :: (Num a, Ord a) => a -> a
+clamp = max 0 . min 1
+faff :: Int32 -> (Double, Double, Double, Double)
+faff w = (fromIntegral (r w)/255.0, fromIntegral (g w)/255, fromIntegral (b w)/255, fromIntegral (a w)/255)
 editorDisplay :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)Matri
                                          => -}
              MonadIO m => SState a -> Bool -> m ()
 editorDisplay st selection = liftIO $ do
---  liftIO $ print "editorDisplay"
-
-  
   -- state' <- get state
   tran  <- liftIO $ get view
-  let     toRaw :: ((Double, Double, Double, Double), HyperEntity ) -> IO ()
-          toRaw (col, (P.Polygon list)) = do
+  let     rend :: SelectedThing -> Int32 -> ExplicitObject  -> IO ()
+          rend s m (Me (Mesh a))
+            | (Mes n) <- s, m == n = mapM_ (toRaw True m) a
+            | otherwise = mapM_ (toRaw False m) a
+          -- rend  (Me (Mesh a)) a = mapM_ (\a -> toRaw a
+          -- pickColor :: (Double, Double, Double, Double) -> IO ()
+          -- pickColor a -> 
+          toRaw :: Bool -> Int32 -> ((Double, Double, Double, Double), HyperEntity) -> IO ()
+          toRaw bb qwq (col, (P.Polygon list)) = do
+                              -- putStrLn $ "toRaw ::" ++ show bb ++ show selection ++ show qwq ++ show col ++ show list
                               GL.renderPrimitive GL.Polygon $ do
-                                color $ curry4 GL.Color4 $  mapTuple coerceG col  
+                                if selection
+                                  then
+                                    color $ (curry4 GL.Color4::(Double, Double, Double, Double) -> GL.Color4 Double) $ faff qwq
+                                  else 
+                                    color $ curry4 GL.Color4 $ mapTuple (\a -> clamp $ coerceG a + if bb then 0.3 else 0) col   
                                 applyNormal list
                                 mapM_ transform list
-          toRaw (col, (Segment a b)) = do
+          toRaw bb qwq (col, (Segment a b)) = do
                               GL.renderPrimitive GL.Lines $ do
                                 color $ curry4 (GL.Color4) $ mapTuple coerceG col
                                 transform a
                                 transform b
-          toRaw (col, (HPoint a )) = do
+          toRaw bb qwq (col, (HPoint a )) = do
                               GL.renderPrimitive GL.Points $ do
                                 color $ curry4 (GL.Color4) $ mapTuple coerceG col
                                 transform a
           transform :: Point Double -> IO ()--saneVertex4 Double
 
-          transform p {- (H.Point x y z t) -} =  let (L.V4 x y z t) =  persViewMatrix  !* ( {-traceComm "VVV" $-} tran !* (p ^. _v4)) in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
+          transform p@(Point px py pz pt)  =  let (L.V4 x y z t) =  persViewMatrix  !* ( {-traceComm "VVV" $-} tran !* (p ^. _v4)) in --transform p = let (L.V4 x y z t) = transposeMink tran !* toL.V4 p  in 
                     {- when ((x/t)>0) -}
                      do
-                     (GL.vertex  $  saneVertex4 (coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
+                     (GL.vertex  $  saneVertex4 (Debug.Trace.trace ("x = " ++ show px ++ "y =  " ++ show py ++ "z =  " ++ show pz ++ "t =  " ++ show pt ++ "\n") $ coerce $ x) (coerceG $ y) (coerceG $ z) (coerceG t))
           frame (P.Polygon list) = 
               GL.renderPrimitive GL.LineLoop $ mapM_ transform list
           frame (Segment a b) = return ()
-  (Mesh env) <- fmap P._mesh $ GL.get model 
+  (Scene vis _) <- GL.get model 
   -- print cons1
   GL.clear [GL.ColorBuffer, GL.DepthBuffer]
-  
+  s <- get selectedThing
   -- GL.position (GL.Light 0) $= lpos -- saneVertex4 0.3 0.1 0.15 (1::GLfloat)
-  mapM_ ( toRaw) (env)--  <> (coerce @Mesh @[((Double, Double, Double, Double), HyperEntity)] $ (let tt =  thatTransformation $  (P.Devi (Point 0.00001 0.0001 0.00001 1) (Abs 0.01 1 0.1) (0.1)) 
+  traverseWithKey_ (rend s) (vis)--  <> (coerce @Mesh @[((Double, Double, Double, Double), HyperEntity)] $ (let tt =  thatTransformation $  (P.Devi (Point 0.00001 0.0001 0.00001 1) (Abs 0.01 1 0.1) (0.1)) 
                                                                                                -- in traceComm "iden" (tt !*! transposeMink tt) `seq` tt) !$ deviator ))
 
 {-  GL.renderPrimitive GL.Triangles $ do
@@ -207,37 +227,40 @@ editorDisplay st selection = liftIO $ do
   (case st of
     SAddingWall -> do
       (m ::SDL.Point V2 CInt) <- getAbsoluteMouseLocation
-      mapM_ @[] ( toRaw) $ coerce $ beingAddedWall 0 m  tran
+      mapM_ @[] ( toRaw False (-1)) $ coerce $ beingAddedWall 0 m  tran
     _ -> return ())::IO ()
   color $ GL.Color4 1 1 (1::GLdouble) 0.1
   -- when selection 
   (get selectionProgramID >>= glUseProgram)
+  when (not selection) (do
 
-  GL.renderPrimitive GL.Triangles $ do
-    let [x, y, z, t] = [ 0.5, 0, 0, 1] --lpos
-    GL.vertex $ saneVertex4 (x-0.01::GLdouble) y z t
+    GL.renderPrimitive GL.Triangles $ do
+      let [x, y, z, t] = [ 0.5, 0, 0, 1] --lpos
+      GL.vertex $ saneVertex4 (x-0.01::GLdouble) y z t
 
-    GL.vertex $ saneVertex4 x (y-0.01::GLdouble) z t
-    GL.vertex $ saneVertex4 x y (z-0.01::GLdouble) t
-  mapM_ (frame.snd) env  
-  -- GL.clear [GL.DepthBuffer]
-  GL.depthFunc $= Nothing
-  GL.depthMask $= GL.Disabled
-  -- GL.preservingMatrix $ do 
-    -- GL.matrixMode $= GL.Projection 
-    -- GL.loadIdentity 
-    -- GL.matrixMode $= GL.Modelview 0
-    -- GL.loadIdentity
+      GL.vertex $ saneVertex4 x (y-0.01::GLdouble) z t
+      GL.vertex $ saneVertex4 x y (z-0.01::GLdouble) t
+  --  mapM_ (frame.snd) env
+    -- mapM_ (\(Mesh a) -> mapM_ (frame.snd) a) (vis)  
+    -- GL.clear [GL.DepthBuffer]
+    GL.depthFunc $= Nothing
+    GL.depthMask $= GL.Disabled
+    -- GL.preservingMatrix $ do 
+      -- GL.matrixMode $= GL.Projection 
+      -- GL.loadIdentity 
+      -- GL.matrixMode $= GL.Modelview 0
+      -- GL.loadIdentity
 
-  for_ gui displayButton 
+    for_ gui displayButton 
 
-  color $ GL.Color3 0 0 (0::GLdouble)
-  GL.depthFunc $= Just GL.Less
-  GL.depthMask $= GL.Enabled
-  color $ GL.Color3 0 0 (1::GLdouble)
-  win <- get sdlWindow
-  -- ren <- SDL.createRenderer  sdlWindow defaultRenderer
-  when (not selection) (SDL.glSwapWindow win)
+    color $ GL.Color3 0 0 (0::GLdouble)
+    GL.depthFunc $= Just GL.Less
+    GL.depthMask $= GL.Enabled
+    color $ GL.Color3 0 0 (1::GLdouble)
+    win <- get sdlWindow
+    -- ren <- SDL.createRenderer  sdlWindow defaultRenderer
+    SDL.glSwapWindow win)
+  -- (get view) >>= print 
   -- return ()
     where 
           -- tran = tranw
@@ -256,6 +279,8 @@ editorDisplay st selection = liftIO $ do
           (>>=) = (P.>>=)
           return = P.return
           (>>) = (P.>>)
+traverseWithKey_ :: forall f a b c. (Applicative f, Ord b) => (a -> b -> f c) -> M.Map a b -> f ()
+traverseWithKey_ f = M.foldrWithKey (\a b -> (\e -> (f a b) *> e)) (pure () :: f ()) 
 
 -- editorMouseCallback ::    
 -- editorMouseCallback mdata = do
@@ -376,7 +401,7 @@ run :: Show c => Editor a b c -> IO c
 run (CReturn a) = P.return a
 run ((Do a) :? j) = a P.>>= (\r -> run (j r))   
 run (StartAddingWall :? f) = run (f ())
-run ((AddWall m) :? f) = (modifyIORef model (Lens.over P.mesh (<> m))) P.>> run (f m)
+run ((AddWall m) :? f) = modifyIORef model (\(Scene (a::M.Map Int32 ExplicitObject) b) -> Scene (M.insert (fromIntegral $ M.size a) (Me m) a) b) P.>> run (f m)
 run ((Exit) :? f) = run (f ())
 inject :: Action a b c -> Editor a b c
 inject a = a :? CReturn
@@ -448,7 +473,7 @@ data SomeEditor a c where
 -- middleButton :: MonadIO m => m Bool
 -- middleButton = Raw.getMouseState nullPtr nullPtr P.>>= \ma -> P.return (testBit ma (1))
 -- horizontalCircle :: Point a -> a -> [Point a]
-showHex :: Int -> String
+showHex :: Int32 -> String
 showHex a
   | a < 0 = showU (2^32 - fromIntegral a) 8
   | True  = showU (fromIntegral a) 8
@@ -456,21 +481,26 @@ showU :: Integer -> Int -> String
 showU a 0 = ""
 showU a n = showU (a `div` 16) (n-1) ++ (Numeric.showHex (a `mod` 16) "")
 mouseMCase :: forall m. MonadIO m => MouseMotionEventData -> m ()
-mouseMCase (MouseMotionEventData {..}) =  ( 
-  -- mb <- middleButton
-  -- print mouseMotionEventState
-  if (ButtonMiddle `elem` mouseMotionEventState)
-    then liftIO (do
+mouseMCase (MouseMotionEventData {..}) 
+  | ButtonMiddle `elem` mouseMotionEventState =
+      liftIO (do
         -- putStrLn "ButtonMiddle"
             let (V2 x y) = mouseMotionEventRelMotion
                 fromGradi x = (fromIntegral x / 360*tau*7.0/30.0)
             modifyIORef view (((rotateAroundZ (fromGradi (-x))) !*!) . (rotateAroundY (fromGradi (y)) !*!)))
-    else do
-      int <- selected 0 0
-      liftIO $ putStrLn $ "11111111111111111:   " ++ showHex int)
-     where (>>) :: m a -> m b -> m b
+  | otherwise = liftIO $ do
+      int <- liftIO (selected mouseMotionEventPos :: IO Int32)
+      if int > 0 
+        then
+          selectedThing $= Mes int
+        else
+          selectedThing $= Nihil
+      (get selectedThing) >>= print
+      putStrLn $ "11111111111111111:   " ++ showHex int
+      
+     where -- (>>) :: m a -> m b -> m b
            (>>) = (P.>>)
-           (>>=) :: m a -> (a -> m b) -> m b
+           -- (>>=) :: m a -> (a -> m b) -> m b
            (>>=) = (P.>>=)
     
 mouseCCase :: forall a d . MouseButtonEventData -> SState a -> (forall b c. SState b -> Editor a b c -> Editor a Quit d) -> Editor a Quit d -- Editor a Ground SomeState
@@ -522,17 +552,26 @@ addWall = do
   case True of
     True -> inject $ AddWall (Mesh [])
 
-selected :: MonadIO m => Int32 -> Int32 -> m Int 
-selected xx yy = liftIO $ do
+selected :: MonadIO m => SDL.Point V2 Int32 -> m Int32 
+selected (Pos xx yy) = liftIO $ do
   res <- mallocBytes (4)-- char res[4];
   viewport <- mallocBytes (4*4)-- GLint viewport[4]; 
 
   editorDisplay SGround True
   glGetIntegerv GL_VIEWPORT viewport 
   v3 <- peek (viewport `plusPtr` (3*4))
-  glReadPixels xx (v3 - yy) 1 1 GL_RGBA GL_BYTE res
-  ress <- peek res
-  print "her"
+
+  -- GL.clearColor $= GL.Color4 (0x44/255) (0x44/255) (0x44/255) (0x44/255)
+  -- GL.clear [ColorBuffer]
+  -- glReadPixels 1 1  1 1 GL_BGRA GL_UNSIGNED_BYTE res
+  glReadPixels xx (traceComm "v3 - yy" (v3 - yy)) 1 1 GL_BGRA GL_BYTE res
+  ress <- peek res 
+  print ("her 1" ++ show ress)
+  -- ress2 <- peek res
+  -- print ("her 2" ++ show ress2)
+  -- glReadPixels xx (traceComm "v3 - yy" (v3 - yy)) 1 1 GL_BGRA GL_INT res
+  -- ress3 <- peek res
+  -- print ("her 3" ++ show ress3)
   return ress
  where
    (>>=) = (P.>>=)

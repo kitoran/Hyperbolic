@@ -1,10 +1,10 @@
 #version 330
 
-uniform int code;
+#uniform int code;
 
-out vec4 outputF;
+#out vec4 outputF;
 
-void main()
-{
-    outputD = vec4(code/255.0, 0, 0, 0);
-}
+#void main()
+#{
+#    outputF = vec4(0, 0, 0, 0);
+#}

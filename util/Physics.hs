@@ -28,19 +28,21 @@ import Data.IORef
 import Linear(M44, (!*!), (!*), (*!), normalizePoint, V3(..), M33)
 
 --fixme этот файл, конечно, надо переместить в util, а Mesh переместить в другой файл
+function :: IO ()
+function = undefined
 
 --текущее положение  матрица куда надо пойти   результат (?) 
 -- correct :: M44 Double -> M44 Double -> M44 Double
 -- correct 
-data Source = Source (H.Point Double) (H.Absolute Double) deriving (Show, Read)
-newtype Receiver = Receiver [ (H.Point Double) ] deriving (Show, Read, MonoFunctor)
+data Source = Source (H.Point Double) (H.Absolute Double) deriving (Show, Read, Eq, Ord)
+newtype Receiver = Receiver [ (H.Point Double) ] deriving (Show, Read, MonoFunctor, Eq, Ord)
 type instance Element Receiver = H.Point Double
 type Obstacles = [Obstacle]
 data Obstacle = Sphere !(Point Double) Double | Triangle !(Point Double) !(Point Double) !(Point Double) !Double deriving ( Show, Read)
 data HyperEntity = Polygon [Point Double] -- как всегда, для нормального отображения многоугольник должен быть выпуклым, и точки должны идти в порядке
                  | Segment !(Point Double) !(Point Double) 
-                 | HPoint !(Point Double) {- fixme this constructor isnt needed -} deriving ( Show, Read)
-newtype Mesh = Mesh [((Double, Double, Double, Double), HyperEntity)] deriving ( Show, Read, Monoid, MonoFunctor)
+                 | HPoint !(Point Double) {- fixme this constructor isnt needed -} deriving ( Show, Read, Ord, Eq)
+newtype Mesh = Mesh [((Double, Double, Double, Double), HyperEntity)] deriving ( Show, Read, Monoid, MonoFunctor, Ord, Eq)
 type instance Element Mesh = ((Double, Double, Double, Double), HyperEntity)
 data Environment = Env {  _mesh :: !(Mesh),
                           _obstacles :: !(Obstacles),
