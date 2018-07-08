@@ -7,7 +7,7 @@
 --                    moveRightTo, getTriangleToOxy) where
 
 
-module Hyperbolic  where -- x=
+module Hyperbolic  where
    
 import Data.Monoid
 import Data.Group
@@ -23,6 +23,7 @@ import qualified Control.Lens as Lens
 import Prelude hiding (sinh)
 import qualified Prelude (sinh)
 import Debug.Trace
+
 sinh :: Floating a => a -> a
 sinh a 
   | unsafeCoerce a == (1::Double) = trace "sinh!!" $ Prelude.sinh a
@@ -85,7 +86,7 @@ projective 3-space is sheaf in 4-dimensional vector space.
 
 instance L.Additive Point where
 
-data Point a = Point a a a a deriving (Generic1, Show, Functor, Read)
+data Point a = Point a a a a deriving (Generic1, Show, Functor, Read, Ord, Eq)
 {- ^ for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map 
   is not nearly injective, that's sad. However, sometimes i use improper points -}
 _v4::Lens.Lens' (Point a) (L.V4 a)
@@ -141,7 +142,7 @@ data Plane a = Plane (Point a) (Point a) (Point a) {- ^ if one of the points is 
                                                           the plane is proper -}
 -- data Plane a = Plane a a a a {- ^ for proper plane a^2 + b^2 + c^2 - d^2 > 0 -}
    
-data Absolute a = Abs a a a deriving (Show, Read){- ^ point on celestial sphere or "absolute point". t^2 = x^2 + y^2 + z^2 
+data Absolute a = Abs a a a deriving (Show, Read, Eq, Ord){- ^ point on celestial sphere or "absolute point". t^2 = x^2 + y^2 + z^2 
 x^2+y^2+z^2 > 0-}
 toNonPhysicalPoint (Abs a b c) = Point a b c ((a*a)+(b*b)+(c*c))
 
