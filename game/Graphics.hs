@@ -63,6 +63,7 @@ import Data.Function
 import Data.Maybe
 import Data.Monoid
 import Data.Group
+import CommonGraphics
 import Foreign.C.String
 import qualified Data.Text as T
 import Text.Show.Pretty
@@ -72,7 +73,6 @@ import TextShow
 import Data.Time
 import Foreign hiding ( void)
 import Foreign.C.Types
-import TextShow.TH
 import Data.List (intercalate)
 import qualified System.Random
 import qualified Control.Lens
@@ -88,9 +88,6 @@ import qualified Graphics.Rendering.OpenGL.GL.CoordTrans (loadIdentity)
 -- --import qualified Debug.Trace 
 --В этом модуле находится столько всякой нефункциональности, что от двух маленьких unsafeperformio вреда не будет особого
 
-$(deriveTextShow ''V3)
-$(deriveTextShow ''Point)
-$(deriveTextShow ''V4)
 
 ----------------------------------------------
 
@@ -108,7 +105,6 @@ traceTIO msg = do
   time <- getCurrentTime
   traceIO (show time ++ ": " ++ msg)
 
-type GLDouble = GLdouble
 traceComm s a = Debug.Trace.trace (s ++ " " ++ show a) a
 {-# NOINLINE width #-} -- FIXME непонятно нужно ли всё
 {-# NOINLINE height #-}
@@ -288,7 +284,10 @@ loadShaders vertex_file_path fragment_file_path = do
   glDeleteShader fragmentShaderID
   selectionProgramID $= programID 
   return programID
-
+deinitializeGraphics :: IO ()
+deinitializeGraphics = do
+  SDL.Init.quit
+  Graphics.UI.GLUT.Initialization.exit
 initialiseGraphics ::  IO ()--GL.Program, GL.AttribLocation)
 initialiseGraphics = do
     putStrLn "68"
@@ -300,7 +299,7 @@ initialiseGraphics = do
     F.initialize
     putStrLn "72"
     Display {..} <- fmap head getDisplays 
-    (sdlWindow $=) =<< createWindow "Hyperbolic" defaultWindow { {- windowMode = FullscreenDesktop , -} windowBorder = False, windowInitialSize = displayBoundsSize, windowPosition = Centered, windowOpenGL = Just defaultOpenGL }
+    (sdlWindow $=) =<< createWindow "Hyperbolic" defaultWindow { {- windowMode = FullscreenDesktop , -} windowBorder = False, windowInitialSize = displayBoundsSize, windowPosition = Centered, windowOpenGL = Just defaultOpenGL {glColorPrecision = V4 8 8 8 8} }
     (glContext $=) =<< glCreateContext =<< get sdlWindow
     -- get sdlWindow >>= flip setWindowMode FullscreenDesktop 
     -- initResources

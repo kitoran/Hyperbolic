@@ -50,17 +50,18 @@ executable Hyperbolic
   main-is:             Main.hs
   
   -- Modules included in this executable, other than Main.
---  other-modules:       Console
-  --                   , Graphics
-    --                 , Physics
-      --               , GameLoop
-        --             , Hyperbolic
-          --           , Editing
+  other-modules:       Console
+                     , Graphics
+                     , Physics
+                     , GameLoop
+                     , Hyperbolic
+                     , Editing
+                     , CommonGraphics
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
 
   ghc-options:
-    --  -O0 
+      -O0 
 --      -Wunused-imports
      -- -fno-code
    -- -Wall
@@ -118,6 +119,7 @@ executable Hyperbolic
                      , criterion
                      , strict
                      , indexed
+--                     , bimap
                      , singletons
 --                     , typed-process
   --                   , process
