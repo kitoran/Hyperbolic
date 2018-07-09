@@ -1,6 +1,7 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 #include "SDL2/SDL.h"
+#define GL_GLEXT_PROTOTYPES
 #include "GL/gl.h"
 #include "util/hyperbolic.h"
 #include "util/commongraphics.h"
@@ -60,25 +61,25 @@ Scene mmmm() {
         Point p = rotateAroundZ(bbi-0.1) * moveAlongZ(-0.1) * Point {0.9999, 0, 0, 1};
         v.push_back(p);
     }
-    Point ppp = {.2, .2, .2, 1};
-    Point ppn = {.2, .2, -.2, 1};
-    Point pnp = {.2, -.2, .2, 1};
-    Point pnn = {.2, -.2, -.2, 1};
-    Point npp = {-.2, .2, .2, 1};
-    Point npn = {-.2, .2, -.2, 1};
-    Point nnp = {-.2, -.2, .2, 1};
-    Point nnn = {-.2, -.2, -.2, 1};
-    ColoredEntity p1 = {{0, 1, 1, 1}, {Polygon, {ppp, ppn, pnn, pnp}}};
-    ColoredEntity n1 = {{1, 1, 1, 1}, {Polygon, {npp, npn, nnn, nnp}}};
-    ColoredEntity p2 = {{1, 1, 1, 1}, {Polygon, {ppp, ppn, npn, npp}}};
-    ColoredEntity n2 = {{1, 1, 1, 1}, {Polygon, {pnp, pnn, nnn, nnp}}};
-    ColoredEntity p3 = {{1, 1, 1, 1}, {Polygon, {ppp, pnp, nnp, npp}}};
-    ColoredEntity n3 = {{1, 1, 1, 1}, {Polygon, {ppn, pnn, nnn, npn}}};
+//    Point ppp = {.2, .2, .2, 1};
+//    Point ppn = {.2, .2, -.2, 1};
+//    Point pnp = {.2, -.2, .2, 1};
+//    Point pnn = {.2, -.2, -.2, 1};
+//    Point npp = {-.2, .2, .2, 1};
+//    Point npn = {-.2, .2, -.2, 1};
+//    Point nnp = {-.2, -.2, .2, 1};
+//    Point nnn = {-.2, -.2, -.2, 1};
+//    ColoredEntity p1 = {{0, 1, 1, 1}, {Polygon, {ppp, ppn, pnn, pnp}}};
+//    ColoredEntity n1 = {{1, 1, 1, 1}, {Polygon, {npp, npn, nnn, nnp}}};
+//    ColoredEntity p2 = {{1, 1, 1, 1}, {Polygon, {ppp, ppn, npn, npp}}};
+//    ColoredEntity n2 = {{1, 1, 1, 1}, {Polygon, {pnp, pnn, nnn, nnp}}};
+//    ColoredEntity p3 = {{1, 1, 1, 1}, {Polygon, {ppp, pnp, nnp, npp}}};
+//    ColoredEntity n3 = {{1, 1, 1, 1}, {Polygon, {ppn, pnn, nnn, npn}}};
     HyperEntity he;
     he.type = Polygon;
     he.p = v;
     ColoredEntity ce = {{0.9, 0.1, 1, 1.0}, he};
-    Mesh m = {ce, /*p1, *n1,/* p2, /*n2* p3, /*n3*/};
+    Mesh m = {ce, };
     ExplicitObject e = {Me, m};
     return Scene{
         std::map<int32_t, ExplicitObject>{
@@ -111,25 +112,58 @@ Mesh beingAddedWall(Angle /*a*/, Vector2 pos) {
 
 }
 struct Button {
-    const char* _text;
-    Vector2 _pos;
-    State _i;
-    State _o;
-    void(*_action)();
+    const char* text;
+//    Vector2 _pos;
+    bool(*active)();
+    void(*action)();
 };
-std::vector<Button> gui = { {"wall", {300.0, 200}, Ground, AddingWall, ( [](){state = AddingWall;} )}};
-void displayButton (Button /*butt*/) {
-//  glColor4f(0, 1, (0.5), 1);
-//  (_, h) <- size sans text
-
-//  color $ GL.Color3 1 1 (1::GLdouble)
-//  displayRectangle $ buttRectangle butt
-//  color $ GL.Color3 0 0 (1::GLdouble)
-//  h <- fmap round $ fontHeight TimesRoman24
-//  windowPos $ GL.Vertex2 (fromIntegral $ a + margin :: GLDouble) ((fromIntegral $ height - (b + h + margin)))
-//  color $ GL.Color3 0 1 (0::GLdouble)
-//  renderString TimesRoman24 (T.unpack text)
+bool showMainAxes = true;
+std::vector<Button> gui = { {"wall", [](){return state == Ground;}, ( [](){state = AddingWall;} )},
+                            {"main axes", [](){return true;}, ( [](){ showMainAxes = !showMainAxes;} )}};
+struct Rectangle {
+    double lx;
+    double ly;
+    double sx;
+    double sy;
+    bool contains(double x, double y) {
+        return lx <= x && ly <= y && (lx+sx) >= x && (ly+sy) >= y;
+    }
+};
+void mapPixelVertex(double a, double b) {
+    glVertex2f((a)*2/(width) - 1 ,
+                                             (1 - (b)*2/(height) ));
 }
+void displayRectangle(Rectangle r) {
+//displayRectangle (SDL.Rectangle (SDL.P (V2 lx ly)) (V2 sx sy)) =
+    renderPrimitive(GL_QUADS, [&](){
+        mapPixelVertex(r.lx, r.ly);
+        mapPixelVertex(r.lx+r.sx, r.ly);
+        mapPixelVertex(r.lx+r.sx, r.ly+r.sy);
+        mapPixelVertex(r.lx, r.ly+r.sy);
+    });
+}
+auto margin = 3;
+Rectangle buttRectangle (const Button & butt, int number/*text (Pos a b) _ _ _*/) {
+  double i = glutBitmapLength(GLUT_BITMAP_TIMES_ROMAN_24, (const unsigned char*)butt.text);
+  double h = glutBitmapHeight(GLUT_BITMAP_TIMES_ROMAN_24);
+  double x  = 300;
+  double y = 200 + number*h+2*margin*number;
+  return Rectangle{(x), (y), (i+2*margin), ((h + 2*margin))};
+}
+extern "C" GLAPI void APIENTRY glWindowPos2f (GLfloat x, GLfloat y);
+void displayButton (Button butt, int number) {
+    double h = glutBitmapHeight(GLUT_BITMAP_TIMES_ROMAN_24);
+    double x  = 300;
+    double y = 200 + number*h+2*margin*number;
+    glColor3f(.5, .5, .5);
+    displayRectangle(buttRectangle(butt, number));
+    glColor3f(1, 1, 1);
+    auto debug = x + margin;
+    glWindowPos2f(x + margin, height - (y + h + margin));
+    glColor3f(0, 1, 0);
+    glutBitmapString(GLUT_BITMAP_TIMES_ROMAN_24, (const unsigned char*)butt.text);
+}
+//buttRectangle :: Button -> Rectangle
 void editorDisplay(bool selection ) {
     auto applyNormal = [](auto )->void {
         /*auto a = l[0];
@@ -207,6 +241,19 @@ void editorDisplay(bool selection ) {
         for(auto i : scene.ex) {
             rend( i.first, i.second);
         }
+        if(showMainAxes) {
+            renderPrimitive(GL_LINES, [&](){
+                glColor4d(1, 0, 0, 1);
+                transform({-1, 0, 0, 1});
+                transform({1, 0, 0, 1});
+                glColor4d(0, 1, 0, 1);
+                transform({0, -1, 0, 1});
+                transform({0, 1, 0, 1});
+                glColor3b(0, 0, 127);
+                transform({0, 0, -1, 1});
+                transform({0, 0, 1, 1});
+            });
+        }
         if(state == AddingWall) {
             int x, y;
             SDL_GetMouseState(&x, &y);
@@ -228,8 +275,8 @@ void editorDisplay(bool selection ) {
         glDisable(GL_DEPTH_TEST);
         glDepthFunc(GL_ALWAYS);
 
-        for(auto butt: gui) {
-            displayButton(butt);
+        for(int i = 0; i < gui.size(); i++) {
+            displayButton(gui[i], i);
         }
 
         glDepthFunc(GL_LESS);
@@ -285,6 +332,25 @@ void mouseMCase (SDL_MouseMotionEvent a) {
         }
     }
 }
+void mouseCCase(SDL_MouseButtonEvent a) {
+    if(state == Ground) {
+        for(int i = 0; i < gui.size(); i++) {
+            if (buttRectangle(gui[i],i).contains( a.x, a.y ) ) {
+              if(gui[i].active()) {
+                  gui[i].action();
+              }
+              return;
+            }
+        }
+    } else if(state == AddingWall && a.button == SDL_BUTTON_LEFT) {
+        int x, y;
+        SDL_GetMouseState(&x, &y);
+
+        Mesh mesh = beingAddedWall( 0, {x, y});
+        scene.ex[scene.ex.size()] = {Me, mesh};
+        state = Ground;
+    }
+}
 void editorLoop() {
 
   while(true) {
@@ -301,7 +367,7 @@ void editorLoop() {
             mouseMCase(event.motion);
         }break;
         case SDL_MOUSEBUTTONDOWN:{
-//            mouseCCase(event.button);
+            mouseCCase(event.button);
         }break;
         case SDL_MOUSEWHEEL:{
         }break;
