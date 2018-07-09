@@ -242,7 +242,43 @@ void editorDisplay(bool selection ) {
             rend( i.first, i.second);
         }
         if(showMainAxes) {
+//            glEnable(GL_LINE_STIPPLE);
+//            glLineStipple(2, 0xAAAA);
+//            renderPrimitive(GL_LINES, [&](){
+//                glColor4d(1, 0, 0, 1);
+//                Point rn = G::persViewMatrix * ( view * Point{-1, 0, 0, 1});
+//                Point rp = G::persViewMatrix * ( view * Point{1, 0, 0, 1});
+//                glVertex3d(rn.x/rn.t*sign(rn.t)+0.01, rn.y/rn.t*sign(rn.t), -0.999);
+//                glVertex3d(rp.x/rp.t*sign(rp.t)+0.01, rp.y/rp.t*sign(rp.t), -0.999);
+//                glColor4d(0, 1, 0, 1);
+//                Point gn = G::persViewMatrix * ( view * Point{0,-1, 0, 1});
+//                Point gp = G::persViewMatrix * ( view * Point{0,1,  0, 1});
+//                glVertex4dv(saneVertex4({gn.x/gn.t+0.01, gn.y/gn.t, -0.999,1}).data);
+//                glVertex4dv(saneVertex4({gp.x/gp.t+0.01, gp.y/gp.t, -0.999,1}).data);
+//                glColor3b(0, 0, 127);
+//                Point bn = G::persViewMatrix * ( view * Point{0,0,-1, 1});
+//                Point bp = G::persViewMatrix * ( view * Point{0,0,1,  1});
+//                glVertex4dv(saneVertex4({bn.x/bn.t+0.01, bn.y/bn.t, -0.999,1}).data);
+//                glVertex4dv(saneVertex4({bp.x/bp.t+0.01, bp.y/bp.t, -0.999,1}).data);
+
+//            });
+//
+            glDisable(GL_DEPTH_TEST);
             renderPrimitive(GL_LINES, [&](){
+
+                glColor4d(1, 0, 0, 0.3);
+                transform({-1, 0, 0, 1});
+                transform({1, 0, 0, 1});
+                glColor4d(0, 1, 0, 0.3);
+                transform({0, -1, 0, 1});
+                transform({0, 1, 0, 1});
+                glColor4d(0, 0, 1, 0.3);
+                transform({0, 0, -1, 1});
+                transform({0, 0, 1, 1});
+            });
+            glEnable(GL_DEPTH_TEST);
+            renderPrimitive(GL_LINES, [&](){
+
                 glColor4d(1, 0, 0, 1);
                 transform({-1, 0, 0, 1});
                 transform({1, 0, 0, 1});
@@ -253,6 +289,7 @@ void editorDisplay(bool selection ) {
                 transform({0, 0, -1, 1});
                 transform({0, 0, 1, 1});
             });
+
         }
         if(state == AddingWall) {
             int x, y;
