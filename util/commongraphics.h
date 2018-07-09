@@ -59,6 +59,7 @@ inline void  initialiseGraphics(int sg, char** hr) {
         SDL_GetCurrentDisplayMode(0, &display);
 
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+        width = display.w; height = display.h;
         window = SDL_CreateWindow("Hyperbolic",  0, 0, display.w, display.h, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL);
         context = SDL_GL_CreateContext(window);
 

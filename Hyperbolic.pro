@@ -1,8 +1,8 @@
 TEMPLATE = app
 CONFIG += console
-QMAKE_CXXFLAGS += -std=gnu++17 -fno-rtti -lglut
+QMAKE_CXXFLAGS += -std=gnu++17 -fno-rtti -lglut -Wno-unused-variable -Wno-sign-compare
 LIBS+=-lglut -lGL -lSDL2
-QMAKE_CFLAGS += -std=gnu++17 -fno-rtti -lglut -lfreeglut
+QMAKE_CFLAGS += -std=gnu++17 -fno-rtti -lglut -lfreeglut -Wno-unused-variable -Wno-sign-compare
 CONFIG -= app_bundle
 CONFIG -= qt
 
