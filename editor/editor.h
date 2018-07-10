@@ -163,7 +163,48 @@ void displayButton (Button butt, int number) {
     glColor3f(0, 1, 0);
     glutBitmapString(GLUT_BITMAP_TIMES_ROMAN_24, (const unsigned char*)butt.text);
 }
-//buttRectangle :: Button -> Rectangle
+Mesh xarrow(double size, bool transparent) {
+    Point pp = {-size, size/2, size/2, 1};
+    Point pn = {-size, size/2, -size/2, 1};
+    Point nn = {-size, -size/2, -size/2, 1};
+    Point np = {-size, -size/2, size/2, 1};
+    return moveAlongX(1) * Mesh{{{1, 0, 0, transparent?0.3:1}, {Polygon, {origin, pp, pn}}},
+                                {{1, 0, 0, transparent?0.3:1}, {Polygon, {origin, pn, nn}}},
+                                {{1, 0, 0, transparent?0.3:1}, {Polygon, {origin, nn, np}}},
+                                {{1, 0, 0, transparent?0.3:1}, {Polygon, {origin, np, pp}}},
+                        {{1,1,1,transparent?0.3:1}, {Segment, {}, origin, pp}},
+                            {{1,1,1,transparent?0.3:1}, {Segment, {}, origin, pn}},
+                                {{1,1,1,transparent?0.3:1}, {Segment, {}, origin, nn}},
+                                    {{1,1,1,transparent?0.3:1}, {Segment, {}, origin, np}}};
+}
+Mesh yarrow(double size, bool transparent) {
+    Point pp = { size/2,-size, size/2, 1};
+    Point pn = {size/2, -size, -size/2, 1};
+    Point nn = {-size/2, -size, -size/2, 1};
+    Point np = {-size/2, -size, size/2, 1};
+    return moveAlongY(1) * Mesh{{{0,1,  0, transparent?0.3:1}, {Polygon, {origin, pp, pn}}},
+                                {{0,1,  0, transparent?0.3:1}, {Polygon, {origin, pn, nn}}},
+                                {{0,1,  0, transparent?0.3:1}, {Polygon, {origin, nn, np}}},
+                                {{0,1,  0, transparent?0.3:1}, {Polygon, {origin, np, pp}}},
+                        {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, pp}},
+                            {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, pn}},
+                                {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, nn}},
+                                    {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, np}}};
+}
+Mesh zarrow(double size, bool transparent) {
+    Point pp = {size/2,  size/2,-size, 1};
+    Point pn = {size/2,  -size/2,-size, 1};
+    Point nn = {-size/2,  -size/2,-size, 1};
+    Point np = {-size/2,  size/2,-size, 1};
+    return moveAlongZ(1) * Mesh{{{0,0,1, transparent?0.3f:1}, {Polygon, {origin, pp, pn}}},
+                                {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, pn, nn}}},
+                                {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, nn, np}}},
+                                {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, np, pp}}},
+                        {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, pp}},
+                            {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, pn}},
+                                {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, nn}},
+                                    {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, np}}};
+}
 void editorDisplay(bool selection ) {
     auto applyNormal = [](auto )->void {
         /*auto a = l[0];
@@ -198,7 +239,7 @@ void editorDisplay(bool selection ) {
             });
         } else if(ce.e.type == Segment) {
             renderPrimitive(GL_LINES, [&](){
-                glColor4dv((double*)(&(ce.color)));
+                glColor4fv((float*)(&(ce.color)));
                 transform(ce.e.a);
                 transform(ce.e.b);
             });
@@ -242,41 +283,6 @@ void editorDisplay(bool selection ) {
             rend( i.first, i.second);
         }
         if(showMainAxes) {
-//            glEnable(GL_LINE_STIPPLE);
-//            glLineStipple(2, 0xAAAA);
-//            renderPrimitive(GL_LINES, [&](){
-//                glColor4d(1, 0, 0, 1);
-//                Point rn = G::persViewMatrix * ( view * Point{-1, 0, 0, 1});
-//                Point rp = G::persViewMatrix * ( view * Point{1, 0, 0, 1});
-//                glVertex3d(rn.x/rn.t*sign(rn.t)+0.01, rn.y/rn.t*sign(rn.t), -0.999);
-//                glVertex3d(rp.x/rp.t*sign(rp.t)+0.01, rp.y/rp.t*sign(rp.t), -0.999);
-//                glColor4d(0, 1, 0, 1);
-//                Point gn = G::persViewMatrix * ( view * Point{0,-1, 0, 1});
-//                Point gp = G::persViewMatrix * ( view * Point{0,1,  0, 1});
-//                glVertex4dv(saneVertex4({gn.x/gn.t+0.01, gn.y/gn.t, -0.999,1}).data);
-//                glVertex4dv(saneVertex4({gp.x/gp.t+0.01, gp.y/gp.t, -0.999,1}).data);
-//                glColor3b(0, 0, 127);
-//                Point bn = G::persViewMatrix * ( view * Point{0,0,-1, 1});
-//                Point bp = G::persViewMatrix * ( view * Point{0,0,1,  1});
-//                glVertex4dv(saneVertex4({bn.x/bn.t+0.01, bn.y/bn.t, -0.999,1}).data);
-//                glVertex4dv(saneVertex4({bp.x/bp.t+0.01, bp.y/bp.t, -0.999,1}).data);
-
-//            });
-//
-            glDisable(GL_DEPTH_TEST);
-            renderPrimitive(GL_LINES, [&](){
-
-                glColor4d(1, 0, 0, 0.3);
-                transform({-1, 0, 0, 1});
-                transform({1, 0, 0, 1});
-                glColor4d(0, 1, 0, 0.3);
-                transform({0, -1, 0, 1});
-                transform({0, 1, 0, 1});
-                glColor4d(0, 0, 1, 0.3);
-                transform({0, 0, -1, 1});
-                transform({0, 0, 1, 1});
-            });
-            glEnable(GL_DEPTH_TEST);
             renderPrimitive(GL_LINES, [&](){
 
                 glColor4d(1, 0, 0, 1);
@@ -289,6 +295,25 @@ void editorDisplay(bool selection ) {
                 transform({0, 0, -1, 1});
                 transform({0, 0, 1, 1});
             });
+            rend(0, {Me, xarrow(0.06, false)});
+            rend(0, {Me, yarrow(0.06, false)});
+            rend(0, {Me, zarrow(0.06, false)});
+            glClear(GL_DEPTH_BUFFER_BIT);
+            renderPrimitive(GL_LINES, [&](){
+
+                glColor4d(1, 0, 0, 0.3);
+                transform({-1, 0, 0, 1});
+                transform({1, 0, 0, 1});
+                glColor4d(0, 1, 0, 0.3);
+                transform({0, -1, 0, 1});
+                transform({0, 1, 0, 1});
+                glColor4d(0, 0, 1, 0.3);
+                transform({0, 0, -1, 1});
+                transform({0, 0, 1, 1});
+            });
+            rend(0, {Me, xarrow(0.06, true)});
+            rend(0, {Me, yarrow(0.06, true)});
+            rend(0, {Me, zarrow(0.06, true)});
 
         }
         if(state == AddingWall) {
@@ -370,7 +395,7 @@ void mouseMCase (SDL_MouseMotionEvent a) {
     }
 }
 void mouseCCase(SDL_MouseButtonEvent a) {
-    if(state == Ground) {
+    if(state == Ground && a.button == SDL_BUTTON_LEFT) {
         for(int i = 0; i < gui.size(); i++) {
             if (buttRectangle(gui[i],i).contains( a.x, a.y ) ) {
               if(gui[i].active()) {
