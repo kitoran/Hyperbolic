@@ -1,7 +1,5 @@
 # Hyperbolic
 
-Current version doens't build because i use custom version of GLUT package which exports getModifiers. In an unlikely situation where keyboardCallback will get modifiers passed as arguments i will stop using this version and everything will hopefully build. (if you want to build this, leave a feature request via github)  
-
 Okay so i wanted this to be a puzzle game where puzzles are based on the fact that the space is hyperbolic but i haven't been able to come up with actual puzzles.
 So here is a proof-of-concept hyperbolic space game engine prototype.
 
