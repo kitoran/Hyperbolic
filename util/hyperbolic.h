@@ -55,10 +55,20 @@ union Vector2 {
         Component y;
 
     };
-    Component data[4];
+    Component data[2];
     Component & operator[](int a);
     double norm();
+    Component operator* (const Vector2& o) {
+        return x*o.x + y*o.y;
+    }
 };
+struct Matrix22 {
+    Component m[4];
+    Vector2 operator*(const Vector2& o) {
+        return {m[0]*o.x + m[1]*o.y, m[2]*o.x + m[3]*o.y};
+    }
+};
+Matrix22 inv22 (const Matrix22& o);
 struct Matrix44 {
     Component m[16];
     Component& operator()(int i, int j);

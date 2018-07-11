@@ -269,3 +269,8 @@ H::Vector3 H::normalizeWass3(H::Vector3 p) {
     auto d = sqrt (p.t*p.t - p.y*p.y - p.x*p.x) * sign(p.t);
     return {(p.x/d), (p.y/d), (p.t/d)};
 }
+
+H::Matrix22 H::inv22(const H::Matrix22 &o) {
+    Component det = o.m[0]*o.m[3] - o.m[1]*o.m[2];
+    return {{o.m[3]/det, (-o.m[1]/det), (-o.m[2]/det), o.m[0]/det}};
+}

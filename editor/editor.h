@@ -3,6 +3,8 @@
 #include "SDL2/SDL.h"
 #define GL_GLEXT_PROTOTYPES
 #include "GL/gl.h"
+#include "float.h"
+#include "assert.h"
 #include "util/hyperbolic.h"
 #include "util/commongraphics.h"
 #include "util/physics.h"
@@ -168,28 +170,28 @@ Mesh xarrow(double size, bool transparent) {
     Point pn = {-size, size/2, -size/2, 1};
     Point nn = {-size, -size/2, -size/2, 1};
     Point np = {-size, -size/2, size/2, 1};
-    return moveAlongX(1) * Mesh{{{1, 0, 0, transparent?0.3:1}, {Polygon, {origin, pp, pn}}},
-                                {{1, 0, 0, transparent?0.3:1}, {Polygon, {origin, pn, nn}}},
-                                {{1, 0, 0, transparent?0.3:1}, {Polygon, {origin, nn, np}}},
-                                {{1, 0, 0, transparent?0.3:1}, {Polygon, {origin, np, pp}}},
-                        {{1,1,1,transparent?0.3:1}, {Segment, {}, origin, pp}},
-                            {{1,1,1,transparent?0.3:1}, {Segment, {}, origin, pn}},
-                                {{1,1,1,transparent?0.3:1}, {Segment, {}, origin, nn}},
-                                    {{1,1,1,transparent?0.3:1}, {Segment, {}, origin, np}}};
+    return moveAlongX(1) * Mesh{{{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, pp, pn}}},
+                                {{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, pn, nn}}},
+                                {{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, nn, np}}},
+                                {{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, np, pp}}},
+                        {{1,1,1,transparent?0.3f:1}, {Segment, {}, origin, pp}},
+                            {{1,1,1,transparent?0.3f:1}, {Segment, {}, origin, pn}},
+                                {{1,1,1,transparent?0.3f:1}, {Segment, {}, origin, nn}},
+                                    {{1,1,1,transparent?0.3f:1}, {Segment, {}, origin, np}}};
 }
 Mesh yarrow(double size, bool transparent) {
     Point pp = { size/2,-size, size/2, 1};
     Point pn = {size/2, -size, -size/2, 1};
     Point nn = {-size/2, -size, -size/2, 1};
     Point np = {-size/2, -size, size/2, 1};
-    return moveAlongY(1) * Mesh{{{0,1,  0, transparent?0.3:1}, {Polygon, {origin, pp, pn}}},
-                                {{0,1,  0, transparent?0.3:1}, {Polygon, {origin, pn, nn}}},
-                                {{0,1,  0, transparent?0.3:1}, {Polygon, {origin, nn, np}}},
-                                {{0,1,  0, transparent?0.3:1}, {Polygon, {origin, np, pp}}},
-                        {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, pp}},
-                            {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, pn}},
-                                {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, nn}},
-                                    {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, np}}};
+    return moveAlongY(1) * Mesh{{{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, pp, pn}}},
+                                {{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, pn, nn}}},
+                                {{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, nn, np}}},
+                                {{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, np, pp}}},
+                        {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, pp}},
+                            {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, pn}},
+                                {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, nn}},
+                                    {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, np}}};
 }
 Mesh zarrow(double size, bool transparent) {
     Point pp = {size/2,  size/2,-size, 1};
@@ -200,12 +202,12 @@ Mesh zarrow(double size, bool transparent) {
                                 {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, pn, nn}}},
                                 {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, nn, np}}},
                                 {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, np, pp}}},
-                        {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, pp}},
-                            {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, pn}},
-                                {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, nn}},
-                                    {{0,0,0,transparent?0.3:1}, {Segment, {}, origin, np}}};
+                        {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, pp}},
+                            {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, pn}},
+                                {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, nn}},
+                                    {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, np}}};
 }
-void editorDisplay(bool selection ) {
+void editorDisplay() {
     auto applyNormal = [](auto )->void {
         /*auto a = l[0];
         auto b = l[1];
@@ -220,21 +222,19 @@ void editorDisplay(bool selection ) {
         Point a = G::persViewMatrix * ( view * p);
         glVertex4dv(G::saneVertex4(a).data);
     };
-    auto toRaw = [&transform, selection, &applyNormal](bool bb, int32_t qwq, const ColoredEntity& ce) {
+    auto toRaw = [&transform, &applyNormal](bool bb, int32_t qwq, const ColoredEntity& ce) {
         if(ce.e.type == Polygon) {
-            renderPrimitive(GL_POLYGON, [&transform, &applyNormal, selection, bb, qwq, &ce](){
-                if(selection) {
-                    glColor4bv((GLbyte*)(&qwq));
+            renderPrimitive(GL_POLYGON, [&transform, &applyNormal, bb, qwq, &ce](){
+
+                if(bb) {
+                    glColor4f(clamp(ce.color.r + 0.3), clamp(ce.color.g + 0.3), clamp(ce.color.b + 0.3), clamp(ce.color.a + 0.3));
                 } else {
-                    if(bb) {
-                        glColor4f(clamp(ce.color.r + 0.3), clamp(ce.color.g + 0.3), clamp(ce.color.b + 0.3), clamp(ce.color.a + 0.3));
-                    } else {
-                        glColor4fv(ce.color.m);
-                    }
-                    applyNormal(ce.e.p);
-                    for(auto x:ce.e.p) {
-                        transform(x);
-                    }
+                    glColor4fv(ce.color.m);
+                }
+                applyNormal(ce.e.p);
+
+                for(auto x:ce.e.p) {
+                    transform(x);
                 }
             });
         } else if(ce.e.type == Segment) {
@@ -250,7 +250,7 @@ void editorDisplay(bool selection ) {
             });
         }
     };
-    auto rend = [&](int32_t m, ExplicitObject e) {
+    auto rend = [&](int32_t m, const ExplicitObject &e) {
         if(e.type == Me) {
             if(selectedThing.type == Mes && selectedThing.n == m) {
                 for(auto x = e.mesh.begin(); x < e.mesh.end(); x++) {
@@ -278,8 +278,9 @@ void editorDisplay(bool selection ) {
 
 //        }
 //    };
+    glClearColor(0,0,0,1);
         glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        for(auto i : scene.ex) {
+        for(auto& i : scene.ex) {
             rend( i.first, i.second);
         }
         if(showMainAxes) {
@@ -324,15 +325,13 @@ void editorDisplay(bool selection ) {
             }
         }
         glColor4d( 1, 1, (1), 1);
-        if(not selection) {
+        renderPrimitive( GL_TRIANGLES, []() {
+            double x = 0.5, y = 0, z = 0, t = 1;
+            glVertex4dv(saneVertex4({x-0.01, y, z, t}).data);
 
-            renderPrimitive( GL_TRIANGLES, []() {
-                double x = 0.5, y = 0, z = 0, t = 1;
-                glVertex4dv(saneVertex4({x-0.01, y, z, t}).data);
-
-                glVertex4dv(saneVertex4({x,(y-0.01), z, t}).data);
-                glVertex4dv(saneVertex4({x, y, (z-0.01), t}).data);
-            });
+            glVertex4dv(saneVertex4({x,(y-0.01), z, t}).data);
+            glVertex4dv(saneVertex4({x, y, (z-0.01), t}).data);
+        });
 
         glDisable(GL_DEPTH_TEST);
         glDepthFunc(GL_ALWAYS);
@@ -343,9 +342,8 @@ void editorDisplay(bool selection ) {
 
         glDepthFunc(GL_LESS);
         glEnable(GL_DEPTH_TEST);
-        SDL_GL_SwapWindow(window);
 
-    }
+        SDL_GL_SwapWindow(window);
 //    FOR4(i) {
 //        FOR4(j) {
 //            std::cout <<  view(i,j) << " ";
@@ -355,24 +353,79 @@ void editorDisplay(bool selection ) {
     std::cout << insanity(view) << " " << insanity(identity) << insanity(moveAlongX (-0.1) * identity)  << std::endl;
 
 }
-int32_t selected(int32_t xx, int32_t yy) {
-    char res[4];
-    GLint viewport[4];
+int32_t selected(double xx, double yy) {
 
-    editorDisplay(true);
-    glGetIntegerv( GL_VIEWPORT, viewport);
+    double depth = DBL_MAX;
+    int32_t buffer;
 
-    /*  -- GL.clearColor $= GL.Color4 (0x44/255) (0x44/255) (0x44/255) (0x44/255)
-    -- GL.clear [ColorBuffer]
-    -- glReadPixels 1 1  1 1 GL_BGRA GL_UNSIGNED_BYTE res*/
-    glReadPixels( xx, ((viewport[3] - yy)), 1, 1, GL_BGRA, GL_BYTE, res);
-    //  print ("her 1" ++ show ress)
-    //  -- ress2 <- peek res
-    //  -- print ("her 2" ++ show ress2)
-    //  -- glReadPixels xx (traceComm "v3 - yy" (v3 - yy)) 1 1 GL_BGRA GL_INT res
-    //  -- ress3 <- peek res
-    //  -- print ("her 3" ++ show ress3)
-    return *((int32_t*)(res));
+        auto toRaw = [&](int32_t qwq, const ColoredEntity& ce) {
+            if(ce.e.type == Polygon) {
+                unsigned char* e = (GLubyte*)(&qwq);
+                unsigned char e4[4] = {e[0], e[1], e[2], e[3]};
+                glColor4ubv((GLubyte*)(&qwq));
+                Point a = G::persViewMatrix * ( view * ce.e.p[ce.e.p.size()-1]);
+                Vector2 last = {a.x/a.t, a.y/a.t};
+                Vector3 v0;
+                Vector3 v1;
+                Vector3 v2;
+                bool neg = false;
+                bool pos = false;
+                for(int i = 0; i < ce.e.p.size(); i++) {
+                    Point a = G::persViewMatrix * ( view * ce.e.p[i]);
+                    Vector2 newp {a.x/a.t, a.y/a.t};
+                    if(i == 0) v0 = {newp.x, newp.y, a.z/a.t};
+                    else if(i == 1) v1 = {newp.x, newp.y, a.z/a.t};
+                    else if(i == 2) v1 = {newp.x, newp.y, a.z/a.t};
+                    Vector2 ortho = {newp.y - last.y, -newp.x+last.x};
+                    Vector2 thing = {xx - newp.x, yy - newp.y};
+                    auto e = ortho*thing;
+                    if(e>0) pos = true; else neg = true;
+                }
+                Vector2 coords = inv22({{v1.x-v0.x, v1.y-v0.y, v2.x-v0.x, v2.y-v0.y}})*Vector2{xx, yy};
+                assert(coords.x * v1.x + coords.y*v2.x + v0.x - xx < 0.01);
+                assert(coords.x * v1.y + coords.y*v2.y + v0.y - yy < 0.01);
+                Component newdepth = coords.x*v1.z + coords.y*v2.z + v0.z;
+
+                if((!neg || !pos) && newdepth > 0 && newdepth < depth) {
+                    depth = newdepth;
+                    buffer = qwq;
+                }
+            }
+        };
+        auto rend = [&](int32_t m, const ExplicitObject &e) {
+            if(e.type == Me) {
+                for(auto x = e.mesh.begin(); x < e.mesh.end(); x++) {
+                    toRaw(m, *x);
+                }
+            }
+            else {
+                abort();
+            }
+
+        };
+    //    auto frame = [&](HyperEntity h) {
+    //        if(h.type == Polygon) {
+    //            renderPrimitive(GL_LINE_LOOP,  [&]() {
+    //                for(auto x : h.p) {
+    //                    transform (x);
+    //                }
+    //            }
+    //            );
+
+    //        }
+    //    };
+    for(auto& i : scene.ex) {
+        rend( i.first, i.second);
+    }
+    if(showMainAxes) {
+
+        rend(0, {Me, xarrow(0.06, false)});
+        rend(0, {Me, yarrow(0.06, false)});
+        rend(0, {Me, zarrow(0.06, false)});
+
+    }
+
+    return buffer;
 }
 
 //std::ostream& Matrix::operator <<(std::ostream& stream, const SelectedThing & thing) {
@@ -442,7 +495,7 @@ void editorLoop() {
         }
         }
       } else {
-          editorDisplay(false);
+          editorDisplay();
       }
     }
 }
