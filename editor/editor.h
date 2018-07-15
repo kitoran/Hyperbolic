@@ -9,6 +9,7 @@
 #include "util/commongraphics.h"
 #include "util/physics.h"
 #include <map>
+#include <set>
 #include <iostream>
 const double step = 0.1;
 using namespace H;
@@ -29,11 +30,11 @@ auto fromGradi(double x) {
     return x / 360*tau*7.0/30.0;
 }
 enum SelectedThingType {Nihil, Mes, Obs};
-struct SelectedThing {
+struct PreSelectedThing {
     SelectedThingType type = Nihil;
     static constexpr const char *const TypeNames[] = {"Nihil", "Mes", "Obs"};
     int32_t n = -1;
-} selectedThing;
+} preselectedThing;
 void renderPrimitive(GLenum p, auto f) {
     glBegin(p);
     f();
@@ -48,6 +49,22 @@ struct ExplicitObject {
        Receiver receiver = {};
 
 };
+ExplicitObject operator *(Matrix44 m, const ExplicitObject &eo) {
+    return {
+       eo.type,
+        m*eo.mesh,
+        {},
+       {}
+    };
+}
+struct SelectedThing {
+    ExplicitObject* p = 0;
+    Point center = {{0,0,0,0}};
+    Component size = 0;
+    Vector2 x;
+    Vector2 y;
+    Vector2 z;
+} selectedThing;
 double clamp(double a) {
     return a > 1?1:a<0?0:a;
 }
@@ -157,20 +174,25 @@ void displayButton (Button butt, int number) {
     double h = glutBitmapHeight(GLUT_BITMAP_TIMES_ROMAN_24);
     double x  = 300;
     double y = 200 + number*h+2*margin*number;
-    glColor3f(.5, .5, .5);
+    glColor3f(.3, .3, .3);
     displayRectangle(buttRectangle(butt, number));
-    glColor3f(1, 1, 1);
+    if(butt.active()) {
+        glColor3f(1, 1, 1);
+    } else {
+        glColor3f(.7, .7, .7);
+    }
     auto debug = x + margin;
     glWindowPos2f(x + margin, height - (y + h + margin));
     glColor3f(0, 1, 0);
     glutBitmapString(GLUT_BITMAP_TIMES_ROMAN_24, (const unsigned char*)butt.text);
 }
-Mesh xarrow(double size, bool transparent) {
+Mesh xarrow(double sizeo, bool transparent) {
+    double size = sizeo / 10;
     Point pp = {-size, size/2, size/2, 1};
     Point pn = {-size, size/2, -size/2, 1};
     Point nn = {-size, -size/2, -size/2, 1};
     Point np = {-size, -size/2, size/2, 1};
-    return moveAlongX(1) * Mesh{{{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, pp, pn}}},
+    return moveAlongX(sizeo/2) * Mesh{{{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, pp, pn}}},
                                 {{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, pn, nn}}},
                                 {{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, nn, np}}},
                                 {{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, np, pp}}},
@@ -179,12 +201,13 @@ Mesh xarrow(double size, bool transparent) {
                                 {{1,1,1,transparent?0.3f:1}, {Segment, {}, origin, nn}},
                                     {{1,1,1,transparent?0.3f:1}, {Segment, {}, origin, np}}};
 }
-Mesh yarrow(double size, bool transparent) {
+Mesh yarrow(double sizeo, bool transparent) {
+    double size = sizeo / 10;
     Point pp = { size/2,-size, size/2, 1};
     Point pn = {size/2, -size, -size/2, 1};
     Point nn = {-size/2, -size, -size/2, 1};
     Point np = {-size/2, -size, size/2, 1};
-    return moveAlongY(1) * Mesh{{{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, pp, pn}}},
+    return moveAlongY(sizeo/2) * Mesh{{{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, pp, pn}}},
                                 {{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, pn, nn}}},
                                 {{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, nn, np}}},
                                 {{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, np, pp}}},
@@ -193,12 +216,14 @@ Mesh yarrow(double size, bool transparent) {
                                 {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, nn}},
                                     {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, np}}};
 }
-Mesh zarrow(double size, bool transparent) {
+
+Mesh zarrow(double sizeo, bool transparent) {
+    double size = sizeo / 10;
     Point pp = {size/2,  size/2,-size, 1};
     Point pn = {size/2,  -size/2,-size, 1};
     Point nn = {-size/2,  -size/2,-size, 1};
     Point np = {-size/2,  size/2,-size, 1};
-    return moveAlongZ(1) * Mesh{{{0,0,1, transparent?0.3f:1}, {Polygon, {origin, pp, pn}}},
+    return moveAlongZ(sizeo/2) * Mesh{{{0,0,1, transparent?0.3f:1}, {Polygon, {origin, pp, pn}}},
                                 {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, pn, nn}}},
                                 {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, nn, np}}},
                                 {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, np, pp}}},
@@ -223,9 +248,9 @@ void editorDisplay() {
         glVertex4dv(G::saneVertex4(a).data);
     };
     glPointSize(20);
-    auto toRaw = [&transform, &applyNormal](bool bb, int32_t qwq, const ColoredEntity& ce) {
+    auto toRaw = [&transform, &applyNormal](bool bb, const ColoredEntity& ce) {
         if(ce.e.type == Polygon) {
-            renderPrimitive(GL_POLYGON, [&transform, &applyNormal, bb, qwq, &ce](){
+            renderPrimitive(GL_POLYGON, [&transform, &applyNormal, bb, &ce](){
 
                 if(bb) {
                     glColor4f(clamp(ce.color.r + 0.3), clamp(ce.color.g + 0.3), clamp(ce.color.b + 0.3), clamp(ce.color.a + 0.3));
@@ -238,14 +263,14 @@ void editorDisplay() {
                     transform(x);
                 }
             });
-            glDisable(GL_DEPTH_TEST);
-            renderPrimitive(GL_POINTS, [&transform, &applyNormal, bb, qwq, &ce](){
-                glColor4f(1, 1, 1, 1);
-                for(auto x:ce.e.p) {
-                    transform(x);
-                }
-            });
-            glEnable(GL_DEPTH_TEST);
+//            glDisable(GL_DEPTH_TEST);
+//            renderPrimitive(GL_POINTS, [&transform, &applyNormal, bb, qwq, &ce](){
+//                glColor4f(1, 1, 1, 1);
+//                for(auto x:ce.e.p) {
+//                    transform(x);
+//                }
+//            });
+//            glEnable(GL_DEPTH_TEST);
 
         } else if(ce.e.type == Segment) {
             renderPrimitive(GL_LINES, [&](){
@@ -262,13 +287,13 @@ void editorDisplay() {
     };
     auto rend = [&](int32_t m, const ExplicitObject &e) {
         if(e.type == Me) {
-            if(selectedThing.type == Mes && selectedThing.n == m) {
+            if(preselectedThing.type == Mes && preselectedThing.n == m) {
                 for(auto x = e.mesh.begin(); x < e.mesh.end(); x++) {
-                    toRaw(true, m, *x);
+                    toRaw(true, *x);
                 }
             } else {
                 for(auto x = e.mesh.begin(); x < e.mesh.end(); x++) {
-                    toRaw(false, m, *x);
+                    toRaw(false, *x);
                 }
             }
         }
@@ -292,6 +317,18 @@ void editorDisplay() {
         glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         for(auto& i : scene.ex) {
             rend( i.first, i.second);
+
+            if(selectedThing.p == &i.second) {
+                Matrix44 mot = moveRightTo(selectedThing.center);
+                rend(0, mot * ExplicitObject{Me, xarrow(selectedThing.size, false)});
+                rend(0, mot * ExplicitObject{Me, yarrow(selectedThing.size, false)});
+                rend(0, mot * ExplicitObject{Me, zarrow(selectedThing.size, false)});
+                glClear(GL_DEPTH_BUFFER_BIT);
+                rend(0, mot * ExplicitObject{Me, xarrow(selectedThing.size, true)});
+                rend(0, mot * ExplicitObject{Me, yarrow(selectedThing.size, true)});
+                rend(0, mot * ExplicitObject{Me, zarrow(selectedThing.size, true)});
+
+            }
         }
         if(showMainAxes) {
             renderPrimitive(GL_LINES, [&](){
@@ -306,9 +343,9 @@ void editorDisplay() {
                 transform({0, 0, -1, 1});
                 transform({0, 0, 1, 1});
             });
-            rend(0, {Me, xarrow(0.06, false)});
-            rend(0, {Me, yarrow(0.06, false)});
-            rend(0, {Me, zarrow(0.06, false)});
+            rend(0, {Me, xarrow(2, false)});
+            rend(0, {Me, yarrow(2, false)});
+            rend(0, {Me, zarrow(2, false)});
             glClear(GL_DEPTH_BUFFER_BIT);
             renderPrimitive(GL_LINES, [&](){
 
@@ -322,16 +359,16 @@ void editorDisplay() {
                 transform({0, 0, -1, 1});
                 transform({0, 0, 1, 1});
             });
-            rend(0, {Me, xarrow(0.06, true)});
-            rend(0, {Me, yarrow(0.06, true)});
-            rend(0, {Me, zarrow(0.06, true)});
+            rend(0, {Me, xarrow(2, true)});
+            rend(0, {Me, yarrow(2, true)});
+            rend(0, {Me, zarrow(2, true)});
 
         }
         if(state == AddingWall) {
             int x, y;
             SDL_GetMouseState(&x, &y);
             for(auto fwe : beingAddedWall(0, {double(x), double(y)})) {
-                toRaw(false, -1, fwe);
+                toRaw(false, fwe);
             }
         }
         glColor4d( 1, 1, (1), 1);
@@ -363,8 +400,8 @@ void editorDisplay() {
     std::cout << insanity(view) << " " << insanity(identity) << insanity(moveAlongX (-0.1) * identity)  << std::endl;
 
 }
-int32_t selected(double xx, double yy) {
-
+int32_t preselected(double xx, double yy) {
+    if(state != Ground) return -1;
     double depth = DBL_MAX;
     int32_t buffer;
 
@@ -465,13 +502,17 @@ int32_t selected(double xx, double yy) {
     //    };
     for(auto& i : scene.ex) {
         rend( i.first, i.second);
-    }
-    if(showMainAxes) {
 
-        rend(0, {Me, xarrow(0.06, false)});
-        rend(0, {Me, yarrow(0.06, false)});
-        rend(0, {Me, zarrow(0.06, false)});
+        if(selectedThing.p == &i.second) {
+            Matrix44 mot = moveRightTo(selectedThing.center);
+            rend(0xff0000ff, mot * ExplicitObject{Me, xarrow(selectedThing.size, false)});
+            if(buffer == 0xff0000ff) {
 
+             std::cout << "dgerg";
+            }
+            rend(0x00ff00ff, mot * ExplicitObject{Me, yarrow(selectedThing.size, false)});
+            rend(0x0000ffff, mot * ExplicitObject{Me, zarrow(selectedThing.size, false)});
+        }
     }
 
     return buffer;
@@ -482,18 +523,33 @@ int32_t selected(double xx, double yy) {
 //}
 
 void mouseMCase (SDL_MouseMotionEvent a) {
-    if((a.state & SDL_BUTTON_MIDDLE) != 0) {
+    if((a.state & SDL_BUTTON_MMASK) != 0) {
         view = rotateAroundY (fromGradi (a.yrel)) * view;
         view = rotateAroundZ (fromGradi (-a.xrel)) * view;
+    } else if((a.state & SDL_BUTTON_LMASK) != 0) {
+        if(preselectedThing.n == 0xff0000ff || preselectedThing.n == 0x0000ffff || preselectedThing.n == 0x00ff00ff) {
+            auto s = persViewMatrix * moveRightTo(selectedThing.center) *
+                    Point{(!!(preselectedThing.n & 0xff000000)) * 0.05,
+                        (!!(preselectedThing.n & 0xff0000)) * 0.05,
+                    (!!(preselectedThing.n & 0xff00)) * 0.05, 1};
+            auto s1 = persViewMatrix * selectedThing.center;
+            Vector2 dif = {s.x/s.t - s1.x/s1.t, s.y/s.t - s1.y/s1.t};
+            Component pro = dif * Vector2{a.xrel, a.yrel};
+            auto m = ((!!(preselectedThing.n & 0xff000000))?moveAlongX:
+                     (!!(preselectedThing.n & 0xff0000))?moveAlongY:
+                                                         moveAlongZ)(pro/10000);
+            *(selectedThing.p) = m * *(selectedThing.p);
+            (selectedThing.center) = m * (selectedThing.center);
+        }
     } else {// a * width + b = 1
            // a * 0 + b = -1
         // b = -1
         // a = 2 / width
-        auto iint = selected(double(a.x*2)/width - 1, 1 - double(a.y*2)/height);
-        if( iint > 0 ) {
-            selectedThing = {Mes, iint};
+        auto iint = preselected(double(a.x*2)/width - 1, 1 - double(a.y*2)/height);
+        if( iint != 0 && iint != 0xffffffff) {
+            preselectedThing = {Mes, iint};
         } else {
-          selectedThing = {Nihil, -1};
+          preselectedThing = {Nihil, -1};
 //          pfint(get selectedThing) >>= print
 //        putStrLn $ "11111111111111111:   " ++ showHex int
         }
@@ -508,6 +564,36 @@ void mouseCCase(SDL_MouseButtonEvent a) {
               }
               return;
             }
+        }
+        if(preselectedThing.type == Mes) {
+            if(scene.ex.find(preselectedThing.n) == scene.ex.end()) return;
+            ExplicitObject*p = &scene.ex[preselectedThing.n];
+            std::set<Point> set;
+            for(ColoredEntity ce : p->mesh) {
+              if(ce.e.type == Polygon) {
+                 for(Point e : ce.e.p) {
+                    set.insert(e);
+                 }
+              }
+            }
+            auto x = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                return a.x/a.t < b.x/b.t;
+            });
+            auto y = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                return a.y/a.t < b.y/b.t;
+            });
+            auto z = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                return a.z/a.t < b.z/b.t;
+            });
+            Component size = std::max({x.second->x/x.second->t - x.first->x/x.first->t,
+                                       y.second->y/y.second->t - y.first->y/y.first->t,
+                                       z.second->z/z.second->t - z.first->z/z.first->t});
+            selectedThing.center = {(x.second->x/x.second->t + x.first->x/x.first->t)/2,
+                                    (y.second->y/y.second->t + y.first->y/y.first->t)/2,
+                                    (z.second->z/z.second->t + z.first->z/z.first->t)/2,
+                                   1};
+            selectedThing.size = size;
+            selectedThing.p = p;
         }
     } else if(state == AddingWall && a.button == SDL_BUTTON_LEFT) {
         int x, y;

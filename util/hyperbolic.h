@@ -21,6 +21,9 @@ union Point {
     Point operator-() { // Это не противоположная точка, это та же самая точка
         return {{-x, -y, -z, -t}};
     }
+    bool operator<(const Point&o) const {
+        return x+y+z+t < o.x + o.y + o.z + o.t;
+    }
 /// for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map
 ///  is not nearly injective, that's sad. However, sometimes i use improper points
 };
