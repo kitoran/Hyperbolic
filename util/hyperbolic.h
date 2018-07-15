@@ -33,7 +33,7 @@ union Vector3 {
             Component z;
         };
     };
-    Component data[4];
+    Component data[3];
     Component & operator[](int a);
     double norm();
     Vector3 operator-(Vector3 o) {
@@ -61,7 +61,13 @@ union Vector2 {
     Component operator* (const Vector2& o) {
         return x*o.x + y*o.y;
     }
+    Vector2& operator *=(Component a) {
+      x *= a;
+      y *= a;
+      return *this;
+    }
 };
+Component pseudoscalar(Vector2 p, Vector2 r);
 struct Matrix22 {
     Component m[4];
     Vector2 operator*(const Vector2& o) {

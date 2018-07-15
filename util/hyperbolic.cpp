@@ -91,6 +91,9 @@ H::Matrix33 H::operator *(const H::Matrix33 a, const H::Matrix33 b) {
 H::Vector3 H::cross(H::Vector3 p, H::Vector3 r) {
     return {{ (p[1]*r[2]-p[2]*r[1]), (p[2]*r[0]-p[0]*r[2]), (p[0]*r[1]-p[1]*r[0])}};
 }
+H::Component H::pseudoscalar(H::Vector2 p, H::Vector2 r) {
+    return  (p[0]*r[1]-p[1]*r[0]);
+}
 
 double H::dot(H::Vector3 a, H::Vector3 b) {
     double r = 0;
