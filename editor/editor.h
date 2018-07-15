@@ -222,6 +222,7 @@ void editorDisplay() {
         Point a = G::persViewMatrix * ( view * p);
         glVertex4dv(G::saneVertex4(a).data);
     };
+    glPointSize(20);
     auto toRaw = [&transform, &applyNormal](bool bb, int32_t qwq, const ColoredEntity& ce) {
         if(ce.e.type == Polygon) {
             renderPrimitive(GL_POLYGON, [&transform, &applyNormal, bb, qwq, &ce](){
@@ -237,6 +238,15 @@ void editorDisplay() {
                     transform(x);
                 }
             });
+            glDisable(GL_DEPTH_TEST);
+            renderPrimitive(GL_POINTS, [&transform, &applyNormal, bb, qwq, &ce](){
+                glColor4f(1, 1, 1, 1);
+                for(auto x:ce.e.p) {
+                    transform(x);
+                }
+            });
+            glEnable(GL_DEPTH_TEST);
+
         } else if(ce.e.type == Segment) {
             renderPrimitive(GL_LINES, [&](){
                 glColor4fv((float*)(&(ce.color)));
@@ -362,32 +372,71 @@ int32_t selected(double xx, double yy) {
             if(ce.e.type == Polygon) {
                 unsigned char* e = (GLubyte*)(&qwq);
                 unsigned char e4[4] = {e[0], e[1], e[2], e[3]};
-                glColor4ubv((GLubyte*)(&qwq));
                 Point a = G::persViewMatrix * ( view * ce.e.p[ce.e.p.size()-1]);
                 Vector2 last = {a.x/a.t, a.y/a.t};
-                Vector3 v0;
-                Vector3 v1;
-                Vector3 v2;
+//                bool f0 = false;
+//                Vector3 v0;
+//                bool f1 = false;
+//                Vector3 v1;
+//                bool f2 = false;
+//                Vector3 v2;
                 bool neg = false;
                 bool pos = false;
+                bool visible = false;
+                bool infinite = false;
+                Vector2 startingHui;
+                Vector2 endingHui;
+                bool linvert = fabs(a.z/a.t) > 1;
                 for(int i = 0; i < ce.e.p.size(); i++) {
                     Point a = G::persViewMatrix * ( view * ce.e.p[i]);
                     Vector2 newp {a.x/a.t, a.y/a.t};
-                    if(i == 0) v0 = {newp.x, newp.y, a.z/a.t};
-                    else if(i == 1) v1 = {newp.x, newp.y, a.z/a.t};
-                    else if(i == 2) v1 = {newp.x, newp.y, a.z/a.t};
-                    Vector2 ortho = {newp.y - last.y, -newp.x+last.x};
-                    Vector2 thing = {xx - newp.x, yy - newp.y};
-                    auto e = ortho*thing;
+                    bool invert = fabs(a.z/a.t) > 1;
+//                    Vector2 ortho;
+//                    Vector2 thing;
+                    if(!invert) visible = true;
+                    else infinite = true;
+                    if(invert && !linvert) {
+                        Vector2 ortho = {-newp.y + last.y, newp.x-last.x};
+                        Vector2 thing = {xx - last.x, yy - last.y};
+                        auto e = ortho*thing;
+                        linvert = invert;
+                        if(e>0) pos = true; else neg = true;
+                        endingHui = {newp.x - last.x, newp.y - last.y};
+
+                    } else if(linvert && !invert) {
+                        startingHui = {-newp.x + last.x, -newp.y + last.y};
+                        Vector2 ortho = {-newp.y + last.y, newp.x-last.x};
+                        Vector2 thing = {xx - newp.x, yy - newp.y};
+                        auto e = ortho*thing;
+                        linvert = invert;
+                        if(e>0) pos = true; else neg = true;
+                    } else if(linvert && invert) {
+
+                    } else {
+                        Vector2 ortho = {newp.y - last.y, -newp.x+last.x};
+                        Vector2 thing = {xx - newp.x, yy - newp.y};
+                        auto e = ortho*thing;
+                        if(e>0) pos = true; else neg = true;
+                    }
+                    last = newp;
+//                    auto e = ortho*thing;
+//                    if(invert ) e *= -1;
+//                    if(linvert ) e *= -1;
+//                    if(e>0) pos = true; else neg = true;
+                }
+                if(infinite) {
+                    auto e = pseudoscalar(startingHui, endingHui);
                     if(e>0) pos = true; else neg = true;
                 }
-                Vector2 coords = inv22({{v1.x-v0.x, v1.y-v0.y, v2.x-v0.x, v2.y-v0.y}})*Vector2{xx, yy};
-                assert(coords.x * v1.x + coords.y*v2.x + v0.x - xx < 0.01);
-                assert(coords.x * v1.y + coords.y*v2.y + v0.y - yy < 0.01);
-                Component newdepth = coords.x*v1.z + coords.y*v2.z + v0.z;
+//                Vector2 coords = inv22({{(v1.x-v0.x), (v2.x-v0.x), (v1.y-v0.x), (v2.y-v0.y)}})*Vector2{xx-v0.x, yy-v0.y};
+//                auto deb1 = coords.x * (v1.x-v0.x) + coords.y*(v2.x-v0.x) + v0.x - xx;
+//                assert(fabs(coords.x * (v1.x-v0.x) + coords.y*(v2.x-v0.x) + v0.x - xx) < 0.01);
+//                auto deb2 = coords.x * v1.y + coords.y*v2.y + v0.y - yy;
+//                assert(coords.x * v1.y + coords.y*v2.y + v0.y - yy < 0.01);
+//                Component newdepth = coords.x*v1.z + coords.y*v2.z + v0.z;
 
-                if((!neg || !pos) && newdepth > 0 && newdepth < depth) {
-                    depth = newdepth;
+                if((visible && (!neg || !pos))  /*&& fabs(newdepth) <= 1 && newdepth < depth*/) {
+//                    depth = newdepth;
                     buffer = qwq;
                 }
             }
@@ -436,8 +485,11 @@ void mouseMCase (SDL_MouseMotionEvent a) {
     if((a.state & SDL_BUTTON_MIDDLE) != 0) {
         view = rotateAroundY (fromGradi (a.yrel)) * view;
         view = rotateAroundZ (fromGradi (-a.xrel)) * view;
-    } else {
-        auto iint = selected(a.x, a.y);
+    } else {// a * width + b = 1
+           // a * 0 + b = -1
+        // b = -1
+        // a = 2 / width
+        auto iint = selected(double(a.x*2)/width - 1, 1 - double(a.y*2)/height);
         if( iint > 0 ) {
             selectedThing = {Mes, iint};
         } else {
