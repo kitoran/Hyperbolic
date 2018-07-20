@@ -277,3 +277,12 @@ H::Matrix22 H::inv22(const H::Matrix22 &o) {
     Component det = o.m[0]*o.m[3] - o.m[1]*o.m[2];
     return {{o.m[3]/det, (-o.m[1]/det), (-o.m[2]/det), o.m[0]/det}};
 }
+
+bool H::proper(H::Point a) {
+    return form(a, a) < 1e-10;
+}
+
+H::Matrix44 H::moveFromTo(H::Point fr, H::Point to, H::Component dist) {
+    Matrix44  a = moveRightTo( fr); ////может быть, тут можно вместо moverightto использовать более простое движение - не из пяти, а из трёх элементарных
+    return  a * moveTo (transposeMink (a)*to, dist) * transposeMink( a );
+}

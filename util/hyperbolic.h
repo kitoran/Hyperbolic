@@ -24,9 +24,22 @@ union Point {
     bool operator<(const Point&o) const {
         return x+y+z+t < o.x + o.y + o.z + o.t;
     }
+    Component operator*(const Point& o) { // этот оператор - зло
+        // в том смысле что он не уважает эквивалентность
+        return x*o.x + y*o.y + z*o.z + t*o.t;
+    }
+    Point operator+(const Point& o) { // этот оператор - зло
+        // в том смысле что он не уважает эквивалентность
+        return {{x+o.x, y+o.y, z+o.z, t+o.t}};
+
+    }
 /// for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map
 ///  is not nearly injective, that's sad. However, sometimes i use improper points
 };
+inline Point operator*(Component a, const Point p) { // этот оператор - зло
+    // в том смысле что он не уважает эквивалентность
+    return {{p.x*a, p.y*a, p.z*a, p.t*a}};
+}
 union Vector3 {
     struct {
         Component x;
@@ -363,9 +376,7 @@ inline double signedDistanceFromOxy(  Point p ) {
 //pretty :: Show m => L.V4 (m) -> String
 //pretty (L.V4 a b c d) = intercalate "\n" $ map show [a, b, c, d]
 
-//proper :: (Num a, Ord a) => Point a -> Bool
-//proper m = form m m < 0
-
+bool proper(Point a);
 //normalizeKlein :: Fractional a => Point a -> Point a
 //normalizeKlein (Point x y z t) = Point (x/t) (y/t) (z/t) 1
 
@@ -383,10 +394,7 @@ inline double signedDistanceFromOxy(  Point p ) {
 //moveRightTol p = moveTol p (distance origin p)
 
 
-//moveFromTo :: (RealFloat a) => Point a -> Point a -> a -> L.M44 a
-//moveFromTo fr to dist =   a <> moveTo (transposeMink a!$to) (dist) <> transposeMink a
-//    where a = moveRightTo fr ////может быть, тут можно вместо moverightto использовать более простое движение - не из пяти, а из трёх элементарных
-
+Matrix44 moveFromTo(Point fr, Point to, Component dist);
 //turmPToOxz ::forall a . (Eq a, Floating a) => Point a -> L.M44 a // cbc fixme this function is same as getPointToOxzAroundOz ??
 //turmPToOxz  (Point x y _ t) = rotateAroundZ alpha
 //  where alpha = if(x/=0)then atan (-y/x) + ((signum (x*t) - 1)/2) * (-pi) else 0
