@@ -113,13 +113,20 @@ Vector2 mapVertexPixel(Vector2 ab) {
                                         (1 - (ab[1])*2/(G::height) )};
 }
 using namespace G;
-Mesh beingAddedWall(Angle /*a*/, Vector2 pos) {
+struct OptionalMesh {
+    bool there;
+    Mesh m;
+};
+OptionalMesh beingAddedWall(Angle /*a*/, Vector2 pos) {
     auto xy =  mapVertexPixel( pos);
     auto tran = G::persViewMatrix * view;
-    auto ijkl = tran.m+12;
+    auto ijkl = tran.m+8;
     auto c = -(ijkl[3]+ijkl[0]*xy[0]+ijkl[1]*xy[1])/ijkl[2];
     auto invpv =  inv44  (tran);
-    Point d = invpv * (abs ( ijkl[2]) > 0.00001 ? Point{ xy[0], xy[1],  c, 1} : Point{ 0, 0, 1, 0});
+    Point d = invpv * (fabs ( ijkl[2]) > 0.00001 ? Point{ xy[0], xy[1],  c, 1} : Point{ 0, 0, 1, 0});
+    if(!proper(d)) {
+        return {false, {}};
+    }
 //    auto res = tran !* d, L.V2 x y)
     Mesh wall {{ {0.0, 0.0, 1.0, 1.0}, {Polygon, {{0, 0.01, 0, 1},
                                                      {0, (-0.01), 0, 1},
@@ -127,7 +134,7 @@ Mesh beingAddedWall(Angle /*a*/, Vector2 pos) {
                                                      {0, 0.01, 0.01, 1}
                                                        }, origin, origin}}};
 //    assert (abs (rz) < 0.04) ;
-    return H::moveRightTo (d) * wall;
+    return {true, H::moveRightTo (d) * wall};
 
 }
 struct Button {
@@ -243,6 +250,7 @@ void editorDisplay() {
 
     };
     auto transform = [](Point p) {
+        assert(proper(p));
         std::cout << "x = " << p.x << "y = " << p.y << "z = "  << p.z << "t = "  << p.t << std::endl;
         Point a = G::persViewMatrix * ( view * p);
         glVertex4dv(G::saneVertex4(a).data);
@@ -318,17 +326,17 @@ void editorDisplay() {
         for(auto& i : scene.ex) {
             rend( i.first, i.second);
 
-            if(selectedThing.p == &i.second) {
-                Matrix44 mot = moveRightTo(selectedThing.center);
-                rend(0, mot * ExplicitObject{Me, xarrow(selectedThing.size, false)});
-                rend(0, mot * ExplicitObject{Me, yarrow(selectedThing.size, false)});
-                rend(0, mot * ExplicitObject{Me, zarrow(selectedThing.size, false)});
-                glClear(GL_DEPTH_BUFFER_BIT);
-                rend(0, mot * ExplicitObject{Me, xarrow(selectedThing.size, true)});
-                rend(0, mot * ExplicitObject{Me, yarrow(selectedThing.size, true)});
-                rend(0, mot * ExplicitObject{Me, zarrow(selectedThing.size, true)});
-
-            }
+        }
+        if(selectedThing.p) {
+            Matrix44 mot = moveRightTo(selectedThing.center);
+            rend(0, mot * ExplicitObject{Me, xarrow(selectedThing.size, false)});
+            rend(0, mot * ExplicitObject{Me, yarrow(selectedThing.size, false)});
+            rend(0, mot * ExplicitObject{Me, zarrow(selectedThing.size, false)});
+            glDisable(GL_DEPTH_TEST);
+            rend(0, mot * ExplicitObject{Me, xarrow(selectedThing.size, true)});
+            rend(0, mot * ExplicitObject{Me, yarrow(selectedThing.size, true)});
+            rend(0, mot * ExplicitObject{Me, zarrow(selectedThing.size, true)});
+            glEnable(GL_DEPTH_TEST);
         }
         if(showMainAxes) {
             renderPrimitive(GL_LINES, [&](){
@@ -367,8 +375,11 @@ void editorDisplay() {
         if(state == AddingWall) {
             int x, y;
             SDL_GetMouseState(&x, &y);
-            for(auto fwe : beingAddedWall(0, {double(x), double(y)})) {
-                toRaw(false, fwe);
+            auto baw = beingAddedWall(0, {double(x), double(y)});
+            if(baw.there) {
+                for(auto fwe : baw.m) {
+                    toRaw(false, fwe);
+                }
             }
         }
         glColor4d( 1, 1, (1), 1);
@@ -503,16 +514,16 @@ int32_t preselected(double xx, double yy) {
     for(auto& i : scene.ex) {
         rend( i.first, i.second);
 
-        if(selectedThing.p == &i.second) {
-            Matrix44 mot = moveRightTo(selectedThing.center);
-            rend(0xff0000ff, mot * ExplicitObject{Me, xarrow(selectedThing.size, false)});
-            if(buffer == 0xff0000ff) {
+    }
+    if(selectedThing.p != 0) {
+        Matrix44 mot = moveRightTo(selectedThing.center);
+        rend(0xff0000ff, mot * ExplicitObject{Me, xarrow(selectedThing.size, false)});
+        if(buffer == 0xff0000ff) {
 
-             std::cout << "dgerg";
-            }
-            rend(0x00ff00ff, mot * ExplicitObject{Me, yarrow(selectedThing.size, false)});
-            rend(0x0000ffff, mot * ExplicitObject{Me, zarrow(selectedThing.size, false)});
+         std::cout << "dgerg";
         }
+        rend(0x00ff00ff, mot * ExplicitObject{Me, yarrow(selectedThing.size, false)});
+        rend(0x0000ffff, mot * ExplicitObject{Me, zarrow(selectedThing.size, false)});
     }
 
     return buffer;
@@ -528,18 +539,52 @@ void mouseMCase (SDL_MouseMotionEvent a) {
         view = rotateAroundZ (fromGradi (-a.xrel)) * view;
     } else if((a.state & SDL_BUTTON_LMASK) != 0) {
         if(preselectedThing.n == 0xff0000ff || preselectedThing.n == 0x0000ffff || preselectedThing.n == 0x00ff00ff) {
-            auto s = persViewMatrix * moveRightTo(selectedThing.center) *
-                    Point{(!!(preselectedThing.n & 0xff000000)) * 0.05,
-                        (!!(preselectedThing.n & 0xff0000)) * 0.05,
-                    (!!(preselectedThing.n & 0xff00)) * 0.05, 1};
+            auto sm = /* normalizeWass(*/moveRightTo(selectedThing.center) *
+                    Point{(!!(preselectedThing.n & 0xff000000)) * 0.9,
+                        (!!(preselectedThing.n & 0xff0000)) * 0.9,
+                    (!!(preselectedThing.n & 0xff00)) * 0.9, 1}/*)*/;
+            assert(proper(sm));
+
+            auto s = persViewMatrix *sm;
             auto s1 = persViewMatrix * selectedThing.center;
-            Vector2 dif = {s.x/s.t - s1.x/s1.t, s.y/s.t - s1.y/s1.t};
-            Component pro = dif * Vector2{a.xrel, a.yrel};
-            auto m = ((!!(preselectedThing.n & 0xff000000))?moveAlongX:
-                     (!!(preselectedThing.n & 0xff0000))?moveAlongY:
-                                                         moveAlongZ)(pro/10000);
-            *(selectedThing.p) = m * *(selectedThing.p);
-            (selectedThing.center) = m * (selectedThing.center);
+            auto x0 = s.x/s.t;
+            auto y0 = s.y/s.t;
+//            auto z0 = s.z/s.t;
+//            auto t0 = s.t/s.t;
+            auto x1 = s1.x/s1.t;
+            auto y1 = s1.y/s1.t;
+//            auto z1 = s1.z/s1.t;
+//            auto t1 = s1.t/s1.t;
+            auto t = (x0*y1-x1*y0 - a.x*(y1-y0) + y0*(x1-x0))/((y1-y0)*(y1-y0) + (x1-x0)*(x1-x0));
+            auto x = double(a.x*2)/width - 1 + t*(y1-y0);
+            auto y =  1 - double(a.y*2)/height + t*(x0-x1);
+            auto m = G::persViewMatrix * view;
+//            auto ijkl = tran.m+12;
+            Point* m3 = (Point*)(&m(3,0));
+            Point* m_1 = (Point*)(&m(1,0));
+            auto b = -(y*(*m3*selectedThing.center) - *m_1*selectedThing.center)/((*m_1*sm)*(*m3*selectedThing.center)
+                                                                                -(*m_1*selectedThing.center)*(*m3*sm));
+            auto aa = (y - b*(*m_1*sm));
+
+//            auto c = b*(m(2, 0)*sm.x + m(2, 1)*sm.y + m(2, 2)*sm.z + m(2, 3)*sm.t)+(m(2, 0)*selectedThing.center.x
+//                                                                                    + m(2, 1)*selectedThing.center.y
+//                                                                                    + m(2, 2)*selectedThing.center.z
+//                                                                                    + m(2, 3)*selectedThing.center.t);
+//            auto invpv =  inv44  (m);
+            Point d = aa*selectedThing.center + b * sm; // invpv * Point{x, y, c, 1};//fabs ( ijkl[2]) > 0.00001 ? Point{ x, y,  c, 1} : Point{ 0, 0, 1, 0});
+            if(proper(d)){
+//            Vector2 dif = {s.x/s.t - s1.x/s1.t, s.y/s.t - s1.y/s1.t};
+//            Component pro = dif * Vector2{a.xrel, -a.yrel};
+            auto m1 = moveFromTo(selectedThing.center, d, distance(d, selectedThing.center)); //(!!(preselectedThing.n & 0xff000000))?moveAlongX:
+//                      (!!(preselectedThing.n & 0xff0000))?moveAlongY:
+//                                                        moveAlongZ)(pro/10000);
+            *(selectedThing.p) = m1 * *(selectedThing.p);
+            (selectedThing.center) = m1 * (selectedThing.center);
+            auto ddd = (persViewMatrix * selectedThing.center);
+            assert(fabs(ddd.x/ddd.t - x) < 1);
+            } else {
+
+            }
         }
     } else {// a * width + b = 1
            // a * 0 + b = -1
@@ -588,10 +633,12 @@ void mouseCCase(SDL_MouseButtonEvent a) {
             Component size = std::max({x.second->x/x.second->t - x.first->x/x.first->t,
                                        y.second->y/y.second->t - y.first->y/y.first->t,
                                        z.second->z/z.second->t - z.first->z/z.first->t});
-            selectedThing.center = {(x.second->x/x.second->t + x.first->x/x.first->t)/2,
+            selectedThing.center = normalizeWass({(x.second->x/x.second->t + x.first->x/x.first->t)/2,
                                     (y.second->y/y.second->t + y.first->y/y.first->t)/2,
                                     (z.second->z/z.second->t + z.first->z/z.first->t)/2,
-                                   1};
+                                   1});
+            assert(proper(selectedThing.center));
+
             selectedThing.size = size;
             selectedThing.p = p;
         }
@@ -599,8 +646,10 @@ void mouseCCase(SDL_MouseButtonEvent a) {
         int x, y;
         SDL_GetMouseState(&x, &y);
 
-        Mesh mesh = beingAddedWall( 0, {x, y});
-        scene.ex[scene.ex.size()] = {Me, mesh};
+        auto baw = beingAddedWall(0, {double(x), double(y)});
+        if(baw.there) {
+            scene.ex[scene.ex.size()] = {Me, baw.m};
+        }
         state = Ground;
     }
 }
