@@ -11,16 +11,18 @@
 #include <map>
 #include <set>
 #include <iostream>
+#undef NULL
+#define NULL ((void*)0)
 const double step = 0.1;
 using namespace H;
-Matrix44 view = rotateAroundY (0.1) /* (tau/(4-0.1))*/  * moveAlongX (-0.1) /* moveAlongZ (-0.1) !*! ) -*/ * identity;
-std::map<SDL_Keycode, H::Matrix44> matricesMove =
- {{SDLK_w, moveAlongX (-step)}, {SDLK_s, moveAlongX(step)},
-   {SDLK_a, moveAlongY (-step)}, {SDLK_d, moveAlongY(step)},
-  {SDLK_z, moveAlongZ  (-step)}, {SDLK_c, moveAlongZ (step)}};
+Matrix44 view = /*rotateAroundY (0.1) /* (tau/(4-0.1))* /  * moveAlongX (-0.1) /* moveAlongZ (-0.1) !*! ) -* / */ identity;
+std::map<SDL_Scancode, H::Matrix44> matricesMove =
+ {{SDL_SCANCODE_W, moveAlongX (-step)}, {SDL_SCANCODE_S, moveAlongX(step)},
+   {SDL_SCANCODE_A, moveAlongY (-step)}, {SDL_SCANCODE_D, moveAlongY(step)},
+  {SDL_SCANCODE_Z, moveAlongZ  (-step)}, {SDL_SCANCODE_C, moveAlongZ (step)}};
 
 void keyboardCase (SDL_KeyboardEvent a) {
-    SDL_Keycode c = a.keysym.sym;
+    SDL_Scancode c = a.keysym.scancode;
     auto f = matricesMove.find(c);
     if (f != matricesMove.end()){
       view = f->second * view; /* 0.1 */;
@@ -77,7 +79,7 @@ Scene mmmm() {
     for( double i : {0, 1, 2, 3} ) {
         auto ni = i*tau;
         auto bbi = ni/4;
-        Point p = rotateAroundZ(bbi-0.1) * moveAlongZ(-0.1) * Point {0.9999, 0, 0, 1};
+        Point p = rotateAroundZ(bbi-0.1) * /*moveAlongZ(-0.1) */ Point {0.1, 0, 0, 1};
         v.push_back(p);
     }
 //    Point ppp = {.2, .2, .2, 1};
@@ -105,7 +107,7 @@ Scene mmmm() {
             std::pair<int32_t, ExplicitObject>{ 0x44ff3388, e}
         }, {}};
 }
-enum State { Ground, AddingWall } state;
+enum State { Ground, AddingWall, Input } state;
 Scene scene = mmmm();
 using Angle = double;
 Vector2 mapVertexPixel(Vector2 ab) {
@@ -133,8 +135,23 @@ OptionalMesh beingAddedWall(Angle /*a*/, Vector2 pos) {
                                                      {0, (-0.01), 0.01, 1},
                                                      {0, 0.01, 0.01, 1}
                                                        }, origin, origin}}};
-//    assert (abs (rz) < 0.04) ;
-    return {true, H::moveRightTo (d) * wall};
+//    assert (proper(0,abs (rz) < 0.04) ;
+    for(ColoredEntity& a : wall) {
+        if(a.e.type == Polygon) {
+            for(Point& d : a.e.p) {
+                assert (proper(d));
+            }
+        }
+    }
+    Mesh m = H::moveRightTo (d) * wall;
+    for(ColoredEntity& a : m) {
+        if(a.e.type == Polygon) {
+            for(Point& d : a.e.p) {
+                assert (proper(d));
+            }
+        }
+    }
+    return {true, m};
 
 }
 struct Button {
@@ -143,9 +160,6 @@ struct Button {
     bool(*active)();
     void(*action)();
 };
-bool showMainAxes = true;
-std::vector<Button> gui = { {"wall", [](){return state == Ground;}, ( [](){state = AddingWall;} )},
-                            {"main axes", [](){return true;}, ( [](){ showMainAxes = !showMainAxes;} )}};
 struct Rectangle {
     double lx;
     double ly;
@@ -155,6 +169,17 @@ struct Rectangle {
         return lx <= x && ly <= y && (lx+sx) >= x && (ly+sy) >= y;
     }
 };
+struct LineEdit {
+    const char* placeholderText;
+    Rectangle r;
+    int cursor;
+    bool(*active)();
+    char text[100];
+};
+bool showMainAxes = true;
+std::vector<Button> buttons = { {"wall", [](){return state == Ground;}, ( [](){state = AddingWall;} )},
+        {"main axes", [](){return true;}, ( [](){ showMainAxes = !showMainAxes;} )}};
+std::vector<LineEdit> lineedits = { {"1024", {20, 20, 0, 0}, 0, [](){return true;}, {} } };
 void mapPixelVertex(double a, double b) {
     glVertex2f((a)*2/(width) - 1 ,
                                              (1 - (b)*2/(height) ));
@@ -192,6 +217,22 @@ void displayButton (Button butt, int number) {
     glWindowPos2f(x + margin, height - (y + h + margin));
     glColor3f(0, 1, 0);
     glutBitmapString(GLUT_BITMAP_TIMES_ROMAN_24, (const unsigned char*)butt.text);
+}
+void displayLineedit (const LineEdit& edit) {
+    double h = glutBitmapHeight(GLUT_BITMAP_TIMES_ROMAN_24);
+//    double x  = 300;
+//    double y = 200;
+    glColor4f(.3, .3, .3, .5);
+    displayRectangle(edit.r);
+    if(edit.active()) {
+        glColor3f(1, 1, 1);
+    } else {
+        glColor3f(.7, .7, .7);
+    }
+//    auto debug = x + margin;
+    glWindowPos2f(edit.r.lx + margin, height - (edit.r.ly + h + margin));
+    glColor3f(1, 1, 1);
+    glutBitmapString(GLUT_BITMAP_TIMES_ROMAN_24, (const unsigned char*)edit.text);
 }
 Mesh xarrow(double sizeo, bool transparent) {
     double size = sizeo / 10;
@@ -239,6 +280,7 @@ Mesh zarrow(double sizeo, bool transparent) {
                                 {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, nn}},
                                     {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, np}}};
 }
+
 void editorDisplay() {
     auto applyNormal = [](auto )->void {
         /*auto a = l[0];
@@ -394,8 +436,11 @@ void editorDisplay() {
         glDisable(GL_DEPTH_TEST);
         glDepthFunc(GL_ALWAYS);
 
-        for(int i = 0; i < gui.size(); i++) {
-            displayButton(gui[i], i);
+        for(int i = 0; i < buttons.size(); i++) {
+            displayButton(buttons[i], i);
+        }
+        for(int i = 0; i < lineedits.size(); i++) {
+            displayLineedit(lineedits[i]);
         }
 
         glDepthFunc(GL_LESS);
@@ -411,6 +456,7 @@ void editorDisplay() {
     std::cout << insanity(view) << " " << insanity(identity) << insanity(moveAlongX (-0.1) * identity)  << std::endl;
 
 }
+
 int32_t preselected(double xx, double yy) {
     if(state != Ground) return -1;
     double depth = DBL_MAX;
@@ -545,8 +591,9 @@ void mouseMCase (SDL_MouseMotionEvent a) {
                     (!!(preselectedThing.n & 0xff00)) * 0.9, 1}/*)*/;
             assert(proper(sm));
 
-            auto s = persViewMatrix *sm;
-            auto s1 = persViewMatrix * selectedThing.center;
+            auto m = G::persViewMatrix * view;
+            auto s = m*sm;
+            auto s1 = m*selectedThing.center;
             auto x0 = s.x/s.t;
             auto y0 = s.y/s.t;
 //            auto z0 = s.z/s.t;
@@ -555,33 +602,88 @@ void mouseMCase (SDL_MouseMotionEvent a) {
             auto y1 = s1.y/s1.t;
 //            auto z1 = s1.z/s1.t;
 //            auto t1 = s1.t/s1.t;
-            auto t = (x0*y1-x1*y0 - a.x*(y1-y0) + y0*(x1-x0))/((y1-y0)*(y1-y0) + (x1-x0)*(x1-x0));
-            auto x = double(a.x*2)/width - 1 + t*(y1-y0);
-            auto y =  1 - double(a.y*2)/height + t*(x0-x1);
-            auto m = G::persViewMatrix * view;
-//            auto ijkl = tran.m+12;
+            Point dnew;
+            Point dold;
             Point* m3 = (Point*)(&m(3,0));
             Point* m_1 = (Point*)(&m(1,0));
-            auto b = -(y*(*m3*selectedThing.center) - *m_1*selectedThing.center)/((*m_1*sm)*(*m3*selectedThing.center)
-                                                                                -(*m_1*selectedThing.center)*(*m3*sm));
-            auto aa = (y - b*(*m_1*sm));
+//            {
+                auto tnew = (x0*y1-x1*y0 - (double(a.x*2)/width - 1)*(y1-y0) + (1 - double(a.y*2)/height)*(x1-x0))/((y1-y0)*(y1-y0) + (x1-x0)*(x1-x0));
 
+                auto xnew = double(a.x*2)/width - 1 + tnew*(y1-y0);
+                auto ynew =  1 - double(a.y*2)/height + tnew*(x0-x1);
+//            auto ijkl = tran.m+12;
+                auto bnew = -(ynew*(*m3*selectedThing.center) - *m_1*selectedThing.center)/((*m_1*sm)*(*m3*selectedThing.center)
+                                                                                -(*m_1*selectedThing.center)*(*m3*sm));
+                auto anew = (ynew - bnew*(*m_1*sm));
+                dnew = anew*selectedThing.center + bnew * sm; // invpv * Point{x, y, c, 1};//fabs ( ijkl[2]) > 0.00001 ? Point{ x, y,  c, 1} : Point{ 0, 0, 1, 0});
+//            }
+//            {
+                auto told = (x0*y1-x1*y0 - (double((a.x-a.xrel)*2)/width - 1)*(y1-y0) + (1 - double((a.y-a.yrel)*2)/height)*(x1-x0))/((y1-y0)*(y1-y0) + (x1-x0)*(x1-x0));
+
+                auto xold = double((a.x-a.xrel)*2)/width - 1 + told*(y1-y0);
+                auto yold =  1 - double((a.y-a.yrel)*2)/height + told*(x0-x1);
+//            auto ijkl = tran.m+12;
+                auto bold = -(yold*(*m3*selectedThing.center) - *m_1*selectedThing.center)/((*m_1*sm)*(*m3*selectedThing.center)
+                                                                                -(*m_1*selectedThing.center)*(*m3*sm));
+                auto aold = (yold - bold*(*m_1*sm));
+                dold = aold*selectedThing.center + bold * sm; // invpv * Point{x, y, c, 1};//fabs ( ijkl[2]) > 0.00001 ? Point{ x, y,  c, 1} : Point{ 0, 0, 1, 0});
+//            }
 //            auto c = b*(m(2, 0)*sm.x + m(2, 1)*sm.y + m(2, 2)*sm.z + m(2, 3)*sm.t)+(m(2, 0)*selectedThing.center.x
 //                                                                                    + m(2, 1)*selectedThing.center.y
 //                                                                                    + m(2, 2)*selectedThing.center.z
 //                                                                                    + m(2, 3)*selectedThing.center.t);
 //            auto invpv =  inv44  (m);
-            Point d = aa*selectedThing.center + b * sm; // invpv * Point{x, y, c, 1};//fabs ( ijkl[2]) > 0.00001 ? Point{ x, y,  c, 1} : Point{ 0, 0, 1, 0});
-            if(proper(d)){
-//            Vector2 dif = {s.x/s.t - s1.x/s1.t, s.y/s.t - s1.y/s1.t};
-//            Component pro = dif * Vector2{a.xrel, -a.yrel};
-            auto m1 = moveFromTo(selectedThing.center, d, distance(d, selectedThing.center)); //(!!(preselectedThing.n & 0xff000000))?moveAlongX:
+            assert(det44({{sm.x, sm.y, sm.z, sm.t,
+                           selectedThing.center.x, selectedThing.center.y, selectedThing.center.z, selectedThing.center.t,
+                           dnew.x, dnew.y, dnew.z, dnew.t,
+                           0,0,0,1}}
+                           ) < 0.1);
+            assert(det44({{sm.x, sm.y, sm.z, sm.t,
+                           dnew.x, dnew.y, dnew.z, dnew.t,
+                           dnew.x, dnew.y, dnew.z, dnew.t,
+                           0,0.9,0,1}}
+                           ) < 0.1);
+//            auto ddd = (persViewMatrix * (view*selectedThing.center));
+//            assert(fabs(ddd.x/ddd.t - x) < 0.5);
+
+            if(proper(dnew)){
+//              Vector2 dif = {s.x/s.t - s1.x/s1.t, s.y/s.t - s1.y/s1.t};
+//              Component pro = dif * Vector2{a.xrel, -a.yrel};
+                auto m1 = moveFromTo(dold, dnew, distance(dold, dnew)); //(!!(preselectedThing.n & 0xff000000))?moveAlongX:
+//                auto mmmm = m1*selectedThing.center;
+//                assert(fabs(d.x/d.t - mmmm.x/mmmm.t) < 0.1);
+//                assert(fabs(d.y/d.t - mmmm.y/mmmm.t) < 0.1);
+//                assert(fabs(d.z/d.t - mmmm.z/mmmm.t) < 0.1);
 //                      (!!(preselectedThing.n & 0xff0000))?moveAlongY:
+                *(selectedThing.p) = m1 * *(selectedThing.p);
 //                                                        moveAlongZ)(pro/10000);
-            *(selectedThing.p) = m1 * *(selectedThing.p);
-            (selectedThing.center) = m1 * (selectedThing.center);
-            auto ddd = (persViewMatrix * selectedThing.center);
-            assert(fabs(ddd.x/ddd.t - x) < 1);
+                {
+
+                    std::set<Point> set;
+                    for(const ColoredEntity& ce : (selectedThing.p)->mesh) {
+                        if(ce.e.type == Polygon) {
+                            for(const Point& e : ce.e.p) {
+                                set.insert(normalizeWass(e));
+                            }
+                        }
+                    }
+                    auto x = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                        return a.x/a.t < b.x/b.t;
+                    });
+                    auto y = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                        return a.y/a.t < b.y/b.t;
+                    });
+                    auto z = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                        return a.z/a.t < b.z/b.t;
+                    });
+                    selectedThing.center = normalizeWass({(x.second->x/x.second->t + x.first->x/x.first->t)/2,
+                                            (y.second->y/y.second->t + y.first->y/y.first->t)/2,
+                                            (z.second->z/z.second->t + z.first->z/z.first->t)/2,
+                                           1});
+                }
+//                (selectedThing.center) = m1 * (selectedThing.center);
+//                auto ddd = m*selectedThing.center;
+//                assert(fabs(ddd.x/ddd.t - x) < 0.5);
             } else {
 
             }
@@ -600,14 +702,28 @@ void mouseMCase (SDL_MouseMotionEvent a) {
         }
     }
 }
+
+LineEdit* selectedLineedit;
 void mouseCCase(SDL_MouseButtonEvent a) {
     if(state == Ground && a.button == SDL_BUTTON_LEFT) {
-        for(int i = 0; i < gui.size(); i++) {
-            if (buttRectangle(gui[i],i).contains( a.x, a.y ) ) {
-              if(gui[i].active()) {
-                  gui[i].action();
+        for(int i = 0; i < buttons.size(); i++) {
+            if (buttRectangle(buttons[i],i).contains( a.x, a.y ) ) {
+              if(buttons[i].active()) {
+                  buttons[i].action();
               }
               return;
+            }
+        }
+        for(int i = 0; i < lineedits.size(); i++) {
+            if (lineedits[i].r.contains( a.x, a.y ) ) {
+                if(lineedits[i].active()) {
+                    selectedLineedit = &lineedits[i];
+                    state = Input;
+                    SDL_StartTextInput();
+//                    SDL_SetTextInputRect(selectedLineedit->r);
+//                    *((int*)0) = 8;
+                }
+                return;
             }
         }
         if(preselectedThing.type == Mes) {
@@ -617,7 +733,11 @@ void mouseCCase(SDL_MouseButtonEvent a) {
             for(ColoredEntity ce : p->mesh) {
               if(ce.e.type == Polygon) {
                  for(Point e : ce.e.p) {
-                    set.insert(e);
+                     Point q = persViewMatrix*(view*e);
+                     assert(proper(e));
+
+                     assert(fabs(q.y/q.t) < 1.01);
+                    set.insert(normalizeWass(e));
                  }
               }
             }
@@ -638,7 +758,9 @@ void mouseCCase(SDL_MouseButtonEvent a) {
                                     (z.second->z/z.second->t + z.first->z/z.first->t)/2,
                                    1});
             assert(proper(selectedThing.center));
-
+            auto yhigh = persViewMatrix*(view**y.second);
+            auto ylow = persViewMatrix*(view**y.first);
+            auto dd = persViewMatrix*(view*selectedThing.center);
             selectedThing.size = size;
             selectedThing.p = p;
         }
@@ -654,37 +776,48 @@ void mouseCCase(SDL_MouseButtonEvent a) {
     }
 }
 void editorLoop() {
-
-  while(true) {
-      SDL_Event event;
-      if(SDL_PollEvent(&event)) {
-        switch(event.type) {
-        case SDL_KEYDOWN:{
-            keyboardCase(event.key);
-        }break;
-        case SDL_TEXTEDITING:
-        case SDL_TEXTINPUT:{
-        }break;
-        case SDL_MOUSEMOTION:{
-            mouseMCase(event.motion);
-        }break;
-        case SDL_MOUSEBUTTONDOWN:{
-            mouseCCase(event.button);
-        }break;
-        case SDL_MOUSEWHEEL:{
-        }break;
-        case SDL_QUIT: return;
-        case SDL_CLIPBOARDUPDATE: {
-        }break;
-        case SDL_DROPFILE:{
-        }break;
-        default: {
-        }
-        }
-      } else {
-          editorDisplay();
-      }
+    for(auto &l : lineedits) {
+        l.r.sx = glutBitmapLength(GLUT_BITMAP_TIMES_ROMAN_24, (const unsigned char*)l.placeholderText);
+        l.r.sy = glutBitmapHeight(GLUT_BITMAP_TIMES_ROMAN_24);
     }
+    while(true) {
+        SDL_Event event;
+        if(SDL_PollEvent(&event)) {
+            switch(event.type) {
+            case SDL_KEYDOWN:{
+                keyboardCase(event.key);
+            }break;
+            case SDL_TEXTEDITING: {
+                strcpy(selectedLineedit->text, event.edit.text);
+                selectedLineedit->cursor = event.edit.start;
+//                selectedLineedit->
+                abort();
+            } break;
+            case SDL_TEXTINPUT:{
+                                abort();
+            }break;
+            case SDL_MOUSEMOTION:{
+                mouseMCase(event.motion);
+            }break;
+            case SDL_MOUSEBUTTONDOWN:{
+                mouseCCase(event.button);
+            }break;
+            case SDL_MOUSEWHEEL:{
+            }break;
+            case SDL_QUIT: return;
+            case SDL_CLIPBOARDUPDATE: {
+            }break;
+            case SDL_DROPFILE:{
+            }break;
+            default: {
+            }
+            }
+        } else {
+            editorDisplay();
+        }
+        SDL_FlushEvents(SDL_QUIT+1, SDL_LASTEVENT);
+    }
+
 }
 #endif // EDITOR_H
 

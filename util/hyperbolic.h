@@ -110,6 +110,7 @@ struct Matrix33 {
     Component& operator()(int i, int j);
     Component operator()(int i, int j) const;
 };
+Component det44(H::Matrix44 a);
 Matrix44 transpose(Matrix44 a);
 Matrix33 transpose3(Matrix33 a);
 
