@@ -134,6 +134,21 @@ H::Matrix44 H::inv44(H::Matrix44 a) {
                 (-a(3, 0) * s3 + a(3, 1) * s1 - a(3, 2) * s0),
                 (a(2, 0) * s3 - a(2, 1) * s1 + a(2, 2) * s0)} / det;
 }
+H::Component H::det44(H::Matrix44 a) {
+    double s0 = a(0, 0) * a(1, 1) - a(1, 0) * a(0, 1);
+    double       s1 = a(0, 0) * a(1, 2) - a(1, 0) * a(0, 2);
+    double s2 = a(0, 0) * a(1, 3) - a(1, 0) * a(0, 3);
+    double                 s3 = a(0, 1) * a(1, 2) - a(1, 1) * a(0, 2);
+    double          s4 = a(0, 1) * a(1, 3) - a(1, 1) * a(0, 3);
+    double               s5 = a(0, 2) * a(1, 3) - a(1, 2) * a(0, 3);
+    double        c5 = a(2, 2) * a(3, 3) - a(3, 2) * a(2, 3);
+    double                 c4 = a(2, 1) * a(3, 3) - a(3, 1) * a(2, 3);
+    double          c3 = a(2, 1) * a(3, 2) - a(3, 1) * a(2, 2);
+    double   c2 = a(2, 0) * a(3, 3) - a(3, 0) * a(2, 3);
+    double                 c1 = a(2, 0) * a(3, 2) - a(3, 0) * a(2, 2);
+    double          c0 = a(2, 0) * a(3, 1) - a(3, 0) * a(2, 1);
+    return  s0 * c5 - s1 * c4 + s2 * c3 + s3 * c2 - s4 * c1 + s5 * c0;
+}
 
 H::Matrix44 H::operator -(const H::Matrix44 a, const H::Matrix44 b) {
     Matrix44 r;

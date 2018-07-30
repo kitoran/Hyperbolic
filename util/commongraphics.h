@@ -25,7 +25,7 @@ constexpr H::Matrix44 perspective(double fovy, double aspect, double near, doubl
            0, 0, z,    w,
            0, 0, (-1), 0}};
 }
-constexpr H::Matrix44 persMatrix = perspective( (H::tau/8), (1024/600), (0.01), (1));
+constexpr H::Matrix44 persMatrix = perspective( (H::tau/8), (1366.0/768), (0.01), (1));
 inline bool nearZero(double f) {
     return abs (f) <= 1e-12;
 }
