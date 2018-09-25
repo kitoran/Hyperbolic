@@ -364,13 +364,13 @@ void mouseMCase(const H::Vector2 &v) {//gamePassiveMotionCallback (V2 x y) = do
     timespec spec;
     clock_gettime(CLOCK_REALTIME, &spec);
 
-    now = round(spec.tv_nsec / 1.0e6);
-    last = now;
-if(now - last > 300) {
+    now = round(spec.tv_nsec);
+if(now - last > 30000000) {
         LevelState savedState = state;
         state.avatarPosition = processMouse( (G::width), (G::height), v.x, v.y, savedState.avatarPosition);
         state.selected = state.inventory == Empty ? findSelected(savedState.worldState, state.avatarPosition) : OptionalInt{false, 0};
     }
+last = now;
 }
 using namespace G;
 void mouseCCase() {
@@ -516,6 +516,8 @@ void mouseCCase() {
 //--   -- reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  idle
 
 void gameLoop() {
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+
     while(true) {
         SDL_Event event;
         if(SDL_PollEvent(&event)) {
