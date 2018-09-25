@@ -124,7 +124,7 @@ struct SqDistanceFromProjRes {
     double ratio;
     double rr;
 };
-SqDistanceFromProjRes sqDistanceFromProj(const HyperEntity & he, Matrix44 trans) {
+SqDistanceFromProjRes sqDistanceFromProj(const HyperEntity & he, const Matrix44 &trans) {
     Point h1 = trans * he.a;
     Point h2 = trans * he.b;
     Vector2 v1 = {((-h1.y)/h1.x), (h1.z/h1.x)};
@@ -150,6 +150,7 @@ SqDistanceFromProjRes sqDistanceFromProj(const HyperEntity & he, Matrix44 trans)
 //-- a = (nx*x1 - y1)/(-y1+y2(t1/t2)+nx*x1-nx*x2(t1/t2))
 Matrix44 preShow(const Mesh& rays, const Matrix44& vp) {
 //preShow rays vp = case rays of
+    if (rays.size()<1) abort();
     auto res = sqDistanceFromProj(rays[0].e, vp);
 
     double ratio = res.ratio;
@@ -241,19 +242,17 @@ Environment level() {
 }
 Mesh levelMesh = level().mesh;
 //obsRef = unsafePerformIO $ newIORef runtimeObstacles
-//sourceRef = unsafePerformIO $ newIORef (_sources level)
+std::vector<Source> source =  level().sources;
 double step = 0.01;
 double jump = 0.01;
 //gravityRef = unsafePerformIO $ newIORef 0 -- .0002
 //mutableMeshRef = unsafePerformIO $ newIORef (G.toMesh (_sources level) (_receivers level) startState)
-bool frame = true;
-bool wheConsole = false;
 struct {
     std::string cur;
     std::vector<std::string> history;
     int i;
 } console;// = unsafePerformIO $ newIORef (Console "" [] 0)
-//receiversRef = unsafePerformIO $ newIORef (_receivers level)
+std::vector<Receiver> receivers = level().receivers;
 //-- ctrl ::
 //ctrl a = keyModifierLeftCtrl (keysymModifier a) || keyModifierRightCtrl (keysymModifier a)
 //commands = (T.Node ( Command "" "" (io (return ())) True) [T.Node (setGravity gravityRef) [],
@@ -323,11 +322,7 @@ void keyboardCase (SDL_KeyboardEvent a) {
 //-- gameSpecialCallback a _ = do
 //                               -- when (a == GL.KeyUp) (modifyIORef consoleRef consoleUp)
 }
-struct MutableMesh {
-    Mesh rays;
-    std::vector<Mesh> items;
-    Mesh recvs;
-} mutableMesh;
+G::MutableMesh mutableMesh = G::toMesh(level().sources, level().receivers, state);
 void gameDisplay() {
 //                            state' <- readIORef stateRef
 //                            levelMesh <- readIORef levelMeshRef
@@ -338,12 +333,12 @@ void gameDisplay() {
 //                            wheCons <- readIORef wheConsoleRef
     auto ap = state.avatarPosition;
     auto inv = state.inventory == Empty ? Mesh{} :
-               state.inventory == De ? preShow(mutableMesh.rays, G::viewPort(ap))*transparentDeviator() : (abort(), Mesh{});
+               state.inventory == De ? preShow(mutableMesh.rays, G::viewPort(ap))*G::transparentDeviator() : (abort(), Mesh{});
     auto items =  mutableMesh.items;
     if(state.selected.there) {
-        lightenABit(&items[state.selected.i]);
+        G::lightenABit(&items[state.selected.i]);
     }
-    displayGame(levelMesh, items, mutableMesh.rays, mutableMesh.recvs, inv, G::viewPort( ap));
+    G::displayGame(levelMesh, items, mutableMesh.rays, mutableMesh.recvs, inv, G::viewPort( ap));
 }
 AvatarPosition processTurnLeft (double angle, const AvatarPosition& ap) {
     return {(ap.pos * (rotate3 (- angle))), ap.height, ap.nod, ap.speed};// -- Sudya po vsemu, skorost' nuzhno menyat' zdes' ili v processMove
@@ -377,9 +372,9 @@ if(now - last > 300) {
         state.selected = state.inventory == Empty ? findSelected(savedState.worldState, state.avatarPosition) : OptionalInt{false, 0};
     }
 }
-
+using namespace G;
 void mouseCCase() {
-    Matrix44 trans = preShow(mutableMesh.rays, (viewPort(state.avatarPosition)));
+    Matrix44 trans = preShow(mutableMesh.rays, (G::viewPort(state.avatarPosition)));
     state = thisFunc( trans, state);
     mutableMesh = toMesh(source, receivers, state);
 }
@@ -532,7 +527,7 @@ void gameLoop() {
                 mouseMCase({event.motion.xrel, event.motion.yrel});
             }break;
             case SDL_MOUSEBUTTONDOWN:{
-                mouseCCase(event.button);
+                mouseCCase();
             }break;
             case SDL_QUIT: return;
             default: {
