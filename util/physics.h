@@ -26,7 +26,6 @@ struct Source {
 };
 using Receiver = std::vector<H::Point>;
 //type instance Element Receiver = H.Point Double
-//type Obstacles = [Obstacle]
 enum ObstacleType { Sphere , Triangle };
 struct Obstacle {
     ObstacleType type;
@@ -43,6 +42,7 @@ struct Obstacle {
         };
     };
 };
+using Obstacles = std::vector<Obstacle>;
 enum HyperEntityType { Polygon, Segment, HPoint};
 struct HyperEntity {
     HyperEntityType type;
@@ -94,35 +94,56 @@ Mesh operator *(H::Matrix44 m, Mesh a) {
 }
 
 //type instance Element Mesh = ((Double, Double, Double, Double), HyperEntity)
-//data Environment = Env {  _mesh :: !(Mesh),
-//                          _obstacles :: !(Obstacles),
-//                          _sources :: [Source],
-//                          _receivers :: [Receiver] } deriving ( Show, Read)
+struct Environment {
+    Mesh mesh;
+    Obstacles obstacles;
+    std::vector<Source> sources;
+    std::vector<Receiver> receivers;
+};
 //$(Lens.makeLenses ''Environment)
-//data AvatarPosition = AP { _pos :: !(M33 Double ) -- проекция на плоскость z=0
-//                                     , _height :: !Double
-//                                     , _nod :: !Double
-//                                     , _speed :: !(V3 Double)
-//                                     } deriving (Show, Read)
+struct AvatarPosition  {
+    Matrix33 pos; // проекция на плоскость z=0
+    double height;
+    double nod;
+    Vector3 speed;
+};
 
-//data LevelState = LS { _avatarPosition :: AvatarPosition,
-//                       _avatarInventory :: Maybe Item,
-//                       _worldState :: WorldState ,
-//                       _selected :: Maybe Int
-//                     } deriving (Show, Read)
-//data Item = De | Di deriving (Show, Read, Enum)
+enum Item { Empty, De, Di};
+struct Deviator {
+    H::Point pos;
+    Absolute dir;
+    double nod;
+}; // отклоняет поток на 90 градусов
+Deviator operator *(const H::Matrix44& m, const Deviator& d) {
+    return {m*d.pos, d.dir.move(m), d.nod}; // третий аргумет переводится неправильно, но что поделать
+}
+struct Divider {
+    H::Point pos;
+    Absolute dir;
+    double nod;
+};
+struct WorldState {
+    std::vector<Deviator> devis;
+    std::vector<Divider> divis;
+};
+struct OptionalInt {
+   bool there = false;
+   int i;
+};
+struct OptionalDouble {
+   bool there = false;
+   double i;
+};
+struct LevelState {
+    AvatarPosition avatarPosition;
+    Item inventory;
+    WorldState worldState;
+    OptionalInt selected;
+};
 
-//data Deviator = Devi { _devPos :: (H.Point Double)
-//                      , _devDir :: (Absolute Double)
-//                      , _devNod :: Double } deriving (Show, Read)-- отклоняет поток на 90 градусов
 //instance (Monoid t, H.Movable t (H.Point Double), H.Movable t (Absolute Double)) => H.Movable t (Deviator ) where
 //  trans !$ (Devi a b c) = Devi (trans !$ a) (trans !$ b) c -- третий аргумет переводится неправильно, но что поделать
-//data Divider = Divi (H.Point Double) (Absolute Double) Double deriving (Show, Read)
 
-//data WorldState = WS {
-//                    _devis :: [ Deviator],
-//                    _divis :: [ Divider ]
-//                  }deriving (Show, Read)
 
 
 

@@ -37,11 +37,6 @@ struct PreSelectedThing {
     static constexpr const char *const TypeNames[] = {"Nihil", "Mes", "Obs"};
     int32_t n = -1;
 } preselectedThing;
-void renderPrimitive(GLenum p, auto f) {
-    glBegin(p);
-    f();
-    glEnd();
-}
 enum ExplicitObjectType {Me, So, Re};
 struct ExplicitObject {
     ExplicitObjectType type;
@@ -67,9 +62,7 @@ struct SelectedThing {
     Vector2 y;
     Vector2 z;
 } selectedThing;
-double clamp(double a) {
-    return a > 1?1:a<0?0:a;
-}
+
 struct Scene {
     std::map<int32_t, ExplicitObject> ex;
     std::map<int32_t, Obstacle> im;
@@ -200,9 +193,7 @@ Rectangle buttRectangle (const Button & butt, int number/*text (Pos a b) _ _ _*/
   double x  = 300;
   double y = 200 + number*h+2*margin*number;
   return Rectangle{(x), (y), (i+2*margin), ((h + 2*margin))};
-}
-extern "C" GLAPI void APIENTRY glWindowPos2f (GLfloat x, GLfloat y);
-void displayButton (Button butt, int number) {
+}void displayButton (Button butt, int number) {
     double h = glutBitmapHeight(GLUT_BITMAP_TIMES_ROMAN_24);
     double x  = 300;
     double y = 200 + number*h+2*margin*number;
@@ -613,7 +604,7 @@ void mouseMCase (SDL_MouseMotionEvent a) {
                 auto ynew =  1 - double(a.y*2)/height + tnew*(x0-x1);
 //            auto ijkl = tran.m+12;
                 auto bnew = -(ynew*(*m3*selectedThing.center) - *m_1*selectedThing.center)/((*m_1*sm)*(*m3*selectedThing.center)
-                                                                                -(*m_1*selectedThing.center)*(*m3*sm));
+                                                                -(*m_1*selectedThing.center)*(*m3*sm));
                 auto anew = (ynew - bnew*(*m_1*sm));
                 dnew = anew*selectedThing.center + bnew * sm; // invpv * Point{x, y, c, 1};//fabs ( ijkl[2]) > 0.00001 ? Point{ x, y,  c, 1} : Point{ 0, 0, 1, 0});
 //            }

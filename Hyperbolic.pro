@@ -16,4 +16,6 @@ HEADERS += \
     util/physics.h \
     util/commongraphics.h \
     editor/editor.h \
-    util/shittyreflection.h
+    util/shittyreflection.h \
+    game/gameloop.h \
+    game/graphics.h
