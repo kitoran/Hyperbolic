@@ -13,15 +13,15 @@
 #include <iostream>
 #undef NULL
 #define NULL ((void*)0)
-const double step = 0.1;
+const double stepEditor = 0.1;
 using namespace H;
 Matrix44 view = /*rotateAroundY (0.1) /* (tau/(4-0.1))* /  * moveAlongX (-0.1) /* moveAlongZ (-0.1) !*! ) -* / */ identity;
 std::map<SDL_Scancode, H::Matrix44> matricesMove =
- {{SDL_SCANCODE_W, moveAlongX (-step)}, {SDL_SCANCODE_S, moveAlongX(step)},
-   {SDL_SCANCODE_A, moveAlongY (-step)}, {SDL_SCANCODE_D, moveAlongY(step)},
-  {SDL_SCANCODE_Z, moveAlongZ  (-step)}, {SDL_SCANCODE_C, moveAlongZ (step)}};
+ {{SDL_SCANCODE_W, moveAlongX (-stepEditor)}, {SDL_SCANCODE_S, moveAlongX(stepEditor)},
+   {SDL_SCANCODE_A, moveAlongY (-stepEditor)}, {SDL_SCANCODE_D, moveAlongY(stepEditor)},
+  {SDL_SCANCODE_Z, moveAlongZ  (-stepEditor)}, {SDL_SCANCODE_C, moveAlongZ (stepEditor)}};
 
-void keyboardCase (SDL_KeyboardEvent a) {
+void keyboardCaseEditor (SDL_KeyboardEvent a) {
     SDL_Scancode c = a.keysym.scancode;
     auto f = matricesMove.find(c);
     if (f != matricesMove.end()){
@@ -100,7 +100,7 @@ Scene mmmm() {
             std::pair<int32_t, ExplicitObject>{ 0x44ff3388, e}
         }, {}};
 }
-enum State { Ground, AddingWall, Input } state;
+enum StateEditor { Ground, AddingWall, Input } stateEditor;
 Scene scene = mmmm();
 using Angle = double;
 Vector2 mapVertexPixel(Vector2 ab) {
@@ -170,7 +170,7 @@ struct LineEdit {
     char text[100];
 };
 bool showMainAxes = true;
-std::vector<Button> buttons = { {"wall", [](){return state == Ground;}, ( [](){state = AddingWall;} )},
+std::vector<Button> buttons = { {"wall", [](){return stateEditor == Ground;}, ( [](){stateEditor = AddingWall;} )},
         {"main axes", [](){return true;}, ( [](){ showMainAxes = !showMainAxes;} )}};
 std::vector<LineEdit> lineedits = { {"1024", {20, 20, 0, 0}, 0, [](){return true;}, {} } };
 void mapPixelVertex(double a, double b) {
@@ -405,7 +405,7 @@ void editorDisplay() {
             rend(0, {Me, zarrow(2, true)});
 
         }
-        if(state == AddingWall) {
+        if(stateEditor == AddingWall) {
             int x, y;
             SDL_GetMouseState(&x, &y);
             auto baw = beingAddedWall(0, {double(x), double(y)});
@@ -449,7 +449,7 @@ void editorDisplay() {
 }
 
 int32_t preselected(double xx, double yy) {
-    if(state != Ground) return -1;
+    if(stateEditor != Ground) return -1;
     double depth = DBL_MAX;
     int32_t buffer;
 
@@ -696,7 +696,7 @@ void mouseMCase (SDL_MouseMotionEvent a) {
 
 LineEdit* selectedLineedit;
 void mouseCCase(SDL_MouseButtonEvent a) {
-    if(state == Ground && a.button == SDL_BUTTON_LEFT) {
+    if(stateEditor == Ground && a.button == SDL_BUTTON_LEFT) {
         for(int i = 0; i < buttons.size(); i++) {
             if (buttRectangle(buttons[i],i).contains( a.x, a.y ) ) {
               if(buttons[i].active()) {
@@ -709,7 +709,7 @@ void mouseCCase(SDL_MouseButtonEvent a) {
             if (lineedits[i].r.contains( a.x, a.y ) ) {
                 if(lineedits[i].active()) {
                     selectedLineedit = &lineedits[i];
-                    state = Input;
+                    stateEditor = Input;
                     SDL_StartTextInput();
 //                    SDL_SetTextInputRect(selectedLineedit->r);
 //                    *((int*)0) = 8;
@@ -755,7 +755,7 @@ void mouseCCase(SDL_MouseButtonEvent a) {
             selectedThing.size = size;
             selectedThing.p = p;
         }
-    } else if(state == AddingWall && a.button == SDL_BUTTON_LEFT) {
+    } else if(stateEditor == AddingWall && a.button == SDL_BUTTON_LEFT) {
         int x, y;
         SDL_GetMouseState(&x, &y);
 
@@ -763,7 +763,7 @@ void mouseCCase(SDL_MouseButtonEvent a) {
         if(baw.there) {
             scene.ex[scene.ex.size()] = {Me, baw.m};
         }
-        state = Ground;
+        stateEditor = Ground;
     }
 }
 void editorLoop() {
@@ -776,7 +776,7 @@ void editorLoop() {
         if(SDL_PollEvent(&event)) {
             switch(event.type) {
             case SDL_KEYDOWN:{
-                keyboardCase(event.key);
+                keyboardCaseEditor(event.key);
             }break;
             case SDL_TEXTEDITING: {
                 strcpy(selectedLineedit->text, event.edit.text);

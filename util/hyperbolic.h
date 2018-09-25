@@ -384,7 +384,7 @@ inline double signedDistanceFromOxy(  Point p ) {
 //pretty (L.V4 a b c d) = intercalate "\n" $ map show [a, b, c, d]
 
 bool proper(Point a);
-Point normalizeKlein(const Point& p) {
+inline Point normalizeKlein(const Point& p) {
     return Point{ (p.x/p.t), (p.y/p.t), (p.z/p.t), 1};
 }
 //Matrix44 rotate(Point a, Point b, double x) {
@@ -414,20 +414,20 @@ Matrix44 moveFromTo(Point fr, Point to, Component dist);
 
 ////atan3 y x t = atan2 y x
 
-Matrix44 m33_to_m44M (Matrix33 e ) {
+inline Matrix44 m33_to_m44M (Matrix33 e ) {
     auto a = e.m;
     return {{a[0], a[1], 0, a[2], a[3], a[4], 0, a[5], 0, 0, 1, 0, a[6], a[7], 0, a[8]}};
 }
 
 //getPointToOrigin, getPointToOxzAroundOz, getPointToOxyAroundOx, getPointOnOxToOrigin :: forall a. RealFloat a => Point a -> L.M44 a
 //getPointToOrigin = transposeMink . moveRightTo
-Matrix44 getPointToOxzAroundOz (const Point& p) {
+inline Matrix44 getPointToOxzAroundOz (const Point& p) {
     return rotateAroundZ ( -(atan2 (p.y/p.t, p.x/p.t)));
 }////  брать синус и косинус арктангенса очень весело, конечно
-Matrix44 getPointToOxyAroundOx  (const Point& p) {
+inline Matrix44 getPointToOxyAroundOx  (const Point& p) {
     return rotateAroundX ( -(atan2 (p.z/p.t, p.y/p.t)));
 }//// от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
-Matrix44 getPointToOxyAroundOy (const Point &p) {
+inline Matrix44 getPointToOxyAroundOy (const Point &p) {
     return rotateAroundY (-(atan2 (p.z/p.t, p.x/p.t)));
 }//// FIXME FIXME тут угол я посчитал из предположения, что Y  направлена вправо, а может быть на самом деле она направлена влево и всё надо менять
 //getPointOnOxToOrigin (Point x _ _ t) = moveAlongX $ asinh $ (  - x/ sqrt (( (t*t-x*x))) * signum t) //// брать гиперболические синус и косинус аркчосинуса очень весело, конечно

@@ -53,7 +53,7 @@ struct HyperEntity {
     };
 };
 using namespace H;
-HyperEntity operator *(H::Matrix44 m, HyperEntity a) {
+inline HyperEntity operator *(H::Matrix44 m, HyperEntity a) {
     std::vector<H::Point> e;
     e.reserve(a.p.size());
     std::transform(a.p.begin(), a.p.end(), std::back_inserter(e), [&](Point ce) -> Point {
@@ -80,7 +80,7 @@ struct ColoredEntity {
 };
 using Mesh = std::vector<ColoredEntity>;// [((Double, Double, Double, Double), HyperEntity)] deriving ( Show, Read, Monoid, MonoFunctor, Ord, Eq)
 
-Mesh operator *(H::Matrix44 m, Mesh a) {
+inline Mesh operator *(H::Matrix44 m, Mesh a) {
     Mesh r;
     r.reserve(a.size());
     std::transform(a.begin(), a.end(), std::back_inserter(r), [&](ColoredEntity ce) -> ColoredEntity {
@@ -114,7 +114,7 @@ struct Deviator {
     Absolute dir;
     double nod;
 }; // отклоняет поток на 90 градусов
-Deviator operator *(const H::Matrix44& m, const Deviator& d) {
+inline Deviator operator *(const H::Matrix44& m, const Deviator& d) {
     return {m*d.pos, d.dir.move(m), d.nod}; // третий аргумет переводится неправильно, но что поделать
 }
 struct Divider {
