@@ -1,4 +1,5 @@
 #include "util/commongraphics.h"
+#include "game/gameloop.h"
 #include "editor/editor.h"
 
 
@@ -21,7 +22,7 @@ int main(int argc, char ** argv) {
             printf("%d\n", d);
 
             printf("%s\n", "beforeEverything");
-            editorLoop( );
+            gameLoop( );
 //            G::deinitializeGraphics();
             return 0;
 }

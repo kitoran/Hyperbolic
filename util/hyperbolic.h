@@ -179,6 +179,9 @@ const Matrix44 identity = {{1, 0, 0, 0,
                             0, 1, 0, 0,
                             0, 0, 1, 0,
                             0, 0, 0, 1}};
+const Matrix33 identity33 = {{1, 0, 0,
+                            0, 1, 0,
+                            0, 0, 1}};
 double insanity(Matrix44 m);
 
 double form(Point p1, Point p2);
@@ -190,12 +193,15 @@ struct Absolute {
     double x;
     double y;
     double z;
-    Absolute move(Matrix44 m) {
+    Absolute move(const Matrix44& m) const {
         auto iii = m*toNonPhysicalPoint(*this);
         return {iii.x, iii.y, iii.z};
     }
 }; /* {- ^ point on celestial sphere or "absolute point". t^2 = x^2 + y^2 + z^2
 x^2+y^2+z^2 > 0-} */
+inline Absolute operator *(const Matrix44& m, const Absolute &a) {
+    return a.move(m);
+}
 Point toNonPhysicalPoint (Absolute a );
 
 extern Matrix44 reflectAboutOrigin;
@@ -378,9 +384,9 @@ inline double signedDistanceFromOxy(  Point p ) {
 //pretty (L.V4 a b c d) = intercalate "\n" $ map show [a, b, c, d]
 
 bool proper(Point a);
-//normalizeKlein :: Fractional a => Point a -> Point a
-//normalizeKlein (Point x y z t) = Point (x/t) (y/t) (z/t) 1
-
+Point normalizeKlein(const Point& p) {
+    return Point{ (p.x/p.t), (p.y/p.t), (p.z/p.t), 1};
+}
 //Matrix44 rotate(Point a, Point b, double x) {
 //    return commute (andConsideringThat(getPointToOrigin (a),  turmPToOx, b), rotateAroundX x);
 //}
@@ -407,25 +413,33 @@ Matrix44 moveFromTo(Point fr, Point to, Component dist);
 //// тут сожно наверное всё сделать ДРАМАТИЧЕСКИ быстрее, если вставить rewrite rules
 
 ////atan3 y x t = atan2 y x
-//m33_to_m44M :: Num a => L.M33 a -> L.M44 a
-//m33_to_m44M (L.V3 (L.V3 q w e) (L.V3 r t y) (L.V3 u i o)) = L.V4 (L.V4 q w 0 e) (L.V4 r t 0 y) (L.V4 0 0 1 0) (L.V4 u i 0 o)
 
+Matrix44 m33_to_m44M (Matrix33 e ) {
+    auto a = e.m;
+    return {{a[0], a[1], 0, a[2], a[3], a[4], 0, a[5], 0, 0, 1, 0, a[6], a[7], 0, a[8]}};
+}
 
 //getPointToOrigin, getPointToOxzAroundOz, getPointToOxyAroundOx, getPointOnOxToOrigin :: forall a. RealFloat a => Point a -> L.M44 a
 //getPointToOrigin = transposeMink . moveRightTo
-//getPointToOxzAroundOz (Point x y _ t) = rotateAroundZ $ -(atan2 (y/t) (x/t)) ////  брать синус и косинус арктангенса очень весело, конечно
-//getPointToOxyAroundOx (Point _ y z t) = rotateAroundX $ -(atan2 (z/t) (y/t)) //// от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
-//getPointToOxyAroundOy (Point x _ z t) = rotateAroundY $ -(atan2 (z/t) (x/t)) //// FIXME FIXME тут угол я посчитал из предположения, что Y  направлена вправо, а может быть на самом деле она направлена влево и всё надо менять
+Matrix44 getPointToOxzAroundOz (const Point& p) {
+    return rotateAroundZ ( -(atan2 (p.y/p.t, p.x/p.t)));
+}////  брать синус и косинус арктангенса очень весело, конечно
+Matrix44 getPointToOxyAroundOx  (const Point& p) {
+    return rotateAroundX ( -(atan2 (p.z/p.t, p.y/p.t)));
+}//// от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
+Matrix44 getPointToOxyAroundOy (const Point &p) {
+    return rotateAroundY (-(atan2 (p.z/p.t, p.x/p.t)));
+}//// FIXME FIXME тут угол я посчитал из предположения, что Y  направлена вправо, а может быть на самом деле она направлена влево и всё надо менять
 //getPointOnOxToOrigin (Point x _ _ t) = moveAlongX $ asinh $ (  - x/ sqrt (( (t*t-x*x))) * signum t) //// брать гиперболические синус и косинус аркчосинуса очень весело, конечно
 // moveFromTo a b d =
 // getPointToOxyAroundOxl (Point _ y z t) = Dual [rotateAroundX $ -(atan2 (z/t) (y/t))]// // от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
 //infixl 8 `andThen`
-using ptm = Matrix44 (*)(Point);
-inline Matrix44 andThen  (ptm f, ptm g, Point p) {// может быть, это какой-нибудь класс
+using ptm = Matrix44 (*)(const Point&);
+inline Matrix44 andThen  (ptm f, ptm g, const Point& p) {// может быть, это какой-нибудь класс
   return g ((f (p)) * p) * f (p); // безумно неэффективно и вообще пиздец
 }
-using ptm3 = Matrix33 (*)(Vector3);
-inline Matrix33 andThen3  (ptm3 f, ptm3 g, Vector3 p) {
+using ptm3 = Matrix33 (*)(const Vector3&);
+inline Matrix33 andThen3  (ptm3 f, ptm3 g, const Vector3& p) {
     return g ((f (p)) * p) * f( p);
 }
 //andConsideringThat :: (Movable t m) => t -> (m -> t) -> m -> t
