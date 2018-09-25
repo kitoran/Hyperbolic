@@ -83,57 +83,13 @@ inline void  initialiseGraphics(int sg, char** hr) {
         SDL_SetCursor(cursor);
         SDL_ShowWindow(window);
 }
-const Mesh transparentDeviator() {// -- aaa-aba aba-abb abb-aab aab-aaa
-    double r = 0.005;
-    Point aaa {r, r, r, 1};
-    Point aab {r, r, -r, 1};
-    Point aba {r, -r, r, 1};
-    Point baa {-r, r, r, 1};
-    Point abb {r, -r, -r, 1};
-    Point bab {-r, r, -r, 1};
-    Point bba {-r, -r, r, 1};
-    Point bbb {-r, -r, -r, 1};
-    return Mesh {{{0.0, 0.0, 1.0, 0.5}, {Polygon, {aaa, aab, abb, aba}}},
-                 {{1.0, 0.7, 0.0, 0.5}, {Polygon, {baa, bba, bbb, bab}}},
-                 {{0.0, 0.0, 1.0, 0.5}, {Polygon, {aaa, aba, bba, baa}}},
-                 {{0.0, 0.0, 1.0, 0.5}, {Polygon, {aab, bab, bbb, abb}}},
-                 {{0.0, 1.0, 1.0, 0.5}, {Polygon, {aab, aaa, baa, bab}}},
-                 {{0.0, 0.0, 1.0, 0.5}, {Polygon, {aba, abb, bbb, bba}}}};
-//  where
-}
+const Mesh transparentDeviator();
 
-const Mesh deviator() {// -- aaa-aba aba-abb abb-aab aab-aaa
-    double r = 0.005;
-    Point aaa {r, r, r, 1};
-    Point aab {r, r, -r, 1};
-    Point aba {r, -r, r, 1};
-    Point baa {-r, r, r, 1};
-    Point abb {r, -r, -r, 1};
-    Point bab {-r, r, -r, 1};
-    Point bba {-r, -r, r, 1};
-    Point bbb {-r, -r, -r, 1};
-    return Mesh {{{0.0, 0.0, 1.0, 1}, {Polygon, {aaa, aab, abb, aba}}},
-                 {{1.0, 0.7, 0.0, 1}, {Polygon, {baa, bba, bbb, bab}}},
-                 {{0.0, 0.0, 1.0, 1}, {Polygon, {aaa, aba, bba, baa}}},
-                 {{0.0, 0.0, 1.0, 1}, {Polygon, {aab, bab, bbb, abb}}},
-                 {{0.0, 1.0, 1.0, 1}, {Polygon, {aab, aaa, baa, bab}}},
-                 {{0.0, 0.0, 1.0, 1}, {Polygon, {aba, abb, bbb, bba}}}};
-//  where
-}
-double clamp(double a) {
+const Mesh deviator();
+inline double clamp(double a) {
     return a > 1?1:a<0?0:a;
 }
-void lightenABit(Mesh *d) {
-//    Mesh res(d.size());
-    for(int i = 0; i < d->size(); i++) {
-//        ColoredEntity e = d[i];
-        (*d)[i].color.r = clamp((*d)[i].color.r+0.3);
-        (*d)[i].color.g = clamp((*d)[i].color.g+0.3);
-        (*d)[i].color.b = clamp((*d)[i].color.b+0.3);
-//        res[i] = e;
-    }
-//    return res;
-}
+void lightenABit(Mesh *d);
 
 void renderPrimitive(GLenum p, auto f) {
     glBegin(p);
