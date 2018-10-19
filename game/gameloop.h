@@ -3,6 +3,8 @@
 #include "util/physics.h"
 #include "graphics.h"
 #include <time.h>
+#include <string>
+#include <iostream>
 OptionalDouble intersectRay( const Deviator & d, const Matrix44 &transs) {
     Matrix44 move = moveRightTo(d.pos);
     Point dirFromStart = toNonPhysicalPoint (transposeMink (move) * d.dir);
@@ -348,29 +350,32 @@ T bound(const T& n, const T& lower, const T& upper) {
   return std::max(lower, std::min(n, upper));
 }
 AvatarPosition processTurnUp (double angle, const AvatarPosition& ap) {
-    return {ap.pos, ap.height, bound(-tau/4, tau/4, (ap.nod + angle)), ap.speed};
+    return {ap.pos, ap.height, bound((ap.nod + angle), -tau/4, tau/4 ), ap.speed};
                                                                                             }
 AvatarPosition processMouse(int width, int height, int x, int y, const AvatarPosition &ap) {
     auto  fromGradi = [](auto x) {
-
-        return (x / 360*tau*7.0/30.0);
+//        auto q =
+        return (x / 360.0*tau*7.0/30.0);
     };
-    return processTurnUp ( fromGradi (y - height/2),  processTurnLeft ( fromGradi ( x - width/2), ap ));
+//    auto fdf = fromGradi(-y);
+    return processTurnUp ( fromGradi (y),  processTurnLeft ( fromGradi ( x), ap ));
 }
 long last = 0;
 void mouseMCase(const H::Vector2 &v) {//gamePassiveMotionCallback (V2 x y) = do
-
+    static int d = 0;
+    std::cerr << d++ << "raw" << std::endl;
     long            now;
     timespec spec;
     clock_gettime(CLOCK_REALTIME, &spec);
 
     now = round(spec.tv_nsec);
-if(now - last > 30000000) {
+if(now - last > 3000000) {
+    std::cerr << d++ << "delayed" << std::endl;
         LevelState savedState = state;
         state.avatarPosition = processMouse( (G::width), (G::height), v.x, v.y, savedState.avatarPosition);
         state.selected = state.inventory == Empty ? findSelected(savedState.worldState, state.avatarPosition) : OptionalInt{false, 0};
     }
-last = now;
+
 }
 using namespace G;
 void mouseCCase() {
@@ -517,6 +522,8 @@ void mouseCCase() {
 
 void gameLoop() {
     SDL_SetRelativeMouseMode(SDL_TRUE);
+    SDL_SetWindowGrab(window,
+                           SDL_FALSE);
 
     while(true) {
         SDL_Event event;
