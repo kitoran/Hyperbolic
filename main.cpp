@@ -5,6 +5,7 @@
 #include "editor/editor.h"
 
 int main(int argc, char ** argv) {
+    std::cout.setf(std::ios::unitbuf);
 
     using namespace H;
     double a1 = rand();

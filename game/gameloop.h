@@ -267,31 +267,39 @@ std::vector<Receiver> receivers = level().receivers;
 //                                                                           T.Node (help commands) [],
 //                                                                           T.Node (Console.state stateRef) []
 //                                                                          ])
-void processKeyboard (SDL_Scancode c) {
-    if(c == SDL_SCANCODE_W) {
+void processKeyboard (const Uint8* c) {
+    if(c[SDL_SCANCODE_W]) {
         state.avatarPosition.pos = state.avatarPosition.pos * moveAlongX3(step);
-    } else if(c == SDL_SCANCODE_S) {
+    }
+    if(c[SDL_SCANCODE_S]) {
         state.avatarPosition.pos = state.avatarPosition.pos * moveAlongX3(-step);
-    } else if(c == SDL_SCANCODE_A) {
+    }
+    if(c[SDL_SCANCODE_A]) {
         state.avatarPosition.pos = state.avatarPosition.pos * moveAlongY3(step);
-    } else if(c == SDL_SCANCODE_D) {
+    }
+    if(c[SDL_SCANCODE_D]) {
         state.avatarPosition.pos = state.avatarPosition.pos * moveAlongY3(-step);
-    } else if(c == SDL_SCANCODE_Z) {
+    }
+    if(c[SDL_SCANCODE_Z]) {
         state.avatarPosition.height += step;
-    } else if(c == SDL_SCANCODE_C) {
+    }
+    if(c[SDL_SCANCODE_C]) {
             state.avatarPosition.height -= step;
-    } else if(c == SDL_SCANCODE_R) {
+    }
+    if(c[SDL_SCANCODE_R]) {
             state = startState();
 //                    KeycodeR -> reset
-    } else if(c == SDL_SCANCODE_SPACE) {
+    }
+    if(c[SDL_SCANCODE_SPACE]) {
             state.avatarPosition.speed.z += jump;
     }
 }
 
 
-void keyboardCase (SDL_KeyboardEvent a) {
-    SDL_Scancode c = a.keysym.scancode;
-    if(c == SDL_SCANCODE_UP) {
+void keyboardProcess () {
+    const Uint8 *state = SDL_GetKeyboardState(NULL);
+//    SDL_Scancode c = a.keysym.scancode;
+    if(state[SDL_SCANCODE_UP]) {
 //                               when (keysymKeycode a == KeycodeUp) (modifyIORef consoleRef consoleUp)
 
     }
@@ -311,7 +319,7 @@ void keyboardCase (SDL_KeyboardEvent a) {
 //                                          else do
 //                               -- when (not wheCon) $ do
 
-    processKeyboard(c);
+    processKeyboard(state);
 //                               -- \a _ -> case a of
 //                               -- 'q' -> leaveMainLoop
 //                               -- 'c' -> do
@@ -521,17 +529,14 @@ void mouseCCase() {
 //--   -- reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  idle
 
 void gameLoop() {
-    SDL_SetRelativeMouseMode(SDL_TRUE);
+//    SDL_SetRelativeMouseMode(SDL_TRUE);
     SDL_SetWindowGrab(window,
                            SDL_FALSE);
-
+    glEnable(GL_DEPTH);
     while(true) {
         SDL_Event event;
         if(SDL_PollEvent(&event)) {
             switch(event.type) {
-            case SDL_KEYDOWN:{
-                keyboardCase(event.key);
-            }break;
             case SDL_MOUSEMOTION:{
                 mouseMCase({event.motion.xrel, event.motion.yrel});
             }break;
@@ -545,6 +550,8 @@ void gameLoop() {
         } else {
             gameDisplay();
         }
+//
+        keyboardProcess();
         SDL_FlushEvents(SDL_QUIT+1, SDL_LASTEVENT);
     }
 
