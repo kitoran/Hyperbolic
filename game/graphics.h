@@ -1,5 +1,6 @@
 #ifndef GRAPHICS
 #define GRAPHICS
+#include <iostream>
 #include "util/physics.h"
 #include "util/commongraphics.h"
 namespace G {
