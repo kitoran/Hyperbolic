@@ -70,6 +70,7 @@ inline void  initialiseGraphics(int sg, char** hr) {
 
         glDepthFunc( GL_LESS );
 
+        glEnable(GL_DEPTH_TEST);
         glDisable(GL_DEPTH_CLAMP);
 
         glEnable(GL_LINE_SMOOTH);
