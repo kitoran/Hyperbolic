@@ -2,6 +2,7 @@
 #define HYPERBOLIC_H
 #include <initializer_list>
 #include "util/linear.h"
+#include <functional>
 #include "math.h"
 #define FOR4(name) for(int name : {0, 1, 2, 3})
 #define FOR3(name) for(int name : {0, 1, 2})
@@ -310,6 +311,9 @@ inline Matrix33 moveToTangentVector3(Vector2 v) {
 
 //moveRightFromTo3 :: RealFloat a => L.V3 a -> L.V3 a -> L.M33 a
 //moveRightFromTo3 p1 p2 = moveRightTo3 p1 <> moveRightTo3 (transposeMink3 (moveRightTo3 p1) L.!* p2) <> transposeMink3 ( moveRightTo3 p1)
+inline Matrix33 moveRightFromTo3(const Vector3& p1, const Vector3& p2) {
+    return moveRightTo3 (p1) * moveRightTo3 (transposeMink3 (moveRightTo3 (p1)) * p2) * transposeMink3 ( moveRightTo3 (p1));
+}
 
 //qr :: Floating a => L.M44 a -> L.M44 a
 //qr {-(L.V4 (L.V4 a11 a12 a13 a14)
@@ -430,13 +434,18 @@ inline Matrix44 getPointToOxyAroundOx  (const Point& p) {
 inline Matrix44 getPointToOxyAroundOy (const Point &p) {
     return rotateAroundY (-(atan2 (p.z/p.t, p.x/p.t)));
 }//// FIXME FIXME тут угол я посчитал из предположения, что Y  направлена вправо, а может быть на самом деле она направлена влево и всё надо менять
-//getPointOnOxToOrigin (Point x _ _ t) = moveAlongX $ asinh $ (  - x/ sqrt (( (t*t-x*x))) * signum t) //// брать гиперболические синус и косинус аркчосинуса очень весело, конечно
+inline Matrix44 getPointOnOxToOrigin (const Point& p) {
+   return moveAlongX ( asinh ( (  - p.x/ sqrt (( (p.t*p.t-p.x*p.x))) * sign(p.t)) )); //// брать гиперболические синус и косинус аркчосинуса очень весело, конечно
+}
 // moveFromTo a b d =
 // getPointToOxyAroundOxl (Point _ y z t) = Dual [rotateAroundX $ -(atan2 (z/t) (y/t))]// // от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
 //infixl 8 `andThen`
-using ptm = Matrix44 (*)(const Point&);
-inline Matrix44 andThen  (ptm f, ptm g, const Point& p) {// может быть, это какой-нибудь класс
-  return g ((f (p)) * p) * f (p); // безумно неэффективно и вообще пиздец
+using ptm = Matrix44 (const Point&);
+
+inline std::function<ptm> andThen  (const std::function<ptm>& f, const std::function<ptm>& g) {// может быть, это какой-нибудь класс
+  return [f,g](const Point& p){
+      return g ((f (p)) * p) * f (p);
+  }; // безумно неэффективно и вообще пиздец
 }
 using ptm3 = Matrix33 (*)(const Vector3&);
 inline Matrix33 andThen3  (ptm3 f, ptm3 g, const Vector3& p) {
@@ -444,8 +453,15 @@ inline Matrix33 andThen3  (ptm3 f, ptm3 g, const Vector3& p) {
 }
 //andConsideringThat :: (Movable t m) => t -> (m -> t) -> m -> t
 //andConsideringThat m f p = f (m !$ p) <> m
+//template<typename Y>
+inline Matrix44 andConsideringThat (const Matrix44 m, std::function<ptm> f, Point p) {
+    return f (m * p) * m;
+}
 
 //andConsideringThat3 m f p = f (m L.!* p) <> m
+// getTriangleToOxy :: forall a.
+//RealFloat a =>
+//Point a -> Point a -> Point a -> L.M44 a
 
 // getTriangleToOxy a b c = (   (   getPointToOxyAroundOx `andThen`
 //                                  getPointToOxzAroundOz `andThen`
@@ -453,16 +469,15 @@ inline Matrix33 andThen3  (ptm3 f, ptm3 g, const Vector3& p) {
 //                              (   getPointToOxyAroundOx `andThen`
 //                                  getPointToOxzAroundOz ) ) b `andConsideringThat`
 //                          getPointToOxyAroundOx $ c
+inline Matrix44 getTriangleToOxy (Point a, Point b, Point c) {
+    return andConsideringThat(
+                andConsideringThat(   andThen(   andThen(getPointToOxyAroundOx ,
+                                 getPointToOxzAroundOz),
+                                 getPointOnOxToOrigin )( a),
+                                 andThen (getPointToOxyAroundOx ,
+                                 getPointToOxzAroundOz ), (  b)), getPointToOxyAroundOx, c);
+}
 /*
-getTriangleToOxy :: forall a.
-                          RealFloat a =>
-                          Point a -> Point a -> Point a -> L.M44 a
-getTriangleToOxy a b c = (   (   getPointToOxyAroundOx `andThen`
-                                 getPointToOxzAroundOz `andThen`
-                                 getPointOnOxToOrigin $ a) `andConsideringThat`
-                             (   getPointToOxyAroundOx `andThen`
-                                 getPointToOxzAroundOz ) ) b `andConsideringThat`
-                         getPointToOxyAroundOx $ c
 
 getTriangleToOxyD :: forall a.
                            RealFloat a =>

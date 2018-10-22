@@ -749,9 +749,9 @@ void mouseCCase(SDL_MouseButtonEvent a) {
                                     (z.second->z/z.second->t + z.first->z/z.first->t)/2,
                                    1});
             assert(proper(selectedThing.center));
-            auto yhigh = persViewMatrix*(view**y.second);
-            auto ylow = persViewMatrix*(view**y.first);
-            auto dd = persViewMatrix*(view*selectedThing.center);
+//            auto yhigh = persViewMatrix*(view**y.second);
+//            auto ylow = persViewMatrix*(view**y.first);
+//            auto dd = persViewMatrix*(view*selectedThing.center);
             selectedThing.size = size;
             selectedThing.p = p;
         }

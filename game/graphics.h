@@ -161,7 +161,7 @@ struct UnfoldRayResult {
        };
    } eit;
 };
-UnfoldRayResult unfoldRay(std::vector<Deviator>, std::vector<Receiver>, Point p, Absolute a) {
+UnfoldRayResult unfoldRay(std::vector<Deviator>, std::vector<Receiver>, Point /*p*/, Absolute a) {
    return {{}, {infinity, {a}}};
 }
 //unfoldRay listd listr pos dir = first (pos:) $ go pos dir -- (pos:map fst (go pos dir ), last $ dir : map snd (go pos dir ))
