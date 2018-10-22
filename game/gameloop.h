@@ -8,7 +8,7 @@
 OptionalDouble intersectRay( const Deviator & d, const Matrix44 &transs) {
     Matrix44 move = moveRightTo(d.pos);
     Point dirFromStart = toNonPhysicalPoint (transposeMink (move) * d.dir);
-    Matrix44 turn = andThen(getPointToOxyAroundOx,  getPointToOxzAroundOz, dirFromStart);
+    Matrix44 turn = andThen(getPointToOxyAroundOx,  getPointToOxzAroundOz)( dirFromStart);
     Matrix44 trans = (move * turn) ;
     Mesh list = /*{-transposeMink-}*/ trans * G::deviator();
     bool any = false;
@@ -170,7 +170,7 @@ Matrix44 preShow(const Mesh& rays, const Matrix44& vp) {
     {
         auto move =moveRightTo (rays[index].e.a);
         auto dirFromStart = (transposeMink (move) * rays[index].e.b);
-        auto turn = andThen(getPointToOxyAroundOy,  getPointToOxzAroundOz, dirFromStart);
+        auto turn = andThen(getPointToOxyAroundOy,  getPointToOxzAroundOz)( dirFromStart);
         rayToOx = (move * transposeMink( turn));
     }
     const Point& pos = rays[index].e.a;
@@ -194,6 +194,18 @@ Matrix44 preShow(const Mesh& rays, const Matrix44& vp) {
 //traceComm s a = Debug.Trace.trace (s ++ " " ++ show a) a
 //tick :: Double -> [RuntimeObstacle ] -> AvatarPosition -> AvatarPosition
 //tick gravity level = (\s@(AP pos height nod (V3 x y z)) -> if height > 8 then s {_height = 7.99, _speed = V3 x y (-z)} else s). pushOut (level) . applyGravity gravity . applySpeed
+AvatarPosition applySpeed (const AvatarPosition& ap);
+AvatarPosition applyGravity (double gravity, AvatarPosition state);
+AvatarPosition tick (double gravity, const std::vector<RuntimeObstacle>& level, AvatarPosition s) {
+    s = applySpeed(s);
+    s = applyGravity(gravity, s);
+    s = pushOut (level, s);
+    if( s.height > 8) {
+        s.height = 7.99;
+        s.speed.z = -s.speed.z;
+    }
+    return s;
+}
 
 //matricesMoveInPlane :: Floating a => [(Keycode, a -> M33 a)]
 
@@ -243,11 +255,11 @@ Environment level() {
 //        red = (1.0, 0.0, 0.0, 1)
 }
 Mesh levelMesh = level().mesh;
-//obsRef = unsafePerformIO $ newIORef runtimeObstacles
+std::vector<RuntimeObstacle> obs = computeObs(level().obstacles);
 std::vector<Source> source =  level().sources;
 double step = 0.01;
 double jump = 0.01;
-//gravityRef = unsafePerformIO $ newIORef 0 -- .0002
+double gravity = .0002;
 //mutableMeshRef = unsafePerformIO $ newIORef (G.toMesh (_sources level) (_receivers level) startState)
 struct {
     std::string cur;
@@ -360,7 +372,7 @@ T bound(const T& n, const T& lower, const T& upper) {
 AvatarPosition processTurnUp (double angle, const AvatarPosition& ap) {
     return {ap.pos, ap.height, bound((ap.nod + angle), -tau/4, tau/4 ), ap.speed};
                                                                                             }
-AvatarPosition processMouse(int width, int height, int x, int y, const AvatarPosition &ap) {
+AvatarPosition processMouse(int /*width*/, int /*height*/, int x, int y, const AvatarPosition &ap) {
     auto  fromGradi = [](auto x) {
 //        auto q =
         return (x / 360.0*tau*7.0/30.0);
@@ -369,18 +381,18 @@ AvatarPosition processMouse(int width, int height, int x, int y, const AvatarPos
     return processTurnUp ( fromGradi (y),  processTurnLeft ( fromGradi ( x), ap ));
 }
 long last = 0;
-void mouseMCase(const H::Vector2 &v) {//gamePassiveMotionCallback (V2 x y) = do
+void mouseMCase(int x, int y) {//gamePassiveMotionCallback (V2 x y) = do
     static int d = 0;
-    std::cerr << d++ << "raw" << std::endl;
+//    std::cerr << d++ << "raw" << std::endl;
     long            now;
     timespec spec;
     clock_gettime(CLOCK_REALTIME, &spec);
 
     now = round(spec.tv_nsec);
 if(now - last > 3000000) {
-    std::cerr << d++ << "delayed" << std::endl;
+//    std::cerr << d++ << "delayed" << std::endl;
         LevelState savedState = state;
-        state.avatarPosition = processMouse( (G::width), (G::height), v.x, v.y, savedState.avatarPosition);
+        state.avatarPosition = processMouse( (G::width), (G::height), x, y, savedState.avatarPosition);
         state.selected = state.inventory == Empty ? findSelected(savedState.worldState, state.avatarPosition) : OptionalInt{false, 0};
     }
 
@@ -433,6 +445,10 @@ void mouseCCase() {
 //                                    gravity <- readIORef gravityRef
 //                                    obs <- readIORef obsRef
 //                                    modifyIORef stateRef (avatarPosition %~ tick gravity obs)
+
+void processTimer() {
+    state.avatarPosition = tick(gravity, obs, state.avatarPosition);
+}
 //        --                            readIORef state >>= (putStrLn . show)
 //        -- console obsRef meshRef stepRef jumpRef gravityRef frameRef stateRef =
 //          -- (interactive commands)
@@ -451,11 +467,14 @@ void mouseCCase() {
 
 //--   let toGradi (x,y) = (ff x, ff y) where ff i = (fromIntegral i / 360*tau)
 //--   let rotateDelta = fmap (\(p) -> rotate3 p) (fmap (fst) $ toGradi <$> mouseDelta)
-//applySpeed :: AvatarPosition -> AvatarPosition
-//applySpeed (AP pos height nod speed@(V3 x y z)) = AP (pos !*! ( moveToTangentVector3 (V2 x y)) ) (height+z) nod speed
-//applyGravity :: Double -> AvatarPosition -> AvatarPosition
-//applyGravity gravity state@(AP pos height nod cspeed@(V3 x y z)) = state { _speed = V3 x y (z - gravity/(cosh height)/(cosh height))}
-
+AvatarPosition applySpeed (const AvatarPosition& ap){
+    return {(ap.pos * ( moveToTangentVector3 ({ap.speed.x, ap.speed.y})) ), (ap.height+ap.speed.z), ap.nod, ap.speed};
+    // это очень очень неправильно
+}
+AvatarPosition applyGravity (double gravity, AvatarPosition state) {
+    state.speed = Vector3{ state.speed.x, state.speed.y, (state.speed.z - gravity/(cosh (state.height))/(cosh (state.height)))};
+    return state;
+}
 
 //-- processEvent :: Event a -> IO ()
 //-- processEvent (Move a) = modifyIORef currentMatrix $ move a
@@ -530,15 +549,18 @@ void mouseCCase() {
 
 void gameLoop() {
 //    SDL_SetRelativeMouseMode(SDL_TRUE);
+//    SDL_GL_SetSwapInterval(0);
     SDL_SetWindowGrab(window,
                            SDL_FALSE);
     glEnable(GL_DEPTH);
+    uint a = SDL_GetTicks();
+    int cycles = 0;
     while(true) {
         SDL_Event event;
         if(SDL_PollEvent(&event)) {
             switch(event.type) {
             case SDL_MOUSEMOTION:{
-                mouseMCase({event.motion.xrel, event.motion.yrel});
+                mouseMCase(event.motion.xrel, event.motion.yrel);
             }break;
             case SDL_MOUSEBUTTONDOWN:{
                 mouseCCase();
@@ -548,13 +570,21 @@ void gameLoop() {
             }
             }
         } else {
-            gameDisplay();
         }
 //
         keyboardProcess();
+        processTimer();
+        gameDisplay();
+//        gameDisplay();
         SDL_FlushEvents(SDL_QUIT+1, SDL_LASTEVENT);
+        cycles++;
+        uint newa = SDL_GetTicks();
+        if(newa - a >= 1000) {
+            std::cerr << "кадров за прошедшую секунду" << cycles << std::endl;
+            a = newa;
+            cycles = 0;
+        }
     }
-
 }
 #endif // GAMELOOP
 

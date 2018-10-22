@@ -1,6 +1,6 @@
 TEMPLATE = app
 CONFIG += console
-QMAKE_CXXFLAGS += -std=gnu++1y -fno-rtti -lglut -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers #-I/usr/include
+QMAKE_CXXFLAGS += -std=gnu++1y -fno-rtti -lglut -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers -Wno-comment #-I/usr/include
 LIBS+=-lglut -lGL -lSDL2
 QMAKE_CXX = g++-5
 QMAKE_CFLAGS += -stdlib=libstdc++ -std=gnu++14 -fno-rtti -lglut -lfreeglut -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers
