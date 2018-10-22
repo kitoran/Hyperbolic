@@ -2,6 +2,7 @@
 #define PHYSICS_H
 #include <vector>
 #include <algorithm>
+#include <numeric>
 #include "hyperbolic.h"
 //module Physics where
 
@@ -152,7 +153,10 @@ struct LevelState {
 //$(Lens.makeLenses ''LevelState)
 
 //currentPosition (AP (!pos) (!height) _ _) =  H.m33_to_m44M pos !*! H.moveAlongZ height !$ H.origin
-//ourSize = 0.1
+inline Point currentPosition(const AvatarPosition &ap) {
+    return H::m33_to_m44M(ap. pos) * (H::moveAlongZ( ap.height) * H::origin);
+}
+static auto ourSize = 0.1;
 
 //instance (Monoid t, H.Movable t (Point Double)) => H.Movable t Obstacle where
 //  (!tr) !$ (Sphere !p !r) = Sphere (tr !$ p) r
@@ -197,7 +201,12 @@ struct LevelState {
 
 //decompose :: Point Double -> AvatarPosition -> AvatarPosition
 //decompose p (AP pos height nod speed) = AP (H.moveRightFromTo3 (pos !* (V3 0 0 1)) (projectToOxy p) !*! pos) (H.signedDistanceFromOxy p) nod 0
-//projectToOxy (Point q w e r) = V3 q w r
+inline Vector3 projectToOxy (const Point & p)  {
+    return {p.x, p.y, p.t};
+}
+inline auto decompose (Point p, const AvatarPosition &s ) -> AvatarPosition {
+    return {H::moveRightFromTo3(s.pos * Vector3{0,0,1}, projectToOxy (p)) * s.pos, H::signedDistanceFromOxy (p), s.nod, 0};
+}
 //-- pushOut :: Obstacles Double -> State -> State
 //-- pushOut o s = foldr (\o1 -> pushOutOne o1) s o
 //--            where pushOutOne :: Obstacle Double -> State -> State
@@ -212,7 +221,41 @@ struct LevelState {
 //                 pushOutOne (TriangleR m x1 x2 y2 r) = {- far analysis could bw here -}(pushOutTriangleO m x1 x2 y2 r)
 //                 far (Point x y _ t) (m::M33 Double) = let (V3 xr yr tr) = m !* V3 0 0 1
 //                                         in abs ((x/t) - xr/tr)> 2 ||  abs ((y/t) - yr/tr)> 2
+enum RuntimeObstacleType { SphereR, TriangleR };
+struct RuntimeObstacle {
+    RuntimeObstacleType  type;
+    union {
+        struct {
+            Point center;
+            double radius;
+        };
+        struct {
+            Matrix44 trans;
+            double x1;
+            double x2;
+            double y2;
+            double thickness;
+        };
+    };
+};
+AvatarPosition pushOutSphereO(Point m, double r, const AvatarPosition&s);
+AvatarPosition pushOutTriangleO(const Matrix44& m, double x1, double x2, double y2, double r, const AvatarPosition& s);
 
+inline AvatarPosition pushOut(const std::vector<RuntimeObstacle> o, const AvatarPosition& s) {
+//    far (Point x y _ t) (m::M33 Double) = let (V3 xr yr tr) = m !* V3 0 0 1
+//            in abs ((x/t) - xr/tr)> 2 ||  abs ((y/t) - yr/tr)> 2
+    auto pushOutOne = [](const AvatarPosition& p, const RuntimeObstacle& o) -> AvatarPosition {
+        if(o.type == SphereR) {
+          /*if far (center, p.pos)  {
+              return p;
+          } else */return (pushOutSphereO (o.center,  o.radius, p ));
+        }
+        if(o.type == TriangleR) {
+            /*{- far analysis could bw here -}*/return pushOutTriangleO (o.trans, o.x1, o.x2,  o.y2, o.thickness, p);
+        }
+    };
+    return std::accumulate(o.begin(), o.end(), s, pushOutOne);
+}
 //-- pushOut :: Obstacles -> State -> State
 //-- pushOut o s = foldr (\(OHCQ a) -> pushOutHorizontalCoordinateQuadrilateral a) s o
 
@@ -250,7 +293,6 @@ struct LevelState {
 //instance (Monoid t, H.Movable t (H.Point Double), H.Movable t (H.Absolute Double)) => H.Movable t (Receiver) where
 //  (!$) m = omap $ (!$) m
 
-//data RuntimeObstacle = SphereR !(Point Double) Double | TriangleR (M44 Double) Double Double Double Double deriving ( Show, Read)
 
 //-- -- optics
 //-- ray :: V3 Double -> Double -> S.Set Mirror -> ([V3 Double], Double)
@@ -303,12 +345,40 @@ struct LevelState {
 //        m = H.getTriangleToOxy a b c
 //        V3 x1 _ _ = normalizePoint (H.toV4 $ m !$ b)
 //        V3 x2 y2 _ = normalizePoint (H.toV4 $ m !$ c)
+inline std::vector<RuntimeObstacle> computeObs( const Obstacles & o) {
+  auto tr = [](const Obstacle& o) -> RuntimeObstacle  {
+      if(o.type == Sphere) {
+         return {SphereR,  {o.center, o.radius}};
+      }
+      if(o.type == Triangle) {
+          Matrix44 m = H::getTriangleToOxy(o.a, o.b, o.c);
+          double x1 = klein((m * o.b)).x;
+//          V3 x2 y2 _ =
+          auto rere = klein(m * o.c);
+          RuntimeObstacle res;
+          res.type = TriangleR;
+          res.trans = m;
+          res.x1 = x1;
+          res.x2 = rere.x;
+          res.y2 = rere.y;
+          res.thickness = o.thickness;
+          return res;
+      }
+  };
+    std::vector<RuntimeObstacle> res;
+  res.reserve(o.size());
+    for(const Obstacle& no : o) {
+        res.push_back(tr(no));
+    }
+    return res;
+}
 //--
-//pushOutSphereO :: Point Double -> Double -> AvatarPosition -> AvatarPosition
-//pushOutSphereO m r s = let
-//                        diff = r - H.distance H.origin (currentPosition s)
-//                       in  if diff > 0 then decompose (H.moveFromTo m (currentPosition s) r !$m) s else s
-
+inline AvatarPosition pushOutSphereO(Point m, double r, const AvatarPosition&s) {
+  auto diff = r - H::distance( H::origin,  (currentPosition (s)));
+  if (diff > 0) {
+      return decompose (H::moveFromTo (m, (currentPosition (s)), r) * m, s);
+  } else  return s;
+}
 //trace :: String -> a -> a
 //trace s v = Debug.Trace.trace (s ++ show (Unsafe.Coerce.unsafeCoerce s::Double)) v
 //traceM :: String -> a -> a
@@ -356,7 +426,20 @@ struct LevelState {
 //                                  then decompose (H.moveFromTo (notm !$ projOfNewO) (notm !$ newO) (r + ourSize) !$ (notm !$ projOfNewO)) s
 //                                  else s
 //                                  }
+inline auto pushOutTriangleO(const Matrix44& m, double x1, double x2, double y2, double r, const AvatarPosition& s) -> AvatarPosition {
+//                            -- newb = getTriangleToOxy a b c !$ b
+    auto newO = m * currentPosition( s);
+//                                -- newc = getTriangleToOxy a b c !$ c
+    auto projOfNewO = newO; projOfNewO.z = 0;
+    auto diff = r - H::distance(newO, projOfNewO);
+    auto notm = H::transposeMink(m);
+    auto d = klein(projOfNewO);
 
+    auto inside = (-y2*d.x) +(x2-x1)*d.y+x1*y2 > 0 && d.y > 0 && d.x/d.y > x2/y2;
+    if( inside && diff > ((-ourSize) +0.00001)) {
+        return decompose (H::moveFromTo (notm * projOfNewO, notm * newO, r + ourSize) * (notm * projOfNewO), s);
+    } else return s;
+}
 
 //--debug :: HasCallStack
 //-- debug = pushOutTriangleO  (moveAlongX 0.3 !$ (Point 0 (-sinh 3) (-sinh 3) 14.202662994046431))
