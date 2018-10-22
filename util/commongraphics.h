@@ -57,7 +57,7 @@ inline H::Point saneVertex4 (H::Point a)  {
 }
 extern int width , height ;
 inline void  initialiseGraphics(int sg, char** hr) {
-        glutInit(&sg, hr);
+//        glutInit(&sg, hr);
         SDL_Init(SDL_INIT_VIDEO);
 
         SDL_DisplayMode display;
