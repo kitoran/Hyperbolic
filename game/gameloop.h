@@ -152,7 +152,7 @@ SqDistanceFromProjRes sqDistanceFromProj(const HyperEntity & he, const Matrix44 
 //-- a = (nx*x1 - y1)/(-y1+y2(t1/t2)+nx*x1-nx*x2(t1/t2))
 Matrix44 preShow(const Mesh& rays, const Matrix44& vp) {
 //preShow rays vp = case rays of
-    if (rays.size()<1) abort();
+    if (rays.size()<1) return H::identity;
     auto res = sqDistanceFromProj(rays[0].e, vp);
 
     double ratio = res.ratio;
@@ -307,9 +307,12 @@ void processKeyboard (const Uint8* c) {
     }
 }
 
-
+bool continueCycle = true;
 void keyboardProcess () {
     const Uint8 *state = SDL_GetKeyboardState(NULL);
+    if(state[SDL_SCANCODE_ESCAPE] || (state[SDL_SCANCODE_F4] && (state[SDL_SCANCODE_LALT] || state[SDL_SCANCODE_RALT]))) {
+        continueCycle = false;
+    }
 //    SDL_Scancode c = a.keysym.scancode;
     if(state[SDL_SCANCODE_UP]) {
 //                               when (keysymKeycode a == KeycodeUp) (modifyIORef consoleRef consoleUp)
@@ -372,30 +375,13 @@ T bound(const T& n, const T& lower, const T& upper) {
 AvatarPosition processTurnUp (double angle, const AvatarPosition& ap) {
     return {ap.pos, ap.height, bound((ap.nod + angle), -tau/4, tau/4 ), ap.speed};
                                                                                             }
-AvatarPosition processMouse(int /*width*/, int /*height*/, int x, int y, const AvatarPosition &ap) {
+AvatarPosition processMouse(int x, int y, const AvatarPosition &ap) {
     auto  fromGradi = [](auto x) {
 //        auto q =
         return (x / 360.0*tau*7.0/30.0);
     };
 //    auto fdf = fromGradi(-y);
     return processTurnUp ( fromGradi (y),  processTurnLeft ( fromGradi ( x), ap ));
-}
-long last = 0;
-void mouseMCase(int x, int y) {//gamePassiveMotionCallback (V2 x y) = do
-    static int d = 0;
-//    std::cerr << d++ << "raw" << std::endl;
-    long            now;
-    timespec spec;
-    clock_gettime(CLOCK_REALTIME, &spec);
-
-    now = round(spec.tv_nsec);
-if(now - last > 3000000) {
-//    std::cerr << d++ << "delayed" << std::endl;
-        LevelState savedState = state;
-        state.avatarPosition = processMouse( (G::width), (G::height), x, y, savedState.avatarPosition);
-        state.selected = state.inventory == Empty ? findSelected(savedState.worldState, state.avatarPosition) : OptionalInt{false, 0};
-    }
-
 }
 using namespace G;
 void mouseCCase() {
@@ -546,43 +532,65 @@ AvatarPosition applyGravity (double gravity, AvatarPosition state) {
 //--   -- $(prettyV "currp")
 //--   reactimate (fmap (\x -> display (mesh environment) (x)) idle)
 //--   -- reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  idle
+int filter(void*      userdata,
+                    SDL_Event* event) {
+    return event->type == SDL_QUIT || event->type == SDL_WINDOWEVENT;
+}
+
 
 void gameLoop() {
+//    SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1", SDL_HINT_OVERRIDE);
 //    SDL_SetRelativeMouseMode(SDL_TRUE);
+//    SDL_SetEventFilter(filter,
+//                            nullptr);
+    SDL_WarpMouseInWindow(window, width/2, height/2);
 //    SDL_GL_SetSwapInterval(0);
-    SDL_SetWindowGrab(window,
-                           SDL_FALSE);
+//    SDL_SetWindowGrab(window, SDL_TRUE);
+//    SDL
+//                           SDL_FALSE);
     glEnable(GL_DEPTH);
     uint a = SDL_GetTicks();
     int cycles = 0;
-    while(true) {
+    bool focus = true;
+    while(continueCycle) {
         SDL_Event event;
-        if(SDL_PollEvent(&event)) {
-            switch(event.type) {
-            case SDL_MOUSEMOTION:{
-                mouseMCase(event.motion.xrel, event.motion.yrel);
-            }break;
-            case SDL_MOUSEBUTTONDOWN:{
-                mouseCCase();
-            }break;
-            case SDL_QUIT: return;
-            default: {
+        if (SDL_PollEvent(&event)) {
+            if(event.type == SDL_WINDOWEVENT) {
+                if(event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) focus = true;
+                else if(event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) focus = false;
+            } else if(event.type == SDL_QUIT) {
+                continueCycle = false;
             }
+        }
+//        uint32_t flags = SDL_GetWindowFlags(window);
+        std::cout << focus << std::endl<< std::endl;
+        if(focus) {
+
+            int x ,y;
+            uint res = SDL_GetMouseState(&x, &y);
+            if(x != width/2 || y != height/2) {
+                state.avatarPosition = processMouse( x-width/2, y-width/2, state.avatarPosition);
+                state.selected = state.inventory == Empty ? findSelected(state.worldState, state.avatarPosition) : OptionalInt{false, 0};
+                SDL_WarpMouseInWindow(window, width/2, height/2);
+            }
+            if(res &  SDL_BUTTON(SDL_BUTTON_LEFT)) {
+                    mouseCCase();
+            }
+
+    //
+            keyboardProcess();
+            processTimer();
+            gameDisplay();
+            SDL_FlushEvents(SDL_QUIT+1, SDL_LASTEVENT);
+            cycles++;
+            uint newa = SDL_GetTicks();
+            if(newa - a >= 1000) {
+                std::cerr << "кадров за прошедшую секунду" << cycles << std::endl;
+                a = newa;
+                cycles = 0;
             }
         } else {
-        }
-//
-        keyboardProcess();
-        processTimer();
-        gameDisplay();
-//        gameDisplay();
-        SDL_FlushEvents(SDL_QUIT+1, SDL_LASTEVENT);
-        cycles++;
-        uint newa = SDL_GetTicks();
-        if(newa - a >= 1000) {
-            std::cerr << "кадров за прошедшую секунду" << cycles << std::endl;
-            a = newa;
-            cycles = 0;
+            SDL_GL_SwapWindow(window);
         }
     }
 }
