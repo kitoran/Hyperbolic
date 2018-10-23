@@ -1,6 +1,6 @@
 #undef _GLIBCXX_INCLUDE_NEXT_C_HEADERS
 
-#include "util/commongraphics.h"
+#include "commongraphics.h"
 #include "game/gameloop.h"
 #include "editor/editor.h"
 

@@ -6,7 +6,7 @@
 #include "float.h"
 #include "assert.h"
 #include "util/hyperbolic.h"
-#include "util/commongraphics.h"
+#include "commongraphics.h"
 #include "util/physics.h"
 #include <map>
 #include <set>
