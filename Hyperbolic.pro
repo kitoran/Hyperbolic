@@ -1,9 +1,11 @@
 TEMPLATE = app
 CONFIG += console
-QMAKE_CXXFLAGS += -std=gnu++1y -fno-rtti -lglut -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers -Wno-comment #-I/usr/include
-LIBS+=-lglut -lGL -lSDL2
-QMAKE_CXX = g++-5
-QMAKE_CFLAGS += -stdlib=libstdc++ -std=gnu++14 -fno-rtti -lglut -lfreeglut -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers
+#CONFIG += c++14
+QMAKE_CXXFLAGS -= -Wall
+QMAKE_CXXFLAGS += -std=gnu++2a # -Wno-missing-braces -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers -Wno-comment#-I/usr/include
+LIBS+= -lGL -lSDL2 -lglut
+#QMAKE_CXX = g++-5
+QMAKE_CFLAGS += -stdlib=libstdc++ -lglut -lfreeglut -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers
 #-I/usr/include
 CONFIG -= app_bundle
 CONFIG -= qt
@@ -11,14 +13,14 @@ CONFIG -= qt
 INCLUDEPATH += /usr/include
 SOURCES += main.cpp \
     util/hyperbolic.cpp \
-    util/commongraphics.cpp
+    commongraphics.cpp
 
 HEADERS += \
     util/hyperbolic.h \
     util/linear.h \
     util/physics.h \
-    util/commongraphics.h \
     editor/editor.h \
     util/shittyreflection.h \
     game/gameloop.h \
-    game/graphics.h
+    game/graphics.h \
+    commongraphics.h
