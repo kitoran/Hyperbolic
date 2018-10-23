@@ -54,11 +54,12 @@ union Vector3 {
     Component & operator[](int a);
     double norm();
     Vector3 operator-(Vector3 o) {
-        return {{x-o.x, y-o.y, z-o.z}};
+        return {{x-o.x, y-o.y, (double)(z-o.z)}};
     }
 };
 Vector3 cross(Vector3 p, Vector3 r);
-Vector3 fmap(auto f, Vector3 t) {
+template <typename F>
+Vector3 fmap(F f, Vector3 t) {
     Vector3 r;
     FOR3(j) {
         r[j] = f(t[j]);

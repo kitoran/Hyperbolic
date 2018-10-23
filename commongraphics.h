@@ -2,18 +2,18 @@
 #define COMMONGRAPHICS_H
 #include "SDL2/SDL_video.h"
 #include "SDL2/SDL.h"
-#include "hyperbolic.h"
+#include "util/hyperbolic.h"
 //#include "/usr/include/old-array.h"
 #include <array>
 #include "GL/freeglut.h"
-#include "physics.h"
+#include "util/physics.h"
 extern SDL_Window* window;
 extern SDL_GLContext context;
 
 extern "C" GLAPI void APIENTRY glWindowPos2f (GLfloat x, GLfloat y);
 
 namespace G {
-constexpr H::Matrix44 perspective(double fovy, double aspect, double near, double far) {
+inline H::Matrix44 perspective(double fovy, double aspect, double near, double far) {
     double tanHalfFovy = tan( fovy / 2);
     double x = 1 / (aspect * tanHalfFovy);
     double y = 1 / tanHalfFovy;
@@ -30,9 +30,9 @@ constexpr H::Matrix44 perspective(double fovy, double aspect, double near, doubl
            0, 0, z,    w,
            0, 0, (-1), 0}};
 }
-constexpr H::Matrix44 persMatrix = perspective( (H::tau/8), (1366.0/768), (0.01), (1));
+const H::Matrix44 persMatrix = perspective( (H::tau/8), (1366.0/768), (0.01), (1));
 inline bool nearZero(double f) {
-    return abs (f) <= 1e-12;
+    return std::abs (f) <= 1e-12;
 }
 inline H::Vector3 normalize(H::Vector3 v) {
     auto l = dot(v,v);
@@ -92,8 +92,8 @@ inline double clamp(double a) {
     return a > 1?1:a<0?0:a;
 }
 void lightenABit(Mesh *d);
-
-void renderPrimitive(GLenum p, auto f) {
+template <typename F>
+void renderPrimitive(GLenum p, F f) {
     glBegin(p);
     f();
     glEnd();

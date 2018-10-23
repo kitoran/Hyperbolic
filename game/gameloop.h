@@ -258,7 +258,7 @@ Mesh levelMesh = level().mesh;
 std::vector<RuntimeObstacle> obs = computeObs(level().obstacles);
 std::vector<Source> source =  level().sources;
 double step = 0.01;
-double jump = 0.01;
+double jump = 0.001;
 double gravity = .0002;
 //mutableMeshRef = unsafePerformIO $ newIORef (G.toMesh (_sources level) (_receivers level) startState)
 struct {
@@ -303,6 +303,7 @@ void processKeyboard (const Uint8* c) {
 //                    KeycodeR -> reset
     }
     if(c[SDL_SCANCODE_SPACE]) {
+        std::cerr << "Jump!" << std::endl;
             state.avatarPosition.speed.z += jump;
     }
 }
@@ -376,6 +377,7 @@ AvatarPosition processTurnUp (double angle, const AvatarPosition& ap) {
     return {ap.pos, ap.height, bound((ap.nod + angle), -tau/4, tau/4 ), ap.speed};
                                                                                             }
 AvatarPosition processMouse(int x, int y, const AvatarPosition &ap) {
+    std::cerr << x << " " << y << std::endl;
     auto  fromGradi = [](auto x) {
 //        auto q =
         return (x / 360.0*tau*7.0/30.0);
@@ -475,47 +477,6 @@ AvatarPosition applyGravity (double gravity, AvatarPosition state) {
 
 //--processEvent :: Input -> (AvatarPosition -> AvatarPosition)
 //reset state = startState
-//-- networkDescription :: forall a. (RealFloat a, Ord a, Show a, Real a) => Environment a ->
-//--                                                                         (Int, Int) ->
-//--                                                                         AddHandler Char ->
-//--                                                                         AddHandler (Int, Int) ->
-//--                                                                         AddHandler () ->
-//--                                                                         AddHandler () ->
-//--                                                                         MomentIO ()
-//-- networkDescription environment (width, height) addKeyboard addMouse addDisplay addTimer = do
-//--   ekeyboard <- fromAddHandler $ addKeyboard
-//--   emouse' <- (fromAddHandler $ addMouse  )
-//--   edisplay <- (fromAddHandler $ addDisplay)
-//--   etimer <- fromAddHandler addTimer
-//--   let mouseDelta = fmap (\(x,y) -> ( x - (width`div`2), y - (height`div`2))) emouse'
-//--   let toGradi (x,y) = (ff x, ff y) where ff i = (fromIntegral i / 360*tau)
-//--   let rotateDelta = fmap (\(p) -> rotate3 p) (fmap (fst) $ toGradi <$> mouseDelta)
-//--       ids = (identityIm)
-//--   --let startPosMatrixM = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 1)--(1))
-//--       resetRequest = filterE (== 'r') ekeyboard
-//--       reset = fmap (const $ const identityIm) $ resetRequest
-//--   -- let moveFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
-//--   --     moveFunc = fmap (\x (_, b, c) -> (x, b, c)) move
-//--   -- let rotateFunc::Event ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
-//--   --     rotateFunc =  fmap (\x (a, _, c) -> (a, x, c)) $ rotate
-//--   upAngle <- accumB 0 $ unions [(fmap (\n delta -> bound (-tau/4) (tau/4) (n+delta)) (fmap (negate.snd) $ toGradi <$> mouseDelta)), fmap (const $ const 0) $ resetRequest]
-//--   let upMatrix = fmap rotateAroundY upAngle
-//--   let --upMoveDelta :: Event (M44 Double)
-//--       upMoveDelta = (filterJust $ fmap (flip lookup matricesMoveZ) ekeyboard)
-//--   upMove <- accumB identityIm $ fmap (\x y -> x !*! y) upMoveDelta
-//--   curz <- fmap (\x -> distance origin (x !$ origin)) upMove <@ ekeyboard
-//--   let curzB :: Behaviour ((a -> M33 a) -> M33 a)
-//--       curzB = stepper ($ 0.1) (fmap (\a -> ($ 0.1/cosh a)) curz)
-//--   --let moveDelta :: Event (M44 a)
-//--   -- speed :: V33 a
-//--   speedE <- accumE (V3 0 0 0) $ unions [fmap (\_ (V3 x y z) -> (V3 0 0 0)) resetRequest, fmap (\_ (V3 x y z) -> V3 x y (z-0.0001)) etimer]
-//--   moveDeltaInteractive <- curzB <@> (filterJust $ fmap (\k -> lookup k matricesMoveInPlane ) ekeyboard)
-//--   (moveDelta::Event (M33 a)) <- unionWithP (!*!) identityIm identityIm moveDeltaInteractive never--(fmap (\(V3 _ _ z) -> (moveAlongZ (-z))) speedE)
-//--   (move::Behaviour (M33 a)) <- accumB identityIm $ unions [reset, (fmap (\x y -> x !*! y) moveDelta), fmap (\x y -> x !*! y) rotateDelta]--(move::Behaviour (M44 a)) <- accumB startPosMatrix $ unions [(fmap (\x y -> (y !*! x !*! transposeMink y)) $  unionWith (!*!) moveDeltaRotated rotateDelta ), reset]
-//--       -- upFunc::Behavior ((M44 a, M44 a, M44 a) -> (M44 a, M44 a, M44 a))
-//--       -- upFunc =  fmap (\x (a, b, _) -> (a, b, x)) upMatrix
-//--       -- viewPortChangeStream = unionWith const (fmap (const ()) ekeyboard) (fmap (const ()) emouse')
-
 
 //--   -- $(prettyR "upMatrix")
 //--   -- $(prettyV "upAngle")
@@ -563,13 +524,13 @@ void gameLoop() {
             }
         }
 //        uint32_t flags = SDL_GetWindowFlags(window);
-        std::cout << focus << std::endl<< std::endl;
+//        std::cout << focus << std::endl<< std::endl;
         if(focus) {
 
             int x ,y;
             uint res = SDL_GetMouseState(&x, &y);
             if(x != width/2 || y != height/2) {
-                state.avatarPosition = processMouse( x-width/2, y-width/2, state.avatarPosition);
+                state.avatarPosition = processMouse( x-width/2, y-height/2, state.avatarPosition);
                 state.selected = state.inventory == Empty ? findSelected(state.worldState, state.avatarPosition) : OptionalInt{false, 0};
                 SDL_WarpMouseInWindow(window, width/2, height/2);
             }

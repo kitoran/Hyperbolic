@@ -2,7 +2,7 @@
 #define GRAPHICS
 #include <iostream>
 #include "util/physics.h"
-#include "util/commongraphics.h"
+#include "commongraphics.h"
 namespace G {
 extern bool frame;
 extern bool wheCons;
