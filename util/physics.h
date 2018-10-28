@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <numeric>
 #include "hyperbolic.h"
+#include <boost/optional.hpp>
+
 //module Physics where
 
 //import qualified Hyperbolic as H
@@ -48,10 +50,10 @@ enum HyperEntityType { Polygon, Segment, HPoint};
 struct HyperEntity {
     HyperEntityType type;
     std::vector<H::Point> p; //-- как всегда, для нормального отображения многоугольник должен быть выпуклым, и точки должны идти в порядке
-    struct {
-        H::Point a;
-        H::Point b;
-    };
+//    struct {
+//        H::Point a;
+//        H::Point b;
+//    };
 };
 using namespace H;
 inline HyperEntity operator *(H::Matrix44 m, HyperEntity a) {
@@ -64,7 +66,7 @@ inline HyperEntity operator *(H::Matrix44 m, HyperEntity a) {
         return m*ce;
     });
 
-    return {a.type, e, m*a.a, m*a.b};
+    return {a.type, e};
 }
 union  Color {
     struct {
@@ -127,14 +129,8 @@ struct WorldState {
     std::vector<Deviator> devis;
     std::vector<Divider> divis;
 };
-struct OptionalInt {
-   bool there = false;
-   int i;
-};
-struct OptionalDouble {
-   bool there = false;
-   double i;
-};
+using OptionalInt = boost::optional<int>;
+using OptionalDouble = boost::optional<double>;
 struct LevelState {
     AvatarPosition avatarPosition;
     Item inventory;
@@ -205,7 +201,7 @@ inline Vector3 projectToOxy (const Point & p)  {
     return {p.x, p.y, p.t};
 }
 inline auto decompose (Point p, const AvatarPosition &s ) -> AvatarPosition {
-    return {H::moveRightFromTo3(s.pos * Vector3{0,0,1}, projectToOxy (p)) * s.pos, H::signedDistanceFromOxy (p), s.nod, 0};
+    return {H::moveRightFromTo3(s.pos * Vector3{0,0,1}, projectToOxy (p)) * s.pos, H::signedDistanceFromOxy (p), s.nod, {0,0,0}};
 }
 //-- pushOut :: Obstacles Double -> State -> State
 //-- pushOut o s = foldr (\o1 -> pushOutOne o1) s o
@@ -253,6 +249,7 @@ inline AvatarPosition pushOut(const std::vector<RuntimeObstacle> o, const Avatar
         if(o.type == TriangleR) {
             /*{- far analysis could bw here -}*/return pushOutTriangleO (o.trans, o.x1, o.x2,  o.y2, o.thickness, p);
         }
+        std::terminate();
     };
     return std::accumulate(o.begin(), o.end(), s, pushOutOne);
 }
@@ -364,6 +361,7 @@ inline std::vector<RuntimeObstacle> computeObs( const Obstacles & o) {
           res.thickness = o.thickness;
           return res;
       }
+      std::terminate();
   };
     std::vector<RuntimeObstacle> res;
   res.reserve(o.size());
