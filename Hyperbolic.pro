@@ -1,8 +1,9 @@
 TEMPLATE = app
 CONFIG += console
+CONFIG += c++14
 #CONFIG += c++14
-QMAKE_CXXFLAGS -= -Wall
-QMAKE_CXXFLAGS += -std=gnu++2a # -Wno-missing-braces -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers -Wno-comment#-I/usr/include
+QMAKE_CXXFLAGS -= -Wall -std=gnu++11
+QMAKE_CXXFLAGS += -std=gnu++14 -Werror -Wno-comment -Wno-sign-compare -Wno-unused-variable -O0 # -Wno-missing-braces -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers -Wno-comment#-I/usr/include
 LIBS+= -lGL -lSDL2 -lglut
 #QMAKE_CXX = g++-5
 QMAKE_CFLAGS += -stdlib=libstdc++ -lglut -lfreeglut -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers
@@ -12,8 +13,8 @@ CONFIG -= qt
 #LIBS += -lstdc++ -L/usr/lib/gcc/i686-linux-gnu/8/
 INCLUDEPATH += /usr/include
 SOURCES += main.cpp \
-    util/hyperbolic.cpp \
-    commongraphics.cpp
+    commongraphics.cpp \
+    util/hyperbolic.cpp
 
 HEADERS += \
     util/hyperbolic.h \

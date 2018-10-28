@@ -108,11 +108,7 @@ Vector2 mapVertexPixel(Vector2 ab) {
                                         (1 - (ab[1])*2/(G::height) )};
 }
 using namespace G;
-struct OptionalMesh {
-    bool there;
-    Mesh m;
-};
-OptionalMesh beingAddedWall(Angle /*a*/, Vector2 pos) {
+boost::optional<Mesh> beingAddedWall(Angle /*a*/, Vector2 pos) {
     auto xy =  mapVertexPixel( pos);
     auto tran = G::persViewMatrix * view;
     auto ijkl = tran.m+8;
@@ -120,14 +116,14 @@ OptionalMesh beingAddedWall(Angle /*a*/, Vector2 pos) {
     auto invpv =  inv44  (tran);
     Point d = invpv * (fabs ( ijkl[2]) > 0.00001 ? Point{ xy[0], xy[1],  c, 1} : Point{ 0, 0, 1, 0});
     if(!proper(d)) {
-        return {false, {}};
+        return boost::none;
     }
 //    auto res = tran !* d, L.V2 x y)
     Mesh wall {{ {0.0, 0.0, 1.0, 1.0}, {Polygon, {{0, 0.01, 0, 1},
                                                      {0, (-0.01), 0, 1},
                                                      {0, (-0.01), 0.01, 1},
                                                      {0, 0.01, 0.01, 1}
-                                                       }, origin, origin}}};
+                                                       }}}};
 //    assert (proper(0,abs (rz) < 0.04) ;
     for(ColoredEntity& a : wall) {
         if(a.e.type == Polygon) {
@@ -144,7 +140,7 @@ OptionalMesh beingAddedWall(Angle /*a*/, Vector2 pos) {
             }
         }
     }
-    return {true, m};
+    return m;
 
 }
 struct Button {
@@ -235,10 +231,10 @@ Mesh xarrow(double sizeo, bool transparent) {
                                 {{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, pn, nn}}},
                                 {{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, nn, np}}},
                                 {{1, 0, 0, transparent?0.3f:1}, {Polygon, {origin, np, pp}}},
-                        {{1,1,1,transparent?0.3f:1}, {Segment, {}, origin, pp}},
-                            {{1,1,1,transparent?0.3f:1}, {Segment, {}, origin, pn}},
-                                {{1,1,1,transparent?0.3f:1}, {Segment, {}, origin, nn}},
-                                    {{1,1,1,transparent?0.3f:1}, {Segment, {}, origin, np}}};
+                        {{1,1,1,transparent?0.3f:1}, {Segment, {origin, pp}}},
+                            {{1,1,1,transparent?0.3f:1}, {Segment, {origin, pn}}},
+                                {{1,1,1,transparent?0.3f:1}, {Segment, {origin, nn}}},
+                                    {{1,1,1,transparent?0.3f:1}, {Segment, {origin, np}}}};
 }
 Mesh yarrow(double sizeo, bool transparent) {
     double size = sizeo / 10;
@@ -250,10 +246,10 @@ Mesh yarrow(double sizeo, bool transparent) {
                                 {{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, pn, nn}}},
                                 {{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, nn, np}}},
                                 {{0,1,  0, transparent?0.3f:1}, {Polygon, {origin, np, pp}}},
-                        {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, pp}},
-                            {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, pn}},
-                                {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, nn}},
-                                    {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, np}}};
+                        {{0,0,0,transparent?0.3f:1}, {Segment, {origin, pp}}},
+                            {{0,0,0,transparent?0.3f:1}, {Segment, {origin, pn}}},
+                                {{0,0,0,transparent?0.3f:1}, {Segment, {origin, nn}}},
+                                    {{0,0,0,transparent?0.3f:1}, {Segment, {origin, np}}}};
 }
 
 Mesh zarrow(double sizeo, bool transparent) {
@@ -266,10 +262,10 @@ Mesh zarrow(double sizeo, bool transparent) {
                                 {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, pn, nn}}},
                                 {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, nn, np}}},
                                 {{0,0,1, transparent?0.3f:1}, {Polygon, {origin, np, pp}}},
-                        {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, pp}},
-                            {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, pn}},
-                                {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, nn}},
-                                    {{0,0,0,transparent?0.3f:1}, {Segment, {}, origin, np}}};
+                        {{0,0,0,transparent?0.3f:1}, {Segment, {origin, pp}}},
+                            {{0,0,0,transparent?0.3f:1}, {Segment, {origin, pn}}},
+                                {{0,0,0,transparent?0.3f:1}, {Segment, {origin, nn}}},
+                                    {{0,0,0,transparent?0.3f:1}, {Segment, { origin, np}}}};
 }
 
 void editorDisplay() {
@@ -316,13 +312,13 @@ void editorDisplay() {
         } else if(ce.e.type == Segment) {
             renderPrimitive(GL_LINES, [&](){
                 glColor4fv((float*)(&(ce.color)));
-                transform(ce.e.a);
-                transform(ce.e.b);
+                transform(ce.e.p[0]);
+                transform(ce.e.p[1]);
             });
         } else {
             renderPrimitive(GL_POINTS, [&](){
                 glColor4dv((double*)(&(ce.color)));
-                transform(ce.e.a);
+                transform(ce.e.p[0]);
             });
         }
     };
@@ -409,8 +405,8 @@ void editorDisplay() {
             int x, y;
             SDL_GetMouseState(&x, &y);
             auto baw = beingAddedWall(0, {double(x), double(y)});
-            if(baw.there) {
-                for(auto fwe : baw.m) {
+            if(baw.is_initialized()) {
+                for(auto fwe : boost::get(baw)) {
                     toRaw(false, fwe);
                 }
             }
@@ -760,8 +756,8 @@ void mouseCCase(SDL_MouseButtonEvent a) {
         SDL_GetMouseState(&x, &y);
 
         auto baw = beingAddedWall(0, {double(x), double(y)});
-        if(baw.there) {
-            scene.ex[scene.ex.size()] = {Me, baw.m};
+        if(baw.is_initialized()) {
+            scene.ex[scene.ex.size()] = {Me, boost::get(baw)};
         }
         stateEditor = Ground;
     }

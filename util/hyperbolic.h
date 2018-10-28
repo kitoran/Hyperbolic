@@ -57,6 +57,9 @@ union Vector3 {
         return {{x-o.x, y-o.y, (double)(z-o.z)}};
     }
 };
+inline Vector3 vector3(double x, double y, double z) {
+    return {{x, y, z}};
+}
 Vector3 cross(Vector3 p, Vector3 r);
 template <typename F>
 Vector3 fmap(F f, Vector3 t) {
@@ -248,7 +251,7 @@ inline Matrix44 moveTo(Point xyzt, double d) {
     double y = xyzt.y;
     double z = xyzt.z;
 //    double t = xyzt.t;
-    double dem = x*x+y*y+z*z;
+    double dem = x*x+y*y+z*z; if(dem < 0.0001) return identity;
     return { ((cosh(d)*x*x+y*y+z*z)/dem),
                                   (((cosh(d)-1)*x*y)/dem),
                                   (((cosh(d)-1)*x*z)/dem),

@@ -32,7 +32,7 @@ inline H::Matrix44 perspective(double fovy, double aspect, double near, double f
 }
 const H::Matrix44 persMatrix = perspective( (H::tau/8), (1366.0/768), (0.01), (1));
 inline bool nearZero(double f) {
-    return std::abs (f) <= 1e-12;
+    return fabs (f) <= 1e-12;
 }
 inline H::Vector3 normalize(H::Vector3 v) {
     auto l = dot(v,v);
@@ -56,7 +56,7 @@ inline H::Point saneVertex4 (H::Point a)  {
     return a.t*a.t >= 0 ? a : (-a);
 }
 extern int width , height ;
-inline void  initialiseGraphics(int sg, char** hr) {
+inline void  initialiseGraphics(int /*sg*/, char** /*hr*/) {
 //        glutInit(&sg, hr);
         SDL_Init(SDL_INIT_VIDEO);
 
