@@ -1,4 +1,4 @@
-#undef _GLIBCXX_INCLUDE_NEXT_C_HEADERS
+#undef _GLIBCXX_INCLUDE_NEXT_C_HEADERS 
 
 #include "commongraphics.h"
 #include "game/gameloop.h"

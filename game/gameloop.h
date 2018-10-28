@@ -4,6 +4,7 @@
 #include "graphics.h"
 #include <time.h>
 #include <string>
+#include <boost/numeric/ublas/vector.hpp>
 #include <iostream>
 OptionalDouble intersectRay( const Deviator & d, const Matrix44 &transs) {
     Matrix44 move = moveRightTo(d.pos);
@@ -24,9 +25,9 @@ OptionalDouble intersectRay( const Deviator & d, const Matrix44 &transs) {
         }
     }
     if(any) {
-        return {true, distance(d.pos, origin)};
+        return {distance(d.pos, origin)};
     } else {
-        return  {false, 0};
+        return  boost::none;
     }
 }
 //             -- ((moveRightTo pos `andConsideringThat`
@@ -46,23 +47,23 @@ OptionalDouble intersectRay( const Deviator & d, const Matrix44 &transs) {
 OptionalInt foldMaybesP(const std::vector<Deviator>& list, const Matrix44& ttt) {
     std::vector<double> listt;
     for(auto dev : list) {
-        auto ma =intersectRay (dev, ttt );
-             if( ma.there) {
-                 listt.push_back (ma.i/*{-, ((P._devPos) dev, diir)-}*/); //--]filter (map (\e@(P.Devi poos _ _) -> ) list)
-             }
+        auto ma = intersectRay (dev, ttt );
+        if( ma.is_initialized()) {
+            listt.push_back (boost::get(ma)/*{-, ((P._devPos) dev, diir)-}*/); //--]filter (map (\e@(P.Devi poos _ _) -> ) list)
+        }
     }
     if(listt.empty() ) {
-       return {false, 0};
+        return boost::none;
     }
     int r = 0;
     double m = listt[0];
     for(int i = 1; i < listt.size(); i++) {
         if(listt[i] < m) {
             r = i;
-           m =  listt[i];
+            m =  listt[i];
         }
     }
-    return {true, r};
+    return r;
 }
 OptionalInt findSelected(WorldState ws, AvatarPosition ap) {
     return foldMaybesP( ws.devis, (/*{-transposeMink- $-}*/ G::viewPort(ap)));
@@ -78,21 +79,19 @@ LevelState startState() {
     ap.speed = Vector3{ 0.0, 0, 0};
     r.avatarPosition = ap;
     r.inventory = Empty;
-    r.worldState = { {moveAlongY( 0.1) * Deviator{ {0,
+    r.worldState = { {  Deviator{ {0,
                                                            0,
                                                            0,
                                                            1},
-                                                          {0,
-                                                           1,
+                                                          {1,
+                                                           0,
                                                            0},
                                                           0},
                                                                /* moveAlongY (-0.1::Double) !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0) */
                             },
                             {}
                           };
-    r.selected  = OptionalInt{true,
-                           0
-                          };
+    r.selected  = boost::none;
     return r;
 }
 LevelState state = startState();
@@ -105,17 +104,18 @@ LevelState thisFunc(const Matrix44& trans, LevelState ap) {
 //        Matrix44 nmat = m33_to_m44M(ap.avatarPosition.pos);
         ap.inventory = Empty;
         ap.worldState.devis.push_back({trans*Point{0, 0, 0, 1}, trans*Absolute{1,0,0}, 0});
-        ap.selected = {false, 0};
+        ap.selected = boost::none;;
         return ap;
     } else if(ap.inventory == Empty) {
-        if(ap.selected.there == false) {
+        if(!ap.selected.is_initialized()) {
             return ap;
         } else {
             ap.inventory = De;
-            ap.worldState.devis.erase(ap.worldState.devis.begin()+ap.selected.i);
+            ap.worldState.devis.erase(ap.worldState.devis.begin()+boost::get(ap.selected));
             return ap;
         }
     }
+    std::terminate();
 }
 //thisFunc :: M44 Double -> (P.LevelState -> P.LevelState)
 //thisFunc trans (LS (ap@(AP mat hei nod _)) (Just De) (WS des dis) _) = let nmat = m33_to_m44M mat in LS ap Nothing (WS (Devi ({-nmat !*! moveAlongZ hei-}trans !$ (Point 0 0 0 1)) ({-nmat-} trans !$ Abs (1) 0 0 ) 0: des) (dis)) Nothing
@@ -127,8 +127,8 @@ struct SqDistanceFromProjRes {
     double rr;
 };
 SqDistanceFromProjRes sqDistanceFromProj(const HyperEntity & he, const Matrix44 &trans) {
-    Point h1 = trans * he.a;
-    Point h2 = trans * he.b;
+    Point h1 = trans * he.p[0];
+    Point h2 = trans * he.p[1];
     Vector2 v1 = {((-h1.y)/h1.x), (h1.z/h1.x)};
     Vector2 v2 = {((-h2.y)/h2.x), (h2.z/h2.x)};
     auto numeratorRoot = (v2.x)*v1.y - v2.y*(v1.x);
@@ -168,19 +168,19 @@ Matrix44 preShow(const Mesh& rays, const Matrix44& vp) {
 //    (_::(Double, Double, Double, Double), P.Segment pos dir) = (coerce rays :: [((Double, Double, Double, Double), HyperEntity)]) !! index
     Matrix44 rayToOx;// = let move = //-- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
     {
-        auto move =moveRightTo (rays[index].e.a);
-        auto dirFromStart = (transposeMink (move) * rays[index].e.b);
+        auto move =moveRightTo (rays[index].e.p[0]);
+        auto dirFromStart = (transposeMink (move) * rays[index].e.p[1]);
         auto turn = andThen(getPointToOxyAroundOy,  getPointToOxzAroundOz)( dirFromStart);
         rayToOx = (move * transposeMink( turn));
     }
-    const Point& pos = rays[index].e.a;
-    const Point& dir= rays[index].e.b;
+    const Point& pos = rays[index].e.p[0];
+    const Point& dir= rays[index].e.p[1];
 //    Point dx dy dz dt = dir
 //    Point px py pz pt = pos
     Point p = (1-ratio)*normalizeKlein (vp * pos) + ratio*normalizeKlein (vp * dir);
     auto trans = /*Debug.Trace.trace ("qqqq "++show x1) $*/ ( rayToOx) * (moveAlongX (   (H::distance ( vp * pos, p))));
-    Point h1 = vp * p;
-    double x1 = (-h1.y)/h1.x;
+//    Point h1 = vp * p;
+//    double x1 = (-h1.y)/h1.x;
     if(rays.empty()) {
         return transposeMink (vp) * H::moveAlongX(0.011) * H::moveAlongZ (-0.012);
     }
@@ -361,8 +361,8 @@ void gameDisplay() {
     auto inv = state.inventory == Empty ? Mesh{} :
                state.inventory == De ? preShow(mutableMesh.rays, G::viewPort(ap))*G::transparentDeviator() : (abort(), Mesh{});
     auto items =  mutableMesh.items;
-    if(state.selected.there) {
-        G::lightenABit(&items[state.selected.i]);
+    if(state.selected.is_initialized()) {
+        G::lightenABit(&items[boost::get(state.selected)]);
     }
     G::displayGame(levelMesh, items, mutableMesh.rays, mutableMesh.recvs, inv, G::viewPort( ap));
 }
@@ -493,7 +493,7 @@ AvatarPosition applyGravity (double gravity, AvatarPosition state) {
 //--   -- $(prettyV "currp")
 //--   reactimate (fmap (\x -> display (mesh environment) (x)) idle)
 //--   -- reactimate $ fmap (\x -> putStrLn $ "insanity:"++ show (insanity x) ++ "\n")  idle
-int filter(void*      userdata,
+int filter(void*      /*userdata*/,
                     SDL_Event* event) {
     return event->type == SDL_QUIT || event->type == SDL_WINDOWEVENT;
 }
@@ -531,7 +531,7 @@ void gameLoop() {
             uint res = SDL_GetMouseState(&x, &y);
             if(x != width/2 || y != height/2) {
                 state.avatarPosition = processMouse( x-width/2, y-height/2, state.avatarPosition);
-                state.selected = state.inventory == Empty ? findSelected(state.worldState, state.avatarPosition) : OptionalInt{false, 0};
+                state.selected = state.inventory == Empty ? findSelected(state.worldState, state.avatarPosition) : boost::none;
                 SDL_WarpMouseInWindow(window, width/2, height/2);
             }
             if(res &  SDL_BUTTON(SDL_BUTTON_LEFT)) {

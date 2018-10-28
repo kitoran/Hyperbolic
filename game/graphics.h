@@ -17,8 +17,9 @@ void displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ray, 
         glVertex4dv(G::saneVertex4(a).data);
     };
     auto toRaw = [&transform](const ColoredEntity& ce) {
-        if(ce.e.type == Polygon) {
-            renderPrimitive(GL_POLYGON, [&transform, &ce](){
+//        if(ce.e.type == Polygon) {
+            renderPrimitive(ce.e.type == Polygon ? GL_POLYGON :
+                           ce.e.type == Segment ? GL_LINES: GL_POINTS, [&transform, &ce](){
 
                 glColor4fv((float*)(&(ce.color)));
 //                applyNormal(ce.e.p);
@@ -36,18 +37,18 @@ void displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ray, 
     //            });
     //            glEnable(GL_DEPTH_TEST);
 
-        } else if(ce.e.type == Segment) {
-            renderPrimitive(GL_LINES, [&](){
-                glColor4fv((float*)(&(ce.color)));
-                transform(ce.e.a);
-                transform(ce.e.b);
-            });
-        } else {
-            renderPrimitive(GL_POINTS, [&](){
-                glColor4dv((double*)(&(ce.color)));
-                transform(ce.e.a);
-            });
-        }
+//        } else if(ce.e.type == Segment) {
+//            renderPrimitive(GL_LINES, [&](){
+//                glColor4fv((float*)(&(ce.color)));
+//                transform(ce.e.a);
+//                transform(ce.e.b);
+//            });
+//        } else {
+//            renderPrimitive(GL_POINTS, [&](){
+//                glColor4dv((double*)(&(ce.color)));
+//                transform(ce.e.a);
+//            });
+//        }
     };
 //  matrixMode $= Projection
 //  -- print cons
@@ -135,15 +136,13 @@ Matrix44 viewPort(const AvatarPosition& ap) {
     return  H::rotateAroundY (-ap.nod) * H::moveAlongZ (-ap.height) * (H::m33_to_m44M ( H::transposeMink3 (ap.pos)));
 }
 bool containsZero (const std::vector<Vector2>& v) {
-        bool res = false;
-        int s = v.size();
+    int s = v.size();
     for(int i = 0; i< s; i++) {
-        if(v[i].x*v[(i+1)%s].y-v[(i+1)%s].x*v[i].y) {
-           res = true;
-           break;
+        if(v[i].x*v[(i+1)%s].y-v[(i+1)%s].x*v[i].y<0) {
+           return false;
         }
     }
-    return res;
+    return true;
 }
 struct MutableMesh {
     Mesh rays;
@@ -189,18 +188,18 @@ MutableMesh toMesh (const std::vector<Source> &s,  const std::vector<Receiver> &
             std::vector<ColoredEntity> res;
             if(urr.line.size()>=2) {
                 for(int i = 0; i < urr.line.size()-2; i++) {
-                    res.push_back({{1,1,1,1}, {Segment,{},urr.line[i], urr.line[i+1]}});
+                    res.push_back({{1,1,1,1}, {Segment,{urr.line[i], urr.line[i+1]}}});
                 }
             }
             if(urr.line.size()>=1) {
-            res.push_back({{1,1,1,1}, {Segment,{},urr.line[urr.line.size()-1],
-                                                    toNonPhysicalPoint(urr.eit.abs)}});
+            res.push_back({{1,1,1,1}, {Segment,{urr.line[urr.line.size()-1],
+                                                    toNonPhysicalPoint(urr.eit.abs)}}});
             }
             return {res, {}};
         } else {
             std::vector<ColoredEntity> res;
             for(int i = 0; i < urr.line.size()-1; i++) {
-                res.push_back({{1,1,1,1}, {Segment,{},urr.line[i], urr.line[i+1]}});
+                res.push_back({{1,1,1,1}, {Segment,{urr.line[i], urr.line[i+1]}}});
             }
             return {res, {urr.eit.i}};
         }
