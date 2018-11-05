@@ -6,6 +6,87 @@
 #include <string>
 #include <boost/numeric/ublas/vector.hpp>
 #include <iostream>
+Environment level() {
+    Point p0p = Point{ (sinh (1)), 0.0, 0.0, (cosh (1))};
+    Point p1p = rotateAroundZ (tau/3) * p0p;
+    Point p2p = rotateAroundZ (-tau/3) * p0p;
+    Point p0 = moveAlongZ(-0.1)*p0p;
+    Point p1 = moveAlongZ(-0.1)*p1p;
+    Point p2 = moveAlongZ(-0.1)*p2p;
+    Point r0p = {0, 0.1, 0.1, 2};
+    Point r1p = rotateAroundX (tau/4) * r0p;
+    Point r2p = rotateAroundX (tau/4) * r1p;
+    Point r3p = rotateAroundX (tau/4) * r2p;
+    std::vector<Point> l1 = {moveAlongX (0.1) * r0p,
+            moveAlongX (0.1) * r1p,
+            moveAlongX (0.1) * r2p,
+            moveAlongX (0.1) * r3p};
+    std::vector<Point> l2 = {moveAlongX (0.2) * r0p,
+                             moveAlongX (0.2) * r1p,
+                             moveAlongX (0.2) * r2p,
+                             moveAlongX (0.2) * r3p};
+    Environment res;
+    res.mesh = Mesh {/*((1.0, 0.0, 0.0, 1.0),
+        //                                              (P.Polygon ) $
+        //                                              map ((\a -> rotateAroundZ a !$ (Point 1 0 0 1)) .
+        //                                                   (/360.0) .
+        //                                                   (*(tau::Double)) .
+        //                                                   fromIntegral::Integer->Point Double) $ [0..359]),*/
+                          {{1, 0, 0, 1}, {Polygon, {p0, p1, p2}}}};
+    Obstacle o;
+    o.type = Triangle;
+    o.a = p0;
+    o.b = p1;
+    o.c = p2;
+    o.thickness = 0.01;
+    res.obstacles = Obstacles{o};
+    res.sources = std::vector<Source>{{{-0.01, (-0.1), -0.0001, 2}, {1.0001, 0.7999, (-0.0001)}}};
+    res.receivers = std::vector<Receiver>{l1, l2};
+    return res;
+//        red = (1.0, 0.0, 0.0, 1)
+}
+
+LevelState startState() {
+    LevelState r;
+    AvatarPosition ap;
+    ap.pos = identity33;
+    ap.height = 0.1;
+    ap.nod = 0;
+    ap.speed = Vector3{ 0.0, 0, 0};
+    r.avatarPosition = ap;
+    r.inventory = Empty;
+    r.worldState = { {  Deviator{ {0,
+                                                           0,
+                                                           0,
+                                                           1},
+                                                          {1,
+                                                           0,
+                                                           0},
+                                                          0},
+                                                               /* moveAlongY (-0.1::Double) !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0) */
+                            },
+                            {}
+                          };
+    r.selected  = boost::none;
+    return r;
+}
+namespace globals {
+Mesh levelMesh = level().mesh;
+std::vector<RuntimeObstacle> obs = computeObs(level().obstacles);
+std::vector<Source> source =  level().sources;
+double step = 0.003;
+double jump = 0.001;
+double gravity = .0002;
+struct {
+    std::string cur;
+    std::vector<std::string> history;
+    int i;
+} console;// = unsafePerformIO $ newIORef (Console "" [] 0)
+std::vector<Receiver> receivers = level().receivers;
+LevelState state = startState();
+G::MutableMesh mutableMesh = G::toMesh(level().sources, level().receivers, state);
+
+} using namespace globals;
 OptionalDouble intersectRay( const Deviator & d, const Matrix44 &transs) {
     Matrix44 move = moveRightTo(d.pos);
     Point dirFromStart = toNonPhysicalPoint (transposeMink (move) * d.dir);
@@ -70,31 +151,6 @@ OptionalInt findSelected(WorldState ws, AvatarPosition ap) {
 }// -- тут мы много раз считаем преобразование, а надо один если вообще считать
 
 
-LevelState startState() {
-    LevelState r;
-    AvatarPosition ap;
-    ap.pos = identity33;
-    ap.height = 0.1;
-    ap.nod = 0;
-    ap.speed = Vector3{ 0.0, 0, 0};
-    r.avatarPosition = ap;
-    r.inventory = Empty;
-    r.worldState = { {  Deviator{ {0,
-                                                           0,
-                                                           0,
-                                                           1},
-                                                          {1,
-                                                           0,
-                                                           0},
-                                                          0},
-                                                               /* moveAlongY (-0.1::Double) !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0) */
-                            },
-                            {}
-                          };
-    r.selected  = boost::none;
-    return r;
-}
-LevelState state = startState();
 //-- { _avatarPosition :: AvatarPosition,
 //--                        _avatarInventory :: Item,
 //--                        _worldState :: WorldState
@@ -112,6 +168,7 @@ LevelState thisFunc(const Matrix44& trans, LevelState ap) {
         } else {
             ap.inventory = De;
             ap.worldState.devis.erase(ap.worldState.devis.begin()+boost::get(ap.selected));
+            ap.selected = boost::none;
             return ap;
         }
     }
@@ -123,7 +180,7 @@ LevelState thisFunc(const Matrix44& trans, LevelState ap) {
 //                                                                    Nothing -> s
 //                                                                    Just i -> (LS (ap) (Just De) (WS [ x | (ix, x) <- zip [0..] des, ix /= i ] dis) e) -- = LS (ap@(mat hei nod)) (Nothing) (WS des dis) = LS ap Nothing (WS (Devi (mat !*! moveAlongZ hei !$ (Point 0 0 0 1)): des) (dis))
 struct SqDistanceFromProjRes {
-    double ratio;
+    double dis;
     double rr;
 };
 SqDistanceFromProjRes sqDistanceFromProj(const HyperEntity & he, const Matrix44 &trans) {
@@ -150,31 +207,35 @@ SqDistanceFromProjRes sqDistanceFromProj(const HyperEntity & he, const Matrix44 
 //-- a = (nx*x1 - y1)/(-y1+y2+nx*x1-nx*x2)
 //-- если восстановить t:
 //-- a = (nx*x1 - y1)/(-y1+y2(t1/t2)+nx*x1-nx*x2(t1/t2))
+
 Matrix44 preShow(const Mesh& rays, const Matrix44& vp) {
 //preShow rays vp = case rays of
-    if (rays.size()<1) return H::identity;
+//    auto rrr = moveAlongX(-0.01) * G::viewPort(state.avatarPosition);
+//    return transposeMink(rrr);
+    if (rays.size()<1) return moveRightTo({NAN, 0, 0, 1});
     auto res = sqDistanceFromProj(rays[0].e, vp);
-
-    double ratio = res.ratio;
+    double ratio = res.rr;
+    double dis = res.dis;
     int index = 0;
     for(int i = 1; i < rays.size(); i++) {
         auto res = sqDistanceFromProj(rays[i].e, vp);
-        if(res.ratio < ratio) {
+        if(res.dis < dis) {
             index = i;
-            ratio = res.ratio;
+            dis = res.dis;
+            ratio = res.rr;
         }
 //        ((_, ratio), index) = minimumBy (compare `on` (fst.fst)) $ zip (map (\(_::(Double, Double, Double, Double), s) -> ) $ coerce rays) [0..]
     }
 //    (_::(Double, Double, Double, Double), P.Segment pos dir) = (coerce rays :: [((Double, Double, Double, Double), HyperEntity)]) !! index
     Matrix44 rayToOx;// = let move = //-- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
+    const Point& pos = rays[index].e.p[0];
+    const Point& dir= rays[index].e.p[1];
     {
-        auto move =moveRightTo (rays[index].e.p[0]);
-        auto dirFromStart = (transposeMink (move) * rays[index].e.p[1]);
+        auto move =moveRightTo (pos);
+        auto dirFromStart = (transposeMink (move) * dir);
         auto turn = andThen(getPointToOxyAroundOy,  getPointToOxzAroundOz)( dirFromStart);
         rayToOx = (move * transposeMink( turn));
     }
-    const Point& pos = rays[index].e.p[0];
-    const Point& dir= rays[index].e.p[1];
 //    Point dx dy dz dt = dir
 //    Point px py pz pt = pos
     Point p = (1-ratio)*normalizeKlein (vp * pos) + ratio*normalizeKlein (vp * dir);
@@ -215,58 +276,7 @@ AvatarPosition tick (double gravity, const std::vector<RuntimeObstacle>& level, 
 //runtimeObstacles :: [RuntimeObstacle]
 //runtimeObstacles = computeObs (_obstacles level)
 //level :: Environment
-Environment level() {
-    Point p0p = Point{ (sinh (1)), 0.0, 0.0, (cosh (1))};
-    Point p1p = rotateAroundZ (tau/3) * p0p;
-    Point p2p = rotateAroundZ (-tau/3) * p0p;
-    Point p0 = moveAlongZ(-0.1)*p0p;
-    Point p1 = moveAlongZ(-0.1)*p1p;
-    Point p2 = moveAlongZ(-0.1)*p2p;
-    Point r0p = {0, 0.1, 0.1, 2};
-    Point r1p = rotateAroundX (tau/4) * r0p;
-    Point r2p = rotateAroundX (tau/4) * r1p;
-    Point r3p = rotateAroundX (tau/4) * r2p;
-    std::vector<Point> l1 = {moveAlongX (0.1) * r0p,
-            moveAlongX (0.1) * r1p,
-            moveAlongX (0.1) * r2p,
-            moveAlongX (0.1) * r3p};
-    std::vector<Point> l2 = {moveAlongX (0.2) * r0p,
-                             moveAlongX (0.2) * r1p,
-                             moveAlongX (0.2) * r2p,
-                             moveAlongX (0.2) * r3p};
-    Environment res;
-    res.mesh = Mesh {/*((1.0, 0.0, 0.0, 1.0),
-        //                                              (P.Polygon ) $
-        //                                              map ((\a -> rotateAroundZ a !$ (Point 1 0 0 1)) .
-        //                                                   (/360.0) .
-        //                                                   (*(tau::Double)) .
-        //                                                   fromIntegral::Integer->Point Double) $ [0..359]),*/
-                          {{1, 0, 0, 1}, {Polygon, {p0, p1, p2}}}};
-    Obstacle o;
-    o.type = Triangle;
-    o.a = p0;
-    o.b = p1;
-    o.c = p2;
-    o.thickness = 0.01;
-    res.obstacles = Obstacles{o};
-    res.sources = std::vector<Source>{{{0, (-0.0001), 0.0001, 2}, {1.0001, 0.00009999, (-0.0001)}}};
-    res.receivers = std::vector<Receiver>{l1, l2};
-    return res;
-//        red = (1.0, 0.0, 0.0, 1)
-}
-Mesh levelMesh = level().mesh;
-std::vector<RuntimeObstacle> obs = computeObs(level().obstacles);
-std::vector<Source> source =  level().sources;
-double step = 0.01;
-double jump = 0.001;
-double gravity = .0002;
 //mutableMeshRef = unsafePerformIO $ newIORef (G.toMesh (_sources level) (_receivers level) startState)
-struct {
-    std::string cur;
-    std::vector<std::string> history;
-    int i;
-} console;// = unsafePerformIO $ newIORef (Console "" [] 0)
-std::vector<Receiver> receivers = level().receivers;
 //-- ctrl ::
 //ctrl a = keyModifierLeftCtrl (keysymModifier a) || keyModifierRightCtrl (keysymModifier a)
 //commands = (T.Node ( Command "" "" (io (return ())) True) [T.Node (setGravity gravityRef) [],
@@ -348,7 +358,6 @@ void keyboardProcess () {
 //-- gameSpecialCallback a _ = do
 //                               -- when (a == GL.KeyUp) (modifyIORef consoleRef consoleUp)
 }
-G::MutableMesh mutableMesh = G::toMesh(level().sources, level().receivers, state);
 void gameDisplay() {
 //                            state' <- readIORef stateRef
 //                            levelMesh <- readIORef levelMeshRef
@@ -388,6 +397,7 @@ AvatarPosition processMouse(int x, int y, const AvatarPosition &ap) {
 using namespace G;
 void mouseCCase() {
     Matrix44 trans = preShow(mutableMesh.rays, (G::viewPort(state.avatarPosition)));
+//    auto oldState = state;
     state = thisFunc( trans, state);
     mutableMesh = toMesh(source, receivers, state);
 }
@@ -513,6 +523,7 @@ void gameLoop() {
     uint a = SDL_GetTicks();
     int cycles = 0;
     bool focus = true;
+    int mouseInhibited = 0;
     while(continueCycle) {
         SDL_Event event;
         if (SDL_PollEvent(&event)) {
@@ -534,9 +545,11 @@ void gameLoop() {
                 state.selected = state.inventory == Empty ? findSelected(state.worldState, state.avatarPosition) : boost::none;
                 SDL_WarpMouseInWindow(window, width/2, height/2);
             }
-            if(res &  SDL_BUTTON(SDL_BUTTON_LEFT)) {
+            if(res &  SDL_BUTTON(SDL_BUTTON_LEFT) && !mouseInhibited) {
                     mouseCCase();
+                    mouseInhibited = 6;
             }
+            if(mouseInhibited>0) mouseInhibited--;
 
     //
             keyboardProcess();
