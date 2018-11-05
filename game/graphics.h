@@ -1,6 +1,7 @@
 #ifndef GRAPHICS
 #define GRAPHICS
 #include <iostream>
+//#include <list>
 #include "util/physics.h"
 #include "commongraphics.h"
 namespace G {
@@ -149,19 +150,155 @@ struct MutableMesh {
     std::vector<Mesh> items;
     Mesh recvs;
 };
-enum RayEnd {infinity, someReceiver};
+enum RayEndType {infinity, someReceiver};
 struct UnfoldRayResult {
    std::vector<Point> line;
-   struct {
-       RayEnd end;
+   struct RayEnd {
+       RayEndType end;
        union {
            Absolute abs;
            int i;
        };
    } eit;
 };
-UnfoldRayResult unfoldRay(std::vector<Deviator>, std::vector<Receiver>, Point /*p*/, Absolute a) {
-   return {{}, {infinity, {a}}};
+enum FoldMaybesResultType {one_infinity, one_receiver, one_deviator};
+struct FoldMaybesResult {
+    FoldMaybesResultType type;
+    Point p;
+    union {
+        int i;
+        Absolute dir;
+    };
+};
+struct FunctionDeResult {
+  double dis;
+    Absolute diir;
+};
+boost::optional<FunctionDeResult> functionDe(Point pos, Absolute dir, Deviator de) {
+/*functionDe pos dir (P.Devi dpos ddir d) = */
+    Matrix44 move = moveRightTo(pos);
+    Point dirFromStart = toNonPhysicalPoint(inv44(move) * dir);
+    Matrix44 turn = andThen(getPointToOxyAroundOy, getPointToOxzAroundOz)(dirFromStart);
+    Matrix44 trans = turn * inv44(move);
+    Point res = trans * de.pos;
+    Absolute newDir = inv44( trans) * (rotateAroundX (-de.nod)) * (moveAlongX (distance (origin, res))) * (Absolute{ 0, 1, 0}) ;
+    bool cond = fabs(res. y) < 0.001 && fabs(res.z) < 0.001 && fabs(res.x*res.t) > 0.00001; // и ещё условие что девиатор правильно повёрнут
+    if (cond) {
+        return {{res.x/res.t, newDir}};
+    }else {
+        return boost::none;
+    }
+}
+boost::optional<Point> functionRcv(Point pos, Absolute dir, Receiver re) {
+//functionRcv pos dir (P.Receiver ss@(p1:p2:p3:ps)) =
+    Matrix44 trans = getTriangleToOxy (re[0], re[1], re[2]);
+    Point p /*@(H.Point px py pz pt)*/ = trans * pos;
+    Point a/*@(H.Point ax ay az at)*/ = trans * (toNonPhysicalPoint (dir));
+    Point intersect;
+    FOR4(i) {
+        intersect.data[i] = p.data[i] + (-p.z/a.z) * a.data[i]; //    (\pc ac -> pc + (-pz/az) * ac) <$> p <*> a
+    }
+    Point i = normalizeKlein (intersect);
+    const double& ix = i.x, &iy = i.y;
+    std::vector<Vector2> projs(re.size());
+    for(int i = 0; i < re.size(); i++) {
+        Point p = normalizeKlein (trans * p);
+        projs[i] = {p.x-ix, p.y-iy};
+    }
+    if (containsZero (projs)) {
+        return transposeMink (trans) * intersect;
+    } else {
+        return boost::none;
+    }
+}
+template<typename T>
+boost::optional<T> minimumByDist(const std::vector<T>& s) {
+    auto it = std::min_element(s.begin(), s.end(), [](const T&t1, const T&t2) {
+        return t1.dist < t2.dist;
+    });
+    if(it >= s.end()) {
+        return boost::none;
+    } else {
+        return {*it};
+    }
+}
+
+auto foldMaybes(const std::vector<Deviator>& listd, const std::vector<Receiver>& lists,
+                const H::Point& pos, const H::Absolute& dir) -> FoldMaybesResult {
+/*foldMaybes listd lists pos dir = */
+    struct DDe {
+        double dist;
+        Point pos;
+        Absolute dir;
+    };
+    struct DRe {
+        double dist;
+        Point pos;
+        int re;
+    };
+    auto maxFst = [](const boost::optional<DDe>& de, const boost::optional<DRe>& re) -> FoldMaybesResult {
+        if(de.is_initialized()) {
+            if(re.is_initialized()) {
+                if(boost::get(de).dist < boost::get(re).dist) {
+                    FoldMaybesResult r; r.dir = boost::get(de).dir; r.p = boost::get(de).pos; r.type = one_deviator;
+                    return r;
+                } else {
+                    return {one_receiver, boost::get(re).pos, boost::get(re).re};
+                }
+            } else {
+                FoldMaybesResult r; r.dir = boost::get(de).dir; r.p = boost::get(de).pos; r.type = one_deviator;
+                return r;
+            }
+        } else {
+            if(re.is_initialized()) {
+                return {one_receiver, boost::get(re).pos, boost::get(re).re};
+            } else {
+                return {one_infinity, origin, -1};
+            }
+        }
+    };
+    std::vector<DDe> listDe;
+    for(const auto& dev : listd) {
+        auto discriminee = functionDe(pos, dir, dev);
+        if(discriminee.is_initialized()) {
+            listDe.push_back({boost::get(discriminee).dis, dev.pos, boost::get(discriminee).diir});
+        }
+    }
+    std::vector<DRe> listRcv;
+    for(int i = 0; i < lists.size(); i++) {
+        auto discriminee = functionRcv(pos, dir, lists[i]);
+        if(discriminee.is_initialized()) {
+            listRcv.push_back({distance(pos, boost::get(discriminee)), boost::get(discriminee), i});
+        }
+    }
+    return maxFst (minimumByDist(listDe), minimumByDist(listRcv));
+}
+
+void push_front(const Point& p, std::vector<Point>*v) {
+    std::vector<Point> res {p};
+    std::copy(v->begin(), v->end(), std::back_inserter(res));
+    v->swap(res);
+}
+UnfoldRayResult unfoldRay(const std::vector<Deviator>& listd, const std::vector<Receiver>& listr,
+                           const Point& pos, const Absolute & dir) {
+    std::function<UnfoldRayResult(const Point&, Absolute)> go =  [&listd, &listr, &go] (const Point& pos, Absolute dir) -> UnfoldRayResult {
+        auto discriminee = foldMaybes(listd, listr, pos, dir);
+        if(discriminee.type == one_infinity) {
+            return {{}, {infinity, dir}};
+        } else if(discriminee.type == one_receiver) {
+            UnfoldRayResult::RayEnd e;
+            e.end = someReceiver;
+            e.i = discriminee.i;
+            return {{discriminee.p}, e};
+        } else if(discriminee.type == one_deviator) {
+            UnfoldRayResult r = go(discriminee.p, discriminee.dir);
+            push_front(discriminee.p, &r.line);
+            return r;
+        } else std::terminate();
+    };
+    UnfoldRayResult r = go(pos, dir);
+    push_front(pos, &r.line);
+    return r;
 }
 //unfoldRay listd listr pos dir = first (pos:) $ go pos dir -- (pos:map fst (go pos dir ), last $ dir : map snd (go pos dir ))
 //  where go :: H.Point Double -> H.Absolute Double ->  ([(H.Point Double)], Either (H.Absolute Double)  Int)
@@ -169,8 +306,11 @@ UnfoldRayResult unfoldRay(std::vector<Deviator>, std::vector<Receiver>, Point /*
 //                           Infinity -> ([], Left dir)
 //                           Receiver (p, i) -> ([p], Right i)
 //                           Deviator (p, newd) -> case go p newd of (ps, re) -> (p:ps, re)  -- (deleteNth i list)
-Matrix44 thatTransformation(const Deviator&) {
-   return identity;
+Matrix44 thatTransformation(const Deviator& de) {
+    Matrix44 move = moveRightTo (de.pos);
+    Point dirFromStart = (toNonPhysicalPoint (transposeMink (move) * de.dir));
+    Matrix44 turn = andThen(getPointToOxyAroundOy, getPointToOxzAroundOz)( dirFromStart);
+    return move * transposeMink(turn) * rotateAroundX(de.nod);
 }
 //thatTransformation (P.Devi pos dir d) = let move = moveRightTo pos -- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
 //                                            dirFromStart = (toNonPhysicalPoint $ transposeMink move !$ dir)
