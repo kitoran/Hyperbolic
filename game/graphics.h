@@ -1,7 +1,10 @@
 #ifndef GRAPHICS
 #define GRAPHICS
 #include <iostream>
+#include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_ttf.h>
 //#include <list>
+
 #include "util/physics.h"
 #include "commongraphics.h"
 namespace G {
@@ -10,7 +13,72 @@ extern bool wheCons;
 //displayGame :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)
 //                                         => -}
 //                 Console -> Bool -> Mesh -> Bool -> M44 Double -> AvatarPosition -> IO ()
-void renderConsole() {}
+TTF_Font* sans = 0;
+std::vector<std::string> history = {"console1",
+                                    "console2"};
+std::string console;
+void renderLine(const std::string & line, int lineNumber) {
+if(!sans) sans = TTF_OpenFont("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 20);
+if(line.empty()) return;
+SDL_Surface * sFont = TTF_RenderText_Blended(sans, line.data(), {255,255,255,255});
+GLuint texture;
+glGenTextures(1, &texture);
+glBindTexture(GL_TEXTURE_2D, texture);
+
+
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sFont->w, sFont->h, 0, GL_BGRA, GL_UNSIGNED_BYTE, sFont->pixels);
+
+glBegin(GL_QUADS);
+{
+    static const double inter = 35;
+  glTexCoord2i(0,1); glVertex2f(-1, -1+(lineNumber*inter )/height);
+  glTexCoord2f(1/*0 + sFont->w*/, 1);/*(1,0);*/ glVertex2f(-1 + ((double)(sFont->w))*2/width, -1+(lineNumber*inter )/height);
+  auto d = ((double)(sFont->w))*2/width; (void)d;
+  glTexCoord2f(0 + 1, 0 );/*(1,1);*/ glVertex2f(-1 + ((double)(sFont->w))*2/width, -1+(lineNumber*inter )/height + ((double)(sFont->h))*2/height);
+  glTexCoord2f(0, 0 );/*(0,1);*/ glVertex2f(-1, -1+(lineNumber*inter )/height + ((double)(sFont->h))*2/height);
+}
+glEnd();
+
+
+glDeleteTextures(1, &texture);
+SDL_FreeSurface(sFont);
+}
+
+void renderConsole() {
+    glDisable(GL_DEPTH_TEST);
+      glEnable(GL_TEXTURE_2D);
+        for(int i = 0; i < history.size(); i++) {
+           renderLine(history[i], history.size() - i);
+        }
+        renderLine(console, 0);
+
+      glDisable(GL_TEXTURE_2D);
+      glEnable(GL_DEPTH_TEST);
+
+
+//    if(!sans){
+////        sans = TTF_OpenFont("Sans.ttf", 10);
+//        if(!sans) sans = TTF_OpenFont("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 10);
+//    };
+//    char const* s = "Console text";
+//    int h;
+//    TTF_SizeUTF8(sans, s, 0, &h);
+//    SDL_Surface* sur = TTF_RenderText_Solid(sans, s, {0,0,255,255}); // (L.V4 0 0 255 255) s
+
+//    std::cout << "sdl: " << SDL_GetError() << "ttf: " << TTF_GetError () << std::endl;
+//    SDL_Rect r = {0,0,width,height - h};
+//    int err = SDL_BlitSurface(sur, &r, SDL_GetWindowSurface(window), 0);
+//    std::cout << "error: " << err << " " << SDL_GetError() << std::endl;
+//    glDisable(GL_DEPTH_TEST);
+//    renderPrimitive(GL_TRIANGLES, [](){
+//        glVertex4dv(saneVertex4({0, 0, 0, 1}).data);
+
+//        glVertex4dv(saneVertex4({1,0, 0, 1}).data);
+//        glVertex4dv(saneVertex4({0, 1, 0, 1}).data);
+//    });
+}
 
 void displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ray, const Mesh &re, const Mesh &inv, const Matrix44 &tran) {
     auto transform = [&](Point p) {
@@ -202,7 +270,7 @@ boost::optional<Point> functionRcv(Point pos, Absolute dir, Receiver re) {
     const double& ix = i.x, &iy = i.y;
     std::vector<Vector2> projs(re.size());
     for(int i = 0; i < re.size(); i++) {
-        Point p = normalizeKlein (trans * p);
+        Point p = normalizeKlein (trans * re[i]);
         projs[i] = {p.x-ix, p.y-iy};
     }
     if (containsZero (projs)) {
@@ -327,7 +395,7 @@ MutableMesh toMesh (const std::vector<Source> &s,  const std::vector<Receiver> &
         if(urr.eit.end == infinity) {
             std::vector<ColoredEntity> res;
             if(urr.line.size()>=2) {
-                for(int i = 0; i < urr.line.size()-2; i++) {
+                for(int i = 0; i < urr.line.size()-1; i++) {
                     res.push_back({{1,1,1,1}, {Segment,{urr.line[i], urr.line[i+1]}}});
                 }
             }
