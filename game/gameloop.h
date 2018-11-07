@@ -77,11 +77,11 @@ std::vector<Source> source =  level().sources;
 double step = 0.003;
 double jump = 0.001;
 double gravity = .0002;
-struct {
-    std::string cur;
-    std::vector<std::string> history;
-    int i;
-} console;// = unsafePerformIO $ newIORef (Console "" [] 0)
+//struct {
+//    std::string cur;
+//    std::vector<std::string> history;
+//    int i;
+//} console;// = unsafePerformIO $ newIORef (Console "" [] 0)
 std::vector<Receiver> receivers = level().receivers;
 LevelState state = startState();
 G::MutableMesh mutableMesh = G::toMesh(level().sources, level().receivers, state);
@@ -126,22 +126,26 @@ OptionalDouble intersectRay( const Deviator & d, const Matrix44 &transs) {
 
 //foldMaybesP :: [P.Deviator] -> M44 Double -> Maybe Int -- , H.Absolute Double)
 OptionalInt foldMaybesP(const std::vector<Deviator>& list, const Matrix44& ttt) {
-    std::vector<double> listt;
-    for(auto dev : list) {
-        auto ma = intersectRay (dev, ttt );
+    struct taggedDist {
+        int i;
+        double dist;
+    };
+    std::vector<taggedDist> listt;
+    for(int i = 0; i < list.size(); i++) {
+        auto ma = intersectRay (list[i], ttt );
         if( ma.is_initialized()) {
-            listt.push_back (boost::get(ma)/*{-, ((P._devPos) dev, diir)-}*/); //--]filter (map (\e@(P.Devi poos _ _) -> ) list)
+            listt.push_back ({i, boost::get(ma)}/*{-, ((P._devPos) dev, diir)-}*/); //--]filter (map (\e@(P.Devi poos _ _) -> ) list)
         }
     }
     if(listt.empty() ) {
         return boost::none;
     }
-    int r = 0;
-    double m = listt[0];
+    int r = listt[0].i;
+    double m = listt[0].dist;
     for(int i = 1; i < listt.size(); i++) {
-        if(listt[i] < m) {
-            r = i;
-            m =  listt[i];
+        if(listt[i].dist < m) {
+            r = listt[i].i;
+            m =  listt[i].dist;
         }
     }
     return r;
@@ -317,7 +321,9 @@ void processKeyboard (const Uint8* c) {
             state.avatarPosition.speed.z += jump;
     }
 }
-
+namespace G {
+extern bool wheCons;
+}
 bool continueCycle = true;
 void keyboardProcess () {
     const Uint8 *state = SDL_GetKeyboardState(NULL);
@@ -325,9 +331,50 @@ void keyboardProcess () {
         continueCycle = false;
     }
 //    SDL_Scancode c = a.keysym.scancode;
-    if(state[SDL_SCANCODE_UP]) {
-//                               when (keysymKeycode a == KeycodeUp) (modifyIORef consoleRef consoleUp)
+    static int conInhibited = 0;
+    if(!conInhibited && state[SDL_SCANCODE_TAB] && state[SDL_SCANCODE_LCTRL]) {
+        G::wheCons = !G::wheCons;
+        conInhibited = 10;
+    }
+    if (conInhibited>0) conInhibited--;
+    if(G::wheCons) {
+        if(!conInhibited ) {
+            bool keystroke = false;
+            if(state[SDL_SCANCODE_UP]) {
+    //                               when (keysymKeycode a == KeycodeUp) (modifyIORef consoleRef consoleUp)
 
+                keystroke = true;
+            }
+            if(state[SDL_SCANCODE_LCTRL] && (state[SDL_SCANCODE_D] || state[SDL_SCANCODE_C])) {
+                continueCycle = false;
+                keystroke = true;
+            }
+            if(state[SDL_SCANCODE_RETURN]) {
+                if(G::console == "getde") {
+                    ::state.inventory = De;
+                }
+                G::history.push_back(G::console);
+                G::console = "";
+                keystroke = true;
+            } else if(state[SDL_SCANCODE_BACKSPACE]) {
+                G::console.resize(G::console.size() - 1);
+                keystroke = true;
+            } else {
+                SDL_Scancode s;
+                for(SDL_Scancode code = SDL_SCANCODE_A; code < SDL_SCANCODE_0; code=SDL_Scancode(code+1)) {
+                    if(state[code]) {
+                        keystroke = true;
+                        s = code;
+                    }
+                }
+                if(keystroke) {
+                    G::console += char(SDL_GetKeyFromScancode(s));
+                }
+            }
+            if(keystroke) conInhibited = 10;
+        }
+    } else {
+        processKeyboard(state);
     }
 //                               if (keysymKeycode a == KeycodeTab && ctrl a) then (modifyIORef wheConsoleRef not) else do
 //                                wheCon <- readIORef wheConsoleRef
@@ -345,7 +392,6 @@ void keyboardProcess () {
 //                                          else do
 //                               -- when (not wheCon) $ do
 
-    processKeyboard(state);
 //                               -- \a _ -> case a of
 //                               -- 'q' -> leaveMainLoop
 //                               -- 'c' -> do
@@ -508,12 +554,29 @@ int filter(void*      /*userdata*/,
     return event->type == SDL_QUIT || event->type == SDL_WINDOWEVENT;
 }
 
+int f(const char *string1, void*iserdata, char **somethins) {
+
+
+    std::cout << string1;
+    (void)iserdata;
+    (void)somethins;
+    return 0;
+}
 
 void gameLoop() {
+    TTF_Init();
 //    SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1", SDL_HINT_OVERRIDE);
 //    SDL_SetRelativeMouseMode(SDL_TRUE);
 //    SDL_SetEventFilter(filter,
 //                            nullptr);
+//    auto tty = Console_Create(
+//                window,
+//                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+//                10,
+//                SDLK_TAB,
+//                f,
+//                NULL);
+//(void)tty;
     SDL_WarpMouseInWindow(window, width/2, height/2);
 //    SDL_GL_SetSwapInterval(0);
 //    SDL_SetWindowGrab(window, SDL_TRUE);
@@ -554,8 +617,9 @@ void gameLoop() {
     //
             keyboardProcess();
             processTimer();
-            gameDisplay();
-            SDL_FlushEvents(SDL_QUIT+1, SDL_LASTEVENT);
+//Console_Draw(tty);       SDL_GL_SwapWindow(window);
+         gameDisplay();
+//            SDL_FlushEvents(SDL_QUIT+1, SDL_LASTEVENT);
             cycles++;
             uint newa = SDL_GetTicks();
             if(newa - a >= 1000) {

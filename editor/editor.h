@@ -1,7 +1,7 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 #include "SDL2/SDL.h"
-#define GL_GLEXT_PROTOTYPES
+//#define GL_GLEXT_PROTOTYPES
 #include "GL/gl.h"
 #include "float.h"
 #include "assert.h"
