@@ -5,7 +5,7 @@ SDL_GLContext context;
 int G::width = 1024, G::height = 760;
 namespace G {
 bool frame = true;
-bool wheCons = true;
+bool wheCons = false;
 }
 const Mesh G::transparentDeviator() {// -- aaa-aba aba-abb abb-aab aab-aaa
     double r = 0.005;
