@@ -16,7 +16,8 @@ CONFIG -= qt
 INCLUDEPATH += /usr/include
 SOURCES += main.cpp \
     commongraphics.cpp \
-    util/hyperbolic.cpp
+    util/hyperbolic.cpp \
+    editor/editor.cpp
 
 HEADERS += \
     util/hyperbolic.h \
