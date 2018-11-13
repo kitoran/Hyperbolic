@@ -24,7 +24,9 @@ int main(int argc, char ** argv) {
             printf("%d\n", d);
 
             printf("%s\n", "beforeEverything");
-            gameLoop( );
-//            G::deinitializeGraphics();
+//            gameLoop( );
+    editorLoop();
+
+            //            G::deinitializeGraphics();
             return 0;
 }

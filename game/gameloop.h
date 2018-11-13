@@ -4,6 +4,7 @@
 #include "graphics.h"
 #include <time.h>
 #include <string>
+#include "editor/editor.h"
 #include <boost/numeric/ublas/vector.hpp>
 #include <iostream>
 Environment level() {
@@ -326,7 +327,7 @@ extern bool wheCons;
 }
 bool continueCycle = true;
 void keyboardProcess () {
-    const Uint8 *state = SDL_GetKeyboardState(NULL);
+    const Uint8 *state = SDL_GetKeyboardState(nullptr);
     if(state[SDL_SCANCODE_ESCAPE] || (state[SDL_SCANCODE_F4] && (state[SDL_SCANCODE_LALT] || state[SDL_SCANCODE_RALT]))) {
         continueCycle = false;
     }
@@ -352,6 +353,9 @@ void keyboardProcess () {
             if(state[SDL_SCANCODE_RETURN]) {
                 if(G::console == "getde") {
                     ::state.inventory = De;
+                }
+                if(G::console == "editor") {
+                    editorLoop();
                 }
                 G::history.push_back(G::console);
                 G::console = "";
