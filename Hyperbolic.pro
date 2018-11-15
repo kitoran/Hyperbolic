@@ -28,4 +28,5 @@ HEADERS += \
     game/gameloop.h \
     game/graphics.h \
     commongraphics.h \
-    game/console.h
+    game/console.h \
+    editor/statedeclarations.h
