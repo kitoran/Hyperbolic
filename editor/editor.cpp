@@ -1,265 +1,205 @@
+#include "boost/variant.hpp"
+
 #include "editor.h"
+enum SelectedThingType {Nihil, Mes, Obs};
+#include "statedeclarations.h"
+#include "SDL2/SDL.h"
+//#define GL_GLEXT_PROTOTYPES
+#include "GL/gl.h"
+#include "float.h"
+#include "assert.h"
+#include "util/hyperbolic.h"
+#include "commongraphics.h"
+#include "util/physics.h"
+#include <map>
+#include <set>
+#include <iostream>
+#undef NULL
+#define NULL ((void*)0)
+const double stepEditor = 0.1;
+using namespace H;
+void keyboardCaseEditor (SDL_KeyboardEvent a);
+double fromGradi(double x);
+//enum StateEditor { Ground, AddingWall, Input };
+enum ExplicitObjectType {Me, So, Re};
+struct ExplicitObject {
+    ExplicitObjectType type;
+
+       Mesh mesh = {};
+       Source source = {};
+       Receiver receiver = {};
+
+};
+ExplicitObject operator *(Matrix44 m, const ExplicitObject &eo);
+struct Scene {
+    std::map<int32_t, ExplicitObject> ex;
+    std::map<int32_t, Obstacle> im;
+};
+Scene mmmm();
+
+
+boost::optional<Mesh> beingAddedWall(double /*a*/, Vector2 pos);
+Vector2 mapVertexPixel(Vector2 ab);
+using namespace G;
+struct Button {
+    const char* text;
+//    Vector2 _pos;
+    bool(*active)();
+    EditorState(*action)();
+};
+struct Rectangle {
+    double lx;
+    double ly;
+    double sx;
+    double sy;
+    bool contains(double x, double y) {
+        return lx <= x && ly <= y && (lx+sx) >= x && (ly+sy) >= y;
+    }
+};
+struct LineEdit {
+    const char* placeholderText;
+    Rectangle r;
+    int cursor;
+    bool(*active)();
+    char text[100];
+};
+void mapPixelVertex(double a, double b);
+void displayRectangle(Rectangle r);
+const auto margin = 3;
+Rectangle buttRectangle (const Button & butt, int number/*text (Pos a b) _ _ _*/);void displayButton (Button butt, int number);
+void displayLineedit (const LineEdit& edit);
+Mesh xarrow(double sizeo, bool transparent);
+Mesh yarrow(double sizeo, bool transparent);
+void transform (const Point &p);
+Mesh zarrow(double sizeo, bool transparent);
+
+void editorDisplay();
+
+int32_t preselected(double xx, double yy);
+
+//std::ostream& Matrix::operator <<(std::ostream& stream, const SelectedThing & thing) {
+//    stream << "SelectedThing {" <<
+//}
+
+void mouseMCase (SDL_MouseMotionEvent a);
+
+void mouseCCase(SDL_MouseButtonEvent a);
+
+EditorState stateEditor;
 Matrix44 view = /*rotateAroundY (0.1) /* (tau/(4-0.1))* /  * moveAlongX (-0.1) /* moveAlongZ (-0.1) !*! ) -* / */ identity;
 std::map<SDL_Scancode, H::Matrix44> matricesMove =
  {{SDL_SCANCODE_W, moveAlongX (-stepEditor)}, {SDL_SCANCODE_S, moveAlongX(stepEditor)},
    {SDL_SCANCODE_A, moveAlongY (-stepEditor)}, {SDL_SCANCODE_D, moveAlongY(stepEditor)},
   {SDL_SCANCODE_Z, moveAlongZ  (-stepEditor)}, {SDL_SCANCODE_C, moveAlongZ (stepEditor)}};
-enum StateEditor { Ground, AddingWall, Input } stateEditor;
-struct PreSelectedThing {
-    SelectedThingType type = Nihil;
-    static constexpr const char *const TypeNames[] = {"Nihil", "Mes", "Obs"};
-    int32_t n = -1;
-} preselectedThing;
-struct SelectedThing {
-    ExplicitObject* p = 0;
-    Matrix44 m = identity;
-    Point center = {{0,0,0,0}};
-    Component size = 0;
-    Vector2 x;
-    Vector2 y;
-    Vector2 z;
-} selectedThing;
+//StateEditor stateEditor;
+
 Scene scene = mmmm();
-LineEdit* selectedLineedit;
+//LineEdit* selectedLineedit;
 bool showMainAxes = true;
-std::vector<Button> buttons = { {"wall", [](){return stateEditor == Ground;}, ( [](){stateEditor = AddingWall;} )},
-        {"main axes", [](){return true;}, ( [](){ showMainAxes = !showMainAxes;} )}};
+template<typename T>
+class selector : public boost::static_visitor<bool> {
+    public:
+    template <typename F>
+    bool operator () (const F& ) const {
+        return std::is_same<T,F>::value;
+    }
+};
+std::vector<Button> buttons = { {"wall", [](){
+            return boost::apply_visitor(selector<GroundS>(), stateEditor);
+                                 },
+                                 ( []()->EditorState {return AddingWallS();} )},
+        {"main axes", [](){return true;}, ( []()->EditorState { showMainAxes = !showMainAxes; return stateEditor;} )}
+                              };
 std::vector<LineEdit> lineedits = { {"1024", {20, 20, 0, 0}, 0, [](){return true;}, {} } };
 struct {
     int x;
     int y;
 } dragStart;
 bool drag = false;
-void mouseMCase(SDL_MouseMotionEvent a) {
-    if((a.state & SDL_BUTTON_MMASK) != 0 || ((a.state & SDL_BUTTON_LMASK)&&(a.state & SDL_BUTTON_RMASK))) {
-        view = rotateAroundY (fromGradi (a.yrel)) * view;
-        view = rotateAroundZ (fromGradi (-a.xrel)) * view;
-    } else if((a.state & SDL_BUTTON_LMASK) != 0) {
-        if(preselectedThing.n == 0xff0000ff || preselectedThing.n == 0x0000ffff || preselectedThing.n == 0x00ff00ff) {
-            struct {
-                double x;
-                double y;
-            } mouse = {(double(a.x*2)/width - 1), (1 - double(a.y*2)/height)};
-            struct {
-                double x;
-                double y;
-            } mouseOld = {(double(dragStart.x*2)/width - 1), (1 - double(dragStart.y*2)/height)};
-//            struct {
-//                double x;
-//                double y;
-//            } mouseRelC = {(double((a.xrel)*2)/width ), (double((a.yrel)*2)/height)};
-            struct {
-                double x;
-                double y;
-            } mouseRelD = {mouse.x - mouseOld.x, mouse.y - mouseOld.y};
-            Point sm = /* normalizeWass(*/moveRightTo(selectedThing.center) *
-                    Point{(!!(preselectedThing.n & 0xff000000)) * 0.9,
-                    (!!(preselectedThing.n & 0xff0000)) * 0.9,
-                    (!!(preselectedThing.n & 0xff00)) * 0.9, 1}/*)*/;
-            // sm - это точка, к которой мы двигаем хуйню
-            assert(proper(sm));
-
-            Matrix44 m = G::persViewMatrix * view;
-            Point s = m*sm;
-            Point s1 = m*selectedThing.center;
-            double x0 = s.x/s.t;
-            double y0 = s.y/s.t;
-            //            auto z0 = s.z/s.t;
-            //            auto t0 = s.t/s.t;
-            double  x1 = s1.x/s1.t;
-            double  y1 = s1.y/s1.t;
-            //            auto z1 = s1.z/s1.t;
-            //            auto t1 = s1.t/s1.t;
-            Point dnew;
-            Point dold;
-            Point* m_0 = (Point*)(&m(0,0));
-            Point* m_1 = (Point*)(&m(1,0));
-            //            {
-            double cax = *m_0 * selectedThing.center;
-            double cbx = *m_0 * sm;
-            double cay = *m_1 * selectedThing.center;
-            double cby = *m_1 * sm;
-            // xnew = cax + t * cbx
-            // dist = (cax + t * cbx - mouse.x )^2 + (cay + t * cby - mouse.y )^2
-            //dist' = 2 cbx (cax + cbx t - mouse.x) + 2 cby (cay + cby t - mouse.y)
-            double tnew = (-cax*cbx + cbx*mouse.x - cay*cby + cby*mouse.y)/(cbx*cbx + cby*cby);
-            double told = (-cax*cbx + cbx*mouseOld.x - cay*cby + cby*mouseOld.y)/(cbx*cbx + cby*cby);
-           glDisable(GL_DEPTH_TEST);
-           SDL_GL_SwapWindow(window);
-//            assert((ynew-y1)*mouseRelC.y >= 0);
-//            assert((xnew-x1)*mouseRel.x >= 0);
-            //            auto ijkl = tran.m+12;
-//            double  bnew = -(ynew*(*m3*selectedThing.center) - *m_1*selectedThing.center)/((*m_1*sm)*(*m3*selectedThing.center)
-//                                                                                        -(*m_1*selectedThing.center)*(*m3*sm));
-//            double  anew = (ynew - bnew*(*m_1*sm));
-            dnew = selectedThing.center + tnew * sm; // invpv * Point{x, y, c, 1};//fabs ( ijkl[2]) > 0.00001 ? Point{ x, y,  c, 1} : Point{ 0, 0, 1, 0});
-            bool proper;
-            {
-                Point max = /* normalizeWass(*/moveRightTo(selectedThing.center) *
-                        Point{(!!(preselectedThing.n & 0xff000000)) * 1.0,
-                        (!!(preselectedThing.n & 0xff0000)) * 1.0,
-                        (!!(preselectedThing.n & 0xff00)) * 1.0, 1}/*)*/;
-                Point min = /* normalizeWass(*/moveRightTo(selectedThing.center) *
-                        Point{(!!(preselectedThing.n & 0xff000000)) * (-1.0),
-                        (!!(preselectedThing.n & 0xff0000)) * (-1.0),
-                        (!!(preselectedThing.n & 0xff00)) * (-1.0), 1}/*)*/;
-                double ymax = (m * max).y;
-                double ymin = (m * min).y;
-                double  tnew = (x0*y1-x1*y0 - mouse.x*(y1-y0) + mouse.y*(x1-x0))/((y1-y0)*(y1-y0) + (x1-x0)*(x1-x0));
-
-                double xnew = mouse.x + tnew*(y1-y0);
-                double ynew =  mouse.y + tnew*(x0-x1);
-                proper = (ynew <= ymax && ynew >= ymin) || (ynew >= ymax && ynew <= ymin);
-
-            }
-            //            }
-            //            {
-//            double  told = (x0*y1-x1*y0 - mouseOld.x*(y1-y0) + mouseOld.y*(x1-x0))/((y1-y0)*(y1-y0) + (x1-x0)*(x1-x0));
-
-//            double  xold = mouseOld.x + told*(y1-y0);
-//            double  yold = mouseOld.y + told*(x0-x1);
-            //            auto ijkl = tran.m+12;
-//            double  bold = -(yold*(*m3*selectedThing.center) - *m_1*selectedThing.center)/((*m_1*sm)*(*m3*selectedThing.center)
-//                                                                                        -(*m_1*selectedThing.center)*(*m3*sm));
-//            double  aold = (yold - bold*(*m_1*sm));
-            dold = selectedThing.center + told * sm;//aold*selectedThing.center + bold * sm; // invpv * Point{x, y, c, 1};//fabs ( ijkl[2]) > 0.00001 ? Point{ x, y,  c, 1} : Point{ 0, 0, 1, 0});
-            //            }
-            //            auto c = b*(m(2, 0)*sm.x + m(2, 1)*sm.y + m(2, 2)*sm.z + m(2, 3)*sm.t)+(m(2, 0)*selectedThing.center.x
-            //                                                                                    + m(2, 1)*selectedThing.center.y
-            //                                                                                    + m(2, 2)*selectedThing.center.z
-            //                                                                                    + m(2, 3)*selectedThing.center.t);
-            //            auto invpv =  inv44  (m);
-            {
-//                auto ne = m*dnew; auto ol = m*dold;
-//                assert((x0 - x1)*(ne.x/ne.t - ol.x/ol.t) >= 0);
-            }
-            bool d1 = ::proper(dnew);
-//            assert(::proper(dnew) == proper);
-            renderPrimitive(GL_POINTS, [=](){
-               glColor3f(1,1,1);
-//               glVertex2f(xnew, ynew);
-               if(proper) {
-                   transform(dnew);
-                   glColor3f(1,1,0);
-                   transform(dold);
-               } else {
-                   glColor3f(1,0,0);
-                  glVertex2f(0, 0);
-               }
-//               glVertex2f(xold, yold);
-            });
-            assert(det44({{sm.x, sm.y, sm.z, sm.t,
-                           selectedThing.center.x, selectedThing.center.y, selectedThing.center.z, selectedThing.center.t,
-                           dnew.x, dnew.y, dnew.z, dnew.t,
-                           0,0,0,1}}
-                         ) < 0.01);
-            assert(det44({{sm.x, sm.y, sm.z, sm.t,
-                           dnew.x, dnew.y, dnew.z, dnew.t,
-                           dnew.x, dnew.y, dnew.z, dnew.t,
-                           0,0.9,0,1}}
-                         ) < 0.01);
-            //            auto ddd = (persViewMatrix * (view*selectedThing.center));
-            //            assert(fabs(ddd.x/ddd.t - x) < 0.5);
-
-            if(::proper(dnew)){
-                //              Vector2 dif = {s.x/s.t - s1.x/s1.t, s.y/s.t - s1.y/s1.t};
-                //              Component pro = dif * Vector2{a.xrel, -a.yrel};
-                Matrix44 m1 = moveFromTo(dold, dnew, distance(dold, dnew)); //(!!(preselectedThing.n & 0xff000000))?moveAlongX:
-                //                auto mmmm = m1*selectedThing.center;
-                //                assert(fabs(d.x/d.t - mmmm.x/mmmm.t) < 0.1);
-                //                assert(fabs(d.y/d.t - mmmm.y/mmmm.t) < 0.1);
-                //                assert(fabs(d.z/d.t - mmmm.z/mmmm.t) < 0.1);
-                //                      (!!(preselectedThing.n & 0xff0000))?moveAlongY:
-//                *(selectedThing.p) = m1 * *(selectedThing.p);
-                selectedThing.m = m1;
-                //                                                        moveAlongZ)(pro/10000);
-                //                (selectedThing.center) = m1 * (selectedThing.center);
-                //                auto ddd = m*selectedThing.center;
-                //                assert(fabs(ddd.x/ddd.t - x) < 0.5);
-            } else {
-
-            }
-        }
-    } else {// a * width + b = 1
-        // a * 0 + b = -1
-        // b = -1
-        // a = 2 / width
-        auto iint = preselected(double(a.x*2)/width - 1, 1 - double(a.y*2)/height);
-        if( iint != 0 && iint != 0xffffffff) {
-            preselectedThing = {Mes, iint};
-        } else {
-            preselectedThing = {Nihil, -1};
-            //          pfint(get selectedThing) >>= print
-            //        putStrLn $ "11111111111111111:   " ++ showHex int
-        }
-    }
-}
-
-void mouseCCase(SDL_MouseButtonEvent a) {
+EditorState GroundS::mouseButtonDown(const SDL_MouseButtonEvent &a) {
+    //        if(a.button == SDL_BUTTON_LEFT) {
+    //            dragStart = {a.x, a.y};
+    //            drag = true;
+    //        }
     if(a.button == SDL_BUTTON_LEFT) {
-        dragStart = {a.x, a.y};
-        drag = true;
-    }
-    if(stateEditor == Ground && a.button == SDL_BUTTON_LEFT) {
         for(int i = 0; i < buttons.size(); i++) {
             if (buttRectangle(buttons[i],i).contains( a.x, a.y ) ) {
                 if(buttons[i].active()) {
-                    buttons[i].action();
+                    return buttons[i].action();
                 }
-                return;
+                return *this;
             }
         }
         for(int i = 0; i < lineedits.size(); i++) {
             if (lineedits[i].r.contains( a.x, a.y ) ) {
                 if(lineedits[i].active()) {
-                    selectedLineedit = &lineedits[i];
-                    stateEditor = Input;
+                    //                    selectedLineedit = &lineedits[i];
                     SDL_StartTextInput();
+                    return Input{&lineedits[i]};
                     //                    SDL_SetTextInputRect(selectedLineedit->r);
                     //                    *((int*)0) = 8;
                 }
-                return;
+                return*this;
             }
         }
-        if(preselectedThing.type == Mes) {
-            if(scene.ex.find(preselectedThing.n) == scene.ex.end()) return;
-            ExplicitObject*p = &scene.ex[preselectedThing.n];
-            std::set<Point> set;
-            for(ColoredEntity ce : p->mesh) {
-                if(ce.e.type == Polygon) {
-                    for(Point e : ce.e.p) {
-                        Point q = persViewMatrix*(view*e);
-                        assert(proper(e));
+    }
+    if(preselectedThing.type == Mes) {
+        if(scene.ex.find(preselectedThing.n) == scene.ex.end()) return *this;
+        ExplicitObject*p = &scene.ex[preselectedThing.n];
+        std::set<Point> set;
+        for(ColoredEntity ce : p->mesh) {
+            if(ce.e.type == Polygon) {
+                for(Point e : ce.e.p) {
+                    Point q = persViewMatrix*(view*e);
+                    assert(proper(e));
 
-                        assert(fabs(q.y/q.t) < 1.01);
-                        set.insert(normalizeWass(e));
-                    }
+                    assert(fabs(q.y/q.t) < 1.01);
+                    set.insert(normalizeWass(e));
                 }
             }
-            auto x = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
-                    return a.x/a.t < b.x/b.t;
-        });
-            auto y = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
-                    return a.y/a.t < b.y/b.t;
-        });
-            auto z = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
-                    return a.z/a.t < b.z/b.t;
-        });
-            Component size = std::max({x.second->x/x.second->t - x.first->x/x.first->t,
-                                       y.second->y/y.second->t - y.first->y/y.first->t,
-                                       z.second->z/z.second->t - z.first->z/z.first->t});
-            selectedThing.center = normalizeWass({(x.second->x/x.second->t + x.first->x/x.first->t)/2,
-                                                  (y.second->y/y.second->t + y.first->y/y.first->t)/2,
-                                                  (z.second->z/z.second->t + z.first->z/z.first->t)/2,
-                                                  1});
-            assert(proper(selectedThing.center));
-            //            auto yhigh = persViewMatrix*(view**y.second);
-            //            auto ylow = persViewMatrix*(view**y.first);
-            //            auto dd = persViewMatrix*(view*selectedThing.center);
-            selectedThing.size = size;
-            selectedThing.p = p;
         }
-    } else if(stateEditor == AddingWall && a.button == SDL_BUTTON_LEFT) {
+        auto x = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                return a.x/a.t < b.x/b.t;
+    });
+        auto y = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                return a.y/a.t < b.y/b.t;
+    });
+        auto z = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                return a.z/a.t < b.z/b.t;
+    });
+        Component size = std::max({x.second->x/x.second->t - x.first->x/x.first->t,
+                                   y.second->y/y.second->t - y.first->y/y.first->t,
+                                   z.second->z/z.second->t - z.first->z/z.first->t});
+        SelectedMesh::SelectedThing selectedThing;
+        selectedThing.center = normalizeWass({(x.second->x/x.second->t + x.first->x/x.first->t)/2,
+                                              (y.second->y/y.second->t + y.first->y/y.first->t)/2,
+                                              (z.second->z/z.second->t + z.first->z/z.first->t)/2,
+                                              1});
+        assert(proper(selectedThing.center));
+        //            auto yhigh = persViewMatrix*(view**y.second);
+        //            auto ylow = persViewMatrix*(view**y.first);
+        //            auto dd = persViewMatrix*(view*selectedThing.center);
+        selectedThing.size = size;
+        selectedThing.p = p;
+        return SelectedMesh{selectedThing};
+    } else abort();
+}
+
+EditorState GroundS::mouseMotion(const SDL_MouseMotionEvent &a)
+{
+    auto iint = preselected(double(a.x*2)/width - 1, 1 - double(a.y*2)/height);
+    if( iint != 0 && iint != 0xffffffff) {
+        preselectedThing = {Mes, iint};
+    } else {
+        preselectedThing = {Nihil, -1};
+        //          pfint(get selectedThing) >>= print
+        //        putStrLn $ "11111111111111111:   " ++ showHex int
+    }
+    return *this;
+}
+
+EditorState AddingWallS::mouseButtonDown(const SDL_MouseButtonEvent &a) {
+    if(a.button == SDL_BUTTON_LEFT) {
         int x, y;
         SDL_GetMouseState(&x, &y);
 
@@ -267,8 +207,161 @@ void mouseCCase(SDL_MouseButtonEvent a) {
         if(baw.is_initialized()) {
             scene.ex[scene.ex.size()] = {Me, boost::get(baw)};
         }
-        stateEditor = Ground;
-    }
+        return GroundS();
+
+    } else return *this;
+}
+
+EditorState RotatingCamera::mouseMotion(const SDL_MouseMotionEvent& a)
+{
+    view = rotateAroundY (fromGradi (a.yrel)) * view;
+    view = rotateAroundZ (fromGradi (-a.xrel)) * view;
+    return *this;
+}
+
+EditorState Moving::mouseMotion(const SDL_MouseMotionEvent &a)
+{
+    if((a.state & SDL_BUTTON_LMASK) != 0) {
+        struct {
+            double x;
+            double y;
+        } mouse = {(double(a.x*2)/width - 1), (1 - double(a.y*2)/height)};
+        struct {
+            double x;
+            double y;
+        } mouseOld = {(double(dragStart.x*2)/width - 1), (1 - double(dragStart.y*2)/height)};
+        //            struct {
+        //                double x;
+        //                double y;
+        //            } mouseRelC = {(double((a.xrel)*2)/width ), (double((a.yrel)*2)/height)};
+        struct {
+            double x;
+            double y;
+        } mouseRelD = {mouse.x - mouseOld.x, mouse.y - mouseOld.y};
+        Point sm = /* normalizeWass(*/moveRightTo(selectedThing.center) *
+                Point{(direction == x) * 0.9,
+                (direction == y) * 0.9,
+                (direction == z) * 0.9, 1}/*)*/;
+        // sm - это точка, к которой мы двигаем хуйню
+        assert(proper(sm));
+
+        Matrix44 m = G::persViewMatrix * view;
+        Point s = m*sm;
+        Point s1 = m*selectedThing.center;
+        double x0 = s.x/s.t;
+        double y0 = s.y/s.t;
+        //            auto z0 = s.z/s.t;
+        //            auto t0 = s.t/s.t;
+        double  x1 = s1.x/s1.t;
+        double  y1 = s1.y/s1.t;
+        //            auto z1 = s1.z/s1.t;
+        //            auto t1 = s1.t/s1.t;
+        Point dnew;
+        Point dold;
+        Point* m_0 = (Point*)(&m(0,0));
+        Point* m_1 = (Point*)(&m(1,0));
+        //            {
+        double cax = *m_0 * selectedThing.center;
+        double cbx = *m_0 * sm;
+        double cay = *m_1 * selectedThing.center;
+        double cby = *m_1 * sm;
+        // xnew = cax + t * cbx
+        // dist = (cax + t * cbx - mouse.x )^2 + (cay + t * cby - mouse.y )^2
+        //dist' = 2 cbx (cax + cbx t - mouse.x) + 2 cby (cay + cby t - mouse.y)
+        double tnew = (-cax*cbx + cbx*mouse.x - cay*cby + cby*mouse.y)/(cbx*cbx + cby*cby);
+        double told = (-cax*cbx + cbx*mouseOld.x - cay*cby + cby*mouseOld.y)/(cbx*cbx + cby*cby);
+        glDisable(GL_DEPTH_TEST);
+        SDL_GL_SwapWindow(window);
+        //            assert((ynew-y1)*mouseRelC.y >= 0);
+        //            assert((xnew-x1)*mouseRel.x >= 0);
+        //            auto ijkl = tran.m+12;
+        //            double  bnew = -(ynew*(*m3*selectedThing.center) - *m_1*selectedThing.center)/((*m_1*sm)*(*m3*selectedThing.center)
+        //                                                                                        -(*m_1*selectedThing.center)*(*m3*sm));
+        //            double  anew = (ynew - bnew*(*m_1*sm));
+        dnew = selectedThing.center + tnew * sm; // invpv * Point{x, y, c, 1};//fabs ( ijkl[2]) > 0.00001 ? Point{ x, y,  c, 1} : Point{ 0, 0, 1, 0});
+        bool proper;
+        {
+            Point max = /* normalizeWass(*/moveRightTo(selectedThing.center) *
+                    Point{(direction == x) * 1.0,
+                    (direction == y) * 1.0,
+                    (direction == z) * 1.0, 1}/*)*/;
+            Point min = /* normalizeWass(*/moveRightTo(selectedThing.center) *
+                    Point{(direction == x) * (-1.0),
+                    (direction == y) * (-1.0),
+                    (direction == z) * (-1.0), 1}/*)*/;
+            double ymax = (m * max).y;
+            double ymin = (m * min).y;
+            double  tnew = (x0*y1-x1*y0 - mouse.x*(y1-y0) + mouse.y*(x1-x0))/((y1-y0)*(y1-y0) + (x1-x0)*(x1-x0));
+
+            double xnew = mouse.x + tnew*(y1-y0);
+            double ynew =  mouse.y + tnew*(x0-x1);
+            proper = (ynew <= ymax && ynew >= ymin) || (ynew >= ymax && ynew <= ymin);
+
+        }
+        //            }
+        //            {
+        //            double  told = (x0*y1-x1*y0 - mouseOld.x*(y1-y0) + mouseOld.y*(x1-x0))/((y1-y0)*(y1-y0) + (x1-x0)*(x1-x0));
+
+        //            double  xold = mouseOld.x + told*(y1-y0);
+        //            double  yold = mouseOld.y + told*(x0-x1);
+        //            auto ijkl = tran.m+12;
+        //            double  bold = -(yold*(*m3*selectedThing.center) - *m_1*selectedThing.center)/((*m_1*sm)*(*m3*selectedThing.center)
+        //                                                                                        -(*m_1*selectedThing.center)*(*m3*sm));
+        //            double  aold = (yold - bold*(*m_1*sm));
+        dold = selectedThing.center + told * sm;//aold*selectedThing.center + bold * sm; // invpv * Point{x, y, c, 1};//fabs ( ijkl[2]) > 0.00001 ? Point{ x, y,  c, 1} : Point{ 0, 0, 1, 0});
+        //            }
+        //            auto c = b*(m(2, 0)*sm.x + m(2, 1)*sm.y + m(2, 2)*sm.z + m(2, 3)*sm.t)+(m(2, 0)*selectedThing.center.x
+        //                                                                                    + m(2, 1)*selectedThing.center.y
+        //                                                                                    + m(2, 2)*selectedThing.center.z
+        //                                                                                    + m(2, 3)*selectedThing.center.t);
+        //            auto invpv =  inv44  (m);
+        {
+            //                auto ne = m*dnew; auto ol = m*dold;
+            //                assert((x0 - x1)*(ne.x/ne.t - ol.x/ol.t) >= 0);
+        }
+        bool d1 = ::proper(dnew);
+        //            assert(::proper(dnew) == proper);
+        renderPrimitive(GL_POINTS, [=](){
+            glColor3f(1,1,1);
+            //               glVertex2f(xnew, ynew);
+            if(proper) {
+                transform(dnew);
+                glColor3f(1,1,0);
+                transform(dold);
+            } else {
+                glColor3f(1,0,0);
+                glVertex2f(0, 0);
+            }
+            //               glVertex2f(xold, yold);
+        });
+        assert(det44({{sm.x, sm.y, sm.z, sm.t,
+                       selectedThing.center.x, selectedThing.center.y, selectedThing.center.z, selectedThing.center.t,
+                       dnew.x, dnew.y, dnew.z, dnew.t,
+                       0,0,0,1}}
+                     ) < 0.01);
+        assert(det44({{sm.x, sm.y, sm.z, sm.t,
+                       dnew.x, dnew.y, dnew.z, dnew.t,
+                       dnew.x, dnew.y, dnew.z, dnew.t,
+                       0,0.9,0,1}}
+                     ) < 0.01);
+        //            auto ddd = (persViewMatrix * (view*selectedThing.center));
+        //            assert(fabs(ddd.x/ddd.t - x) < 0.5);
+
+        if(::proper(dnew)){
+            //              Vector2 dif = {s.x/s.t - s1.x/s1.t, s.y/s.t - s1.y/s1.t};
+            //              Component pro = dif * Vector2{a.xrel, -a.yrel};
+            Matrix44 m1 = moveFromTo(dold, dnew, distance(dold, dnew)); //(!!(preselectedThing.n & 0xff000000))?moveAlongX:
+            //                auto mmmm = m1*selectedThing.center;
+            //                assert(fabs(d.x/d.t - mmmm.x/mmmm.t) < 0.1);
+            //                assert(fabs(d.y/d.t - mmmm.y/mmmm.t) < 0.1);
+            //                assert(fabs(d.z/d.t - mmmm.z/mmmm.t) < 0.1);
+            //                      (!!(preselectedThing.n & 0xff0000))?moveAlongY:
+            //                *(selectedThing.p) = m1 * *(selectedThing.p);
+            selectedThing.m = m1;
+
+        }
+        return *this;
+    } else abort();
 }
 
 void keyboardCaseEditor(SDL_KeyboardEvent a) {
@@ -279,7 +372,36 @@ void keyboardCaseEditor(SDL_KeyboardEvent a) {
     }
 }
 
-boost::optional<Mesh> beingAddedWall(Angle, Vector2 pos) {
+EditorState Moving::mouseButtonUp(const SDL_MouseButtonEvent &/*event*/) {
+    *selectedThing.p = selectedThing.m**selectedThing.p;
+    selectedThing.m = identity;
+    {
+        std::set<Point> set;
+        for(const ColoredEntity& ce : (selectedThing.p)->mesh) {
+            if(ce.e.type == Polygon) {
+                for(const Point& e : ce.e.p) {
+                    set.insert(normalizeWass(e));
+                }
+            }
+        }
+        auto x = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                return a.x/a.t < b.x/b.t;
+    });
+        auto y = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                return a.y/a.t < b.y/b.t;
+    });
+        auto z = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                return a.z/a.t < b.z/b.t;
+    });
+        selectedThing.center = normalizeWass({(x.second->x/x.second->t + x.first->x/x.first->t)/2,
+                                              (y.second->y/y.second->t + y.first->y/y.first->t)/2,
+                                              (z.second->z/z.second->t + z.first->z/z.first->t)/2,
+                                              1});
+    }
+
+    return SelectedMesh{selectedThing};
+}
+boost::optional<Mesh> beingAddedWall(double, Vector2 pos) {
     auto xy =  mapVertexPixel( pos);
     auto tran = G::persViewMatrix * view;
     auto ijkl = tran.m+8;
@@ -371,7 +493,8 @@ void editorDisplay() {
     };
     auto rend = [&](int32_t m, const ExplicitObject &e) {
         if(e.type == Me) {
-            if(preselectedThing.type == Mes && preselectedThing.n == m) {
+            GroundS * grs = boost::get<GroundS>(&stateEditor);
+            if(grs && grs->preselectedThing.type == Mes && grs->preselectedThing.n == m) {
                 for(auto x = e.mesh.begin(); x < e.mesh.end(); x++) {
                     toRaw(true, *x);
                 }
@@ -403,17 +526,20 @@ void editorDisplay() {
         rend( i.first, i.second);
 
     }
-    if(selectedThing.p) {
-        Matrix44 mot = moveRightTo(selectedThing.center);
-        rend(0, mot * ExplicitObject{Me, xarrow(selectedThing.size, false)});
-        rend(0, mot * ExplicitObject{Me, yarrow(selectedThing.size, false)});
-        rend(0, mot * ExplicitObject{Me, zarrow(selectedThing.size, false)});
-        glDisable(GL_DEPTH_TEST);
-        rend(0, mot * ExplicitObject{Me, xarrow(selectedThing.size, true)});
-        rend(0, mot * ExplicitObject{Me, yarrow(selectedThing.size, true)});
-        rend(0, mot * ExplicitObject{Me, zarrow(selectedThing.size, true)});
-        glEnable(GL_DEPTH_TEST);
-        rend(0, selectedThing.m*(*selectedThing.p));
+    if(boost::get<SelectedMesh>(&stateEditor)){
+        SelectedMesh::SelectedThing& selectedThing = boost::get<SelectedMesh>(stateEditor).selectedThing;
+        if(selectedThing.p) {
+            Matrix44 mot = moveRightTo(selectedThing.center);
+            rend(0, mot * ExplicitObject{Me, xarrow(selectedThing.size, false)});
+            rend(0, mot * ExplicitObject{Me, yarrow(selectedThing.size, false)});
+            rend(0, mot * ExplicitObject{Me, zarrow(selectedThing.size, false)});
+            glDisable(GL_DEPTH_TEST);
+            rend(0, mot * ExplicitObject{Me, xarrow(selectedThing.size, true)});
+            rend(0, mot * ExplicitObject{Me, yarrow(selectedThing.size, true)});
+            rend(0, mot * ExplicitObject{Me, zarrow(selectedThing.size, true)});
+            glEnable(GL_DEPTH_TEST);
+            rend(0, selectedThing.m*(*selectedThing.p));
+        }
     }
     if(showMainAxes) {
         renderPrimitive(GL_LINES, [&](){
@@ -449,7 +575,7 @@ void editorDisplay() {
         rend(0, {Me, zarrow(2, true)});
 
     }
-    if(stateEditor == AddingWall) {
+    if(boost::get<AddingWallS>(&stateEditor)) {
         int x, y;
         SDL_GetMouseState(&x, &y);
         auto baw = beingAddedWall(0, {double(x), double(y)});
@@ -493,7 +619,7 @@ void editorDisplay() {
 }
 
 int32_t preselected(double xx, double yy) {
-    if(stateEditor != Ground) return -1;
+    if(boost::get<GroundS>(&stateEditor)) return -1;
     double depth = DBL_MAX;
     int32_t buffer;
 
@@ -596,7 +722,8 @@ int32_t preselected(double xx, double yy) {
         rend( i.first, i.second);
 
     }
-    if(selectedThing.p != 0) {
+    if(boost::get<SelectedMesh>(&stateEditor)) {
+        SelectedMesh::SelectedThing &selectedThing = boost::get<SelectedMesh>(stateEditor).selectedThing;
         Matrix44 mot = moveRightTo(selectedThing.center);
         rend(0xff0000ff, mot * ExplicitObject{Me, xarrow(selectedThing.size, false)});
         if(buffer == 0xff0000ff) {
@@ -730,36 +857,53 @@ Mesh zarrow(double sizeo, bool transparent) {
             {{0,0,0,transparent?0.3f:1}, {Segment, { origin, np}}}};
 }
 void mouseUpCase(const SDL_MouseButtonEvent event){
-    if(event.button != SDL_BUTTON_LEFT) return
-            ;
-    *selectedThing.p = selectedThing.m**selectedThing.p;
-    selectedThing.m = identity;
-                    {
-                        std::set<Point> set;
-                        for(const ColoredEntity& ce : (selectedThing.p)->mesh) {
-                            if(ce.e.type == Polygon) {
-                                for(const Point& e : ce.e.p) {
-                                    set.insert(normalizeWass(e));
-                                }
-                            }
-                        }
-                        auto x = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
-                                return a.x/a.t < b.x/b.t;
-                    });
-                        auto y = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
-                                return a.y/a.t < b.y/b.t;
-                    });
-                        auto z = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
-                                return a.z/a.t < b.z/b.t;
-                    });
-                        selectedThing.center = normalizeWass({(x.second->x/x.second->t + x.first->x/x.first->t)/2,
-                                                              (y.second->y/y.second->t + y.first->y/y.first->t)/2,
-                                                              (z.second->z/z.second->t + z.first->z/z.first->t)/2,
-                                                              1});
-                    }
+    if(event.button != SDL_BUTTON_LEFT) return;
 
 }
-
+class TextEditing : public boost::static_visitor<> {
+public:
+    TextEditing (SDL_Event *e) : event(e){};
+    void operator()(const Input& i) {
+        strcpy(i.le->text, event->edit.text);
+        i.le->cursor = event->edit.start;
+        //                selectedLineedit->
+        abort();
+    }
+    template <typename T> void operator()(const T&) const {
+       return;
+    }
+    SDL_Event* event;
+};
+template <typename T>
+struct sfinae {
+    typedef void EditorState;
+};
+class MouseMoving : public boost::static_visitor<EditorState> {
+public:
+    MouseMoving(SDL_MouseMotionEvent *e) : event(e){}
+    template<typename T>
+    typename sfinae<decltype(T::mouseMotion)>::type
+            operator()(const T& i) {
+        return i.mouseMotion();
+    }
+    template <typename T> EditorState operator()(const T& i) const {
+       return i;
+    }
+    SDL_MouseMotionEvent* event;
+};
+class MouseButtonDown: public boost::static_visitor<EditorState> {
+public:
+    MouseButtonDown(SDL_MouseButtonEvent *e) : event(e){}
+    template<typename T>
+    typename sfinae<decltype(T::mouseButtonDown)>::type
+            operator()(const T& i) {
+        return i.mouseMotion();
+    }
+    template <typename T> EditorState operator()(const T& i) const {
+       return i;
+    }
+    SDL_MouseButtonEvent* event;
+};
 void editorLoop() {
     SDL_StopTextInput();
     for(auto &l : lineedits) {
@@ -774,19 +918,16 @@ void editorLoop() {
                 keyboardCaseEditor(event.key);
             }break;
             case SDL_TEXTEDITING: {
-                strcpy(selectedLineedit->text, event.edit.text);
-                selectedLineedit->cursor = event.edit.start;
-                //                selectedLineedit->
-                abort();
+                boost::apply_visitor(TextEditing(&event), stateEditor);
             } break;
             case SDL_TEXTINPUT:{
                 abort();
             }break;
             case SDL_MOUSEMOTION:{
-                mouseMCase(event.motion);
+                stateEditor = boost::apply_visitor(MouseMoving(&event.motion), stateEditor);
             }break;
             case SDL_MOUSEBUTTONDOWN:{
-                mouseCCase(event.button);
+                stateEditor = boost::apply_visitor(MouseButtonDown(&event.button), stateEditor);
             }break;
             case SDL_MOUSEBUTTONUP:{
                 mouseUpCase(event.button);
