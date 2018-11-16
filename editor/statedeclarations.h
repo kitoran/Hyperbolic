@@ -46,6 +46,7 @@ struct AddingWallS {
 };
 struct RotatingCamera {
     EditorState mouseMotion(const SDL_MouseMotionEvent &a);
+    EditorState mouseButtonUp(const SDL_MouseButtonEvent& event);
 };
  struct LineEdit;
 struct Input {
