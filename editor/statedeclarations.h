@@ -11,7 +11,7 @@ using namespace H;
 struct SDL_MouseMotionEvent;
 struct SDL_MouseButtonEvent;
 struct GroundS {
-    EditorState mouseButtonDown(const SDL_MouseButtonEvent& a);
+    EditorState mouseButtonDown(const SDL_MouseButtonEvent& a) const;
     EditorState mouseMotion(const SDL_MouseMotionEvent& a);
     struct PreSelectedThing {
         SelectedThingType type = Nihil;
@@ -22,8 +22,8 @@ struct GroundS {
 };
 struct ExplicitObject;
 struct SelectedMesh {
-    EditorState mouseButtonDown(const SDL_MouseButtonEvent& a);
-    EditorState mouseMotion(const SDL_MouseMotionEvent& a);
+//    EditorState mouseButtonDown(const SDL_MouseButtonEvent& a);
+//    EditorState mouseMotion(const SDL_MouseMotionEvent& a);
     struct SelectedThing {
         ExplicitObject* p = 0;
         Matrix44 m = identity;

@@ -116,7 +116,7 @@ struct {
     int y;
 } dragStart;
 bool drag = false;
-EditorState GroundS::mouseButtonDown(const SDL_MouseButtonEvent &a) {
+EditorState GroundS::mouseButtonDown(const SDL_MouseButtonEvent &a) const {
     //        if(a.button == SDL_BUTTON_LEFT) {
     //            dragStart = {a.x, a.y};
     //            drag = true;
@@ -142,47 +142,57 @@ EditorState GroundS::mouseButtonDown(const SDL_MouseButtonEvent &a) {
                 return*this;
             }
         }
-    }
-    if(preselectedThing.type == Mes) {
-        if(scene.ex.find(preselectedThing.n) == scene.ex.end()) return *this;
-        ExplicitObject*p = &scene.ex[preselectedThing.n];
-        std::set<Point> set;
-        for(ColoredEntity ce : p->mesh) {
-            if(ce.e.type == Polygon) {
-                for(Point e : ce.e.p) {
-                    Point q = persViewMatrix*(view*e);
-                    assert(proper(e));
+        if(preselectedThing.type == Mes) {
+            if(scene.ex.find(preselectedThing.n) == scene.ex.end()) return *this;
+            ExplicitObject*p = &scene.ex[preselectedThing.n];
+            std::set<Point> set;
+            for(ColoredEntity ce : p->mesh) {
+                if(ce.e.type == Polygon) {
+                    for(Point e : ce.e.p) {
+                        Point q = persViewMatrix*(view*e);
+                        assert(proper(e));
 
-                    assert(fabs(q.y/q.t) < 1.01);
-                    set.insert(normalizeWass(e));
+                        assert(fabs(q.y/q.t) < 1.01);
+                        set.insert(normalizeWass(e));
+                    }
                 }
             }
+            auto x = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                    return a.x/a.t < b.x/b.t;
+        });
+            auto y = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                    return a.y/a.t < b.y/b.t;
+        });
+            auto z = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
+                    return a.z/a.t < b.z/b.t;
+        });
+            Component size = std::max({x.second->x/x.second->t - x.first->x/x.first->t,
+                                       y.second->y/y.second->t - y.first->y/y.first->t,
+                                       z.second->z/z.second->t - z.first->z/z.first->t});
+            SelectedMesh::SelectedThing selectedThing;
+            selectedThing.center = normalizeWass({(x.second->x/x.second->t + x.first->x/x.first->t)/2,
+                                                  (y.second->y/y.second->t + y.first->y/y.first->t)/2,
+                                                  (z.second->z/z.second->t + z.first->z/z.first->t)/2,
+                                                  1});
+            assert(proper(selectedThing.center));
+            //            auto yhigh = persViewMatrix*(view**y.second);
+            //            auto ylow = persViewMatrix*(view**y.first);
+            //            auto dd = persViewMatrix*(view*selectedThing.center);
+            selectedThing.size = size;
+            selectedThing.p = p;
+            return SelectedMesh{selectedThing};
+        } else if(a.state & SDL_BUTTON_RMASK) {
+            return RotatingCamera();
+        } else return *this;
+    } else if(a.button == SDL_BUTTON_MIDDLE) {
+        return RotatingCamera();
+    } else {
+        assert(a.button == SDL_BUTTON_RIGHT);
+        if(a.state & SDL_BUTTON_LMASK) {
+            return RotatingCamera();
         }
-        auto x = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
-                return a.x/a.t < b.x/b.t;
-    });
-        auto y = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
-                return a.y/a.t < b.y/b.t;
-    });
-        auto z = std::minmax_element(set.begin(), set.end(), [](Point a, Point b) {
-                return a.z/a.t < b.z/b.t;
-    });
-        Component size = std::max({x.second->x/x.second->t - x.first->x/x.first->t,
-                                   y.second->y/y.second->t - y.first->y/y.first->t,
-                                   z.second->z/z.second->t - z.first->z/z.first->t});
-        SelectedMesh::SelectedThing selectedThing;
-        selectedThing.center = normalizeWass({(x.second->x/x.second->t + x.first->x/x.first->t)/2,
-                                              (y.second->y/y.second->t + y.first->y/y.first->t)/2,
-                                              (z.second->z/z.second->t + z.first->z/z.first->t)/2,
-                                              1});
-        assert(proper(selectedThing.center));
-        //            auto yhigh = persViewMatrix*(view**y.second);
-        //            auto ylow = persViewMatrix*(view**y.first);
-        //            auto dd = persViewMatrix*(view*selectedThing.center);
-        selectedThing.size = size;
-        selectedThing.p = p;
-        return SelectedMesh{selectedThing};
-    } else abort();
+        return *this;
+    }
 }
 
 EditorState GroundS::mouseMotion(const SDL_MouseMotionEvent &a)
@@ -862,7 +872,7 @@ void mouseUpCase(const SDL_MouseButtonEvent event){
 }
 class TextEditing : public boost::static_visitor<> {
 public:
-    TextEditing (SDL_Event *e) : event(e){};
+    TextEditing (SDL_Event *e) : event(e){}
     void operator()(const Input& i) {
         strcpy(i.le->text, event->edit.text);
         i.le->cursor = event->edit.start;
@@ -876,40 +886,33 @@ public:
 };
 template <typename T>
 struct sfinae {
-    typedef void EditorState;
+    typedef EditorState type;
 };
-class MouseMoving : public boost::static_visitor<EditorState> {
-public:
-    MouseMoving(SDL_MouseMotionEvent *e) : event(e){}
-    template<typename T>
-    typename sfinae<decltype(T::mouseMotion)>::type
-            operator()(const T& i) {
-        return i.mouseMotion();
-    }
-    template <typename T> EditorState operator()(const T& i) const {
-       return i;
-    }
-    SDL_MouseMotionEvent* event;
-};
-class MouseButtonDown: public boost::static_visitor<EditorState> {
-public:
-    MouseButtonDown(SDL_MouseButtonEvent *e) : event(e){}
-    template<typename T>
-    typename sfinae<decltype(T::mouseButtonDown)>::type
-            operator()(const T& i) {
-        return i.mouseMotion();
-    }
-    template <typename T> EditorState operator()(const T& i) const {
-       return i;
-    }
-    SDL_MouseButtonEvent* event;
-};
+#define VISITOR(a, b) \
+class V ## a : public boost::static_visitor<EditorState> {    \
+public: \
+    V ## a (b *e) : event(e){}    \
+    template<typename T>    \
+    typename sfinae<decltype(&T:: a )>::type    \
+            operator()(T& i) const {    \
+        return i. a (*event);   \
+    }   \
+    template <typename T> EditorState operator()(const T& i) const {    \
+       return i;    \
+    }   \
+    b * event;  \
+}
+
+VISITOR(mouseMotion, SDL_MouseMotionEvent);
+VISITOR(mouseButtonDown, SDL_MouseButtonEvent);
 void editorLoop() {
     SDL_StopTextInput();
     for(auto &l : lineedits) {
         l.r.sx = glutBitmapLength(GLUT_BITMAP_TIMES_ROMAN_24, (const unsigned char*)l.placeholderText);
         l.r.sy = glutBitmapHeight(GLUT_BITMAP_TIMES_ROMAN_24);
     }
+    decltype(&GroundS::mouseButtonDown) aaa;
+
     while(true) {
         SDL_Event event;
         while(SDL_PollEvent(&event)) {
@@ -924,10 +927,10 @@ void editorLoop() {
                 abort();
             }break;
             case SDL_MOUSEMOTION:{
-                stateEditor = boost::apply_visitor(MouseMoving(&event.motion), stateEditor);
+                stateEditor = boost::apply_visitor(VmouseMotion(&event.motion), stateEditor);
             }break;
             case SDL_MOUSEBUTTONDOWN:{
-                stateEditor = boost::apply_visitor(MouseButtonDown(&event.button), stateEditor);
+                stateEditor = boost::apply_visitor(VmouseButtonDown(&event.button), stateEditor);
             }break;
             case SDL_MOUSEBUTTONUP:{
                 mouseUpCase(event.button);
