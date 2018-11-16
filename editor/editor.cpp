@@ -411,6 +411,11 @@ EditorState Moving::mouseButtonUp(const SDL_MouseButtonEvent &/*event*/) {
 
     return SelectedMesh{selectedThing};
 }
+
+EditorState RotatingCamera::mouseButtonUp(const SDL_MouseButtonEvent &/*event*/) {
+    return GroundS();
+}
+
 boost::optional<Mesh> beingAddedWall(double, Vector2 pos) {
     auto xy =  mapVertexPixel( pos);
     auto tran = G::persViewMatrix * view;
@@ -905,6 +910,7 @@ public: \
 
 VISITOR(mouseMotion, SDL_MouseMotionEvent);
 VISITOR(mouseButtonDown, SDL_MouseButtonEvent);
+VISITOR(mouseButtonUp, SDL_MouseButtonEvent);
 void editorLoop() {
     SDL_StopTextInput();
     for(auto &l : lineedits) {
@@ -933,7 +939,7 @@ void editorLoop() {
                 stateEditor = boost::apply_visitor(VmouseButtonDown(&event.button), stateEditor);
             }break;
             case SDL_MOUSEBUTTONUP:{
-                mouseUpCase(event.button);
+                stateEditor = boost::apply_visitor(VmouseButtonUp(&event.button), stateEditor);
             }break;
             case SDL_MOUSEWHEEL:{
             }break;
