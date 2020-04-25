@@ -7,6 +7,7 @@
 #include <array>
 #include "GL/freeglut.h"
 #include "util/physics.h"
+#include "util/lodepng.h"
 extern SDL_Window* window;
 extern SDL_GLContext context;
 
@@ -56,35 +57,7 @@ inline H::Point saneVertex4 (H::Point a)  {
     return a.t*a.t >= 0 ? a : (-a);
 }
 extern int width , height ;
-inline void  initialiseGraphics(int sg, char** hr) {
-        glutInit(&sg, hr);
-        SDL_Init(SDL_INIT_VIDEO);
-
-        SDL_DisplayMode display;
-        SDL_GetCurrentDisplayMode(0, &display);
-
-        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-        width = display.w; height = display.h;
-        window = SDL_CreateWindow("Hyperbolic",  0, 0, display.w, display.h, SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL);
-        context = SDL_GL_CreateContext(window);
-
-        glDepthFunc( GL_LESS );
-
-        glEnable(GL_DEPTH_TEST);
-        glDisable(GL_DEPTH_CLAMP);
-
-        glEnable(GL_LINE_SMOOTH);
-        glLineWidth(2);
-
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(-0.2, 1);
-
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        auto cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
-        SDL_SetCursor(cursor);
-        SDL_ShowWindow(window);
-}
+void  initialiseGraphics(int sg, char** hr);
 const Mesh transparentDeviator();
 
 const Mesh deviator();
