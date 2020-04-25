@@ -75,7 +75,7 @@ Mesh zarrow(double sizeo, bool transparent);
 
 void editorDisplay();
 
-int32_t preselected(double xx, double yy);
+int32_t preselected(double xx, double yy); // фактически это целый рендерер
 
 //std::ostream& Matrix::operator <<(std::ostream& stream, const SelectedThing & thing) {
 //    stream << "SelectedThing {" <<
@@ -418,15 +418,18 @@ EditorState RotatingCamera::mouseButtonUp(const SDL_MouseButtonEvent &/*event*/)
 
 boost::optional<Mesh> beingAddedWall(double, Vector2 pos) {
     auto xy =  mapVertexPixel( pos);
-    auto tran = G::persViewMatrix * view;
-    auto ijkl = tran.m+8;
-    auto c = -(ijkl[3]+ijkl[0]*xy[0]+ijkl[1]*xy[1])/ijkl[2];
-    auto invpv =  inv44  (tran);
-    Point d = invpv * (fabs ( ijkl[2]) > 0.00001 ? Point{ xy[0], xy[1],  c, 1} : Point{ 0, 0, 1, 0});
-if(!proper(d)) {
-    return boost::none;
-}
+//    auto tran = G::persViewMatrix * view;
+//    auto ijkl = tran.m+8;
+//    auto c = -(ijkl[3]+ijkl[0]*xy[0]+ijkl[1]*xy[1])/ijkl[2];
+//    auto invpv =  inv44  (tran);
+
+//    Point d = invpv * (fabs ( ijkl[2]) > 0.00001 ? Point{ xy[0], xy[1],  c, 1} : Point{ 0, 0, 1, 0});
+//if(!proper(d)) {
+//    return boost::none;
+//}
 //    auto res = tran !* d, L.V2 x y)
+    Point d  = /*transposeMink(view) * moveAlongX(0.1) **/
+            inv44  (G::persViewMatrix*view) * Point{xy[0],xy[1],0.5,1};//Point({sinh(0.1),0,0,cosh(0.1)});
 Mesh wall {{ {0.0, 0.0, 1.0, 1.0}, {Polygon, {{0, 0.01, 0, 1},
                                               {0, (-0.01), 0, 1},
                                               {0, (-0.01), 0.01, 1},
@@ -453,7 +456,7 @@ return m;
 }
 void transform (const Point &p) {
     assert(proper(p));
-    std::cout << "x = " << p.x << "y = " << p.y << "z = "  << p.z << "t = "  << p.t << std::endl;
+//    std::cout << "x = " << p.x << "y = " << p.y << "z = "  << p.z << "t = "  << p.t << std::endl;
     Point a = G::persViewMatrix * ( view * p);
     glVertex4dv(G::saneVertex4(a).data);
 }
@@ -629,11 +632,11 @@ void editorDisplay() {
     //        }
     //        std::cout << "\n";
     //    }
-    std::cout << insanity(view) << " " << insanity(identity) << insanity(moveAlongX (-0.1) * identity)  << std::endl;
+//    std::cout << insanity(view) << " " << insanity(identity) << insanity(moveAlongX (-0.1) * identity)  << std::endl;
 
 }
 
-int32_t preselected(double xx, double yy) {
+int32_t preselected(double xx, double yy) { //
     if(boost::get<GroundS>(&stateEditor)) return -1;
     double depth = DBL_MAX;
     int32_t buffer;

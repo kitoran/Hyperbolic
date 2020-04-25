@@ -27,6 +27,9 @@ struct Source {
     H::Point p;
     H::Absolute a;
 };
+inline Source operator *(const H::Matrix44& m, const Source& d) {
+    return {m*d.p, m*d.a};
+}
 using Receiver = std::vector<H::Point>;
 //type instance Element Receiver = H.Point Double
 enum ObstacleType { Sphere , Triangle };
@@ -43,8 +46,18 @@ struct Obstacle {
             H::Point c;
             double thickness;
         };
-    };
+    };    
 };
+inline Obstacle operator *(const H::Matrix44& m, const Obstacle& d) {
+    if(d.type != Triangle) {
+        std::terminate();
+    }
+    Obstacle res = d;
+    res.a = m*res.a;
+    res.b = m*res.b;
+    res.c = m*res.c;
+    return res;
+}
 using Obstacles = std::vector<Obstacle>;
 enum HyperEntityType { Polygon, Segment, HPoint};
 struct HyperEntity {
@@ -95,14 +108,31 @@ inline Mesh operator *(H::Matrix44 m, Mesh a) {
 
     return r;
 }
-
+template <typename T>
+inline std::vector<T> operator *(const H::Matrix44& m, const std::vector<T>& d) {
+    std::vector<T> r; r.reserve(d.size());
+    for(const auto& w : d) {
+        r.push_back(m*w);
+    }
+    return r;
+}
 //type instance Element Mesh = ((Double, Double, Double, Double), HyperEntity)
 struct Environment {
     Mesh mesh;
     Obstacles obstacles;
     std::vector<Source> sources;
     std::vector<Receiver> receivers;
+    Environment& operator +=(const Environment& d) {
+        mesh.insert(mesh.end(), d.mesh.begin(), d.mesh.end());
+        obstacles.insert(obstacles.end(), d.obstacles.begin(), d.obstacles.end());
+        sources.insert(sources.end(), d.sources.begin(), d.sources.end());
+        receivers.insert(receivers.end(), d.receivers.begin(), d.receivers.end());
+        return *this;
+    }
 };
+inline Environment operator *(const H::Matrix44& m, const Environment& d) {
+    return {m*d.mesh, m*d.obstacles, m*d.sources, m*d.receivers};
+}
 //$(Lens.makeLenses ''Environment)
 struct AvatarPosition  {
     Matrix33 pos; // проекция на плоскость z=0
@@ -110,7 +140,8 @@ struct AvatarPosition  {
     double nod;
     Vector3 speed;
 };
-
+AvatarPosition toAvatarPosition(const Matrix44& st);
+Matrix44 fromAvatarPosition(const AvatarPosition &ap);
 enum Item { Empty, De, Di};
 struct Deviator {
     H::Point pos;
