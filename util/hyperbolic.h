@@ -177,6 +177,7 @@ constexpr double tau = 6.2831853071795864769252867665590057683943;
 Matrix44 operator *(const Matrix44 a, const Matrix44 b);
 Matrix33 operator *(const Matrix33 a, const Matrix33 b);
 Matrix44 operator -(const Matrix44 a, const Matrix44 b);
+Matrix33 operator -(const H::Matrix33 a, const H::Matrix33 b);
 Matrix44 transposeMink(const Matrix44 m);
 
 Matrix44 sanity(Matrix44 m);
@@ -188,6 +189,7 @@ const Matrix33 identity33 = {{1, 0, 0,
                             0, 1, 0,
                             0, 0, 1}};
 double insanity(Matrix44 m);
+double insanity3(Matrix33 m);
 
 double form(Point p1, Point p2);
 Point operator*(Matrix44 m, Point v);
@@ -224,6 +226,7 @@ Matrix44 rotateAroundX(double a);
 Matrix33 moveAlongX3(double  d);
 Matrix33 moveAlongY3(double  d);
 Matrix33 rotate3(double  a);
+Matrix33 isometryByOriginAndOx3(const Vector3& origin, const Vector3& ox);
 const Vector3 origin3 = {0, 0, 1};
 const Point origin = {0, 0, 0, 1};
 Vector3 normalizeWass3 (Vector3 p);
@@ -232,10 +235,13 @@ inline Point normalizeWass (Point p) {
     return {(p.x/d), (p.y/d), (p.z/d), (p.t/d)};
 }
 inline double form3 (Vector3 p1, Vector3 p2) {
-    return p1.t*p2.t - p1.x*p2.x - p1.y*p2.y;
+    return - p1.t*p2.t + p1.x*p2.x + p1.y*p2.y;
 }
-inline double distance3(Vector3 p1, Vector3 p2) {
-    return acosh (form3 (normalizeWass3 (p1), normalizeWass3 (p2)));
+inline double chDistance3(Vector3 a, Vector3 b) {
+    return - (form3 (normalizeWass3 (a), normalizeWass3 (b))); //let diff = a ^-^ b in form diff diff
+}
+inline double distance3(Vector3 a, Vector3 b) {
+    return (chDistance3 (a, b)) > 1? acosh (chDistance3 (a, b)) : 0;
 }
 inline double chDistance(Point a, Point b) {
     return - (form (normalizeWass (a), normalizeWass (b))); //let diff = a ^-^ b in form diff diff

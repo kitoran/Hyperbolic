@@ -1,4 +1,5 @@
 #include "hyperbolic.h"
+#include <assert.h>
 
 H::Component &H::Point::operator[](int a) {
     return data[a];
@@ -176,10 +177,23 @@ H::Matrix44 H::sanity(H::Matrix44 m) {
 }
 
 double H::insanity(H::Matrix44 m) {
-    int r=0;
+    double r=0;
     Matrix44 mat = sanity(m)-identity;
     for(int i : {0, 1, 2, 3}) {
         for(int j : {0, 1, 2, 3}) {
+            r += mat(i, j)*mat(i, j);
+        }
+    }
+    return r;
+}
+H::Matrix33 sanity3(const H::Matrix33& m) {
+    return m * H::transposeMink3(m);
+}
+double H::insanity3(H::Matrix33 m) {
+    double r=0;
+    Matrix33 mat = sanity3(m)-identity33;
+    FOR3(i) {
+        FOR3(j) {
             r += mat(i, j)*mat(i, j);
         }
     }
@@ -300,4 +314,24 @@ bool H::proper(H::Point a) {
 H::Matrix44 H::moveFromTo(H::Point fr, H::Point to, H::Component dist) {
     Matrix44  a = moveRightTo( fr); ////может быть, тут можно вместо moverightto использовать более простое движение - не из пяти, а из трёх элементарных
     return  a * moveTo (transposeMink (a)*to, dist) * transposeMink( a );
+}
+
+H::Matrix33 H::operator -(const H::Matrix33 a, const H::Matrix33 b) {
+    Matrix33 r;
+    FOR3(i) {
+        FOR3(j) {
+            r(i, j) = a(i, j) - b(i, j);
+        }
+    }
+    return r;
+}
+
+H::Matrix33 H::isometryByOriginAndOx3(const H::Vector3 &origin, const H::Vector3 &ox)
+{
+    Vector3 preimage = moveRightFromTo3(origin, H::origin3) * ox;
+    H::Matrix33 res = moveRightTo3(origin) * rotate3(atan2(preimage.y, preimage.x));
+    assert(distance3(res*origin3, origin) < 0.01);
+    Vector3 fullpreimage = transposeMink3(res) * ox;
+    assert(fabs(fullpreimage.y) < 0.01);
+    return res;
 }
