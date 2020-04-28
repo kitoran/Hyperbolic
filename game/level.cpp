@@ -26,7 +26,7 @@ Environment levelTriangle() {
         //                                                   (/360.0) .
         //                                                   (*(tau::Double)) .
         //                                                   fromIntegral::Integer->Point Double) $ [0..359]),*/
-                          {{1, 0, 0, 1}, {Polygon, {p0, p1, p2}}}};
+                          {{1, 0.5, 0.5, 1}, {Polygon, {p0, p1, p2}}}};
     Obstacle o;
     o.type = Triangle;
     o.a = p0;
@@ -103,7 +103,7 @@ Environment levelPentagon() {
 }
 
 Environment level() {
-    return levelPentagon();
+    return levelTriangle();
 }
 
 LevelState startState() {

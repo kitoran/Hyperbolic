@@ -11,7 +11,7 @@
 
 
 namespace globals {
-inline Mesh levelMesh = level().mesh;
+inline Mesh levelMesh;
 inline std::vector<RuntimeObstacle> obs = computeObs(level().obstacles);
 inline std::vector<Source> source =  level().sources;
 inline double step = 0.003;

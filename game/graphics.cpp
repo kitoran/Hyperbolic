@@ -36,6 +36,7 @@ void G::renderConsole() {
     //        glVertex4dv(saneVertex4({0, 1, 0, 1}).data);
     //    });
 }
+//char frame[
 void renderStats() {
     glDisable(GL_DEPTH_TEST);
     renderLine(std::to_string(insanity3(globals::state.avatarPosition.pos)), 0, false);
@@ -82,18 +83,20 @@ void G::renderLine(const std::string &line, int lineNumber, bool bottom) {
 }
 
 void G::displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ray, const Mesh &re, const Mesh &inv, const Matrix44 &tran) {
+    static int is = 0;
+    is++;
     int i = 0;
     auto transform = [&](Point p) {
         Point a = G::persViewMatrix * ( tran * p);
-        if(i%5 == 0) {
-            glTexCoord2d(231.0/500, 39.0/375);
-            //            glTexCoord2d(1678.0/2480, 25.0/3508);
-        } else if(i%5 == 1) {
-            glTexCoord2d(402.0/500, 137.0/375);
-            //            glTexCoord2d(2281.0/2480, 1070.0/3508);
-        } else if(i%5 == 2) {
-            glTexCoord2d(358.0/500, 331.0/375);
-            //            glTexCoord2d(1076.0/2480, 1070.0/3508);
+        if(i%3 == 0) {
+//            glTexCoord2d(231.0/500, 39.0/375);
+            glTexCoord2d(2281.0/2480, 1070.0/3508);
+        } else if(i%3 == 1) {
+//            glTexCoord2d(402.0/500, 137.0/375);
+            glTexCoord2d(1678.0/2480, 25.0/3508);
+        } else if(i%3 == 2) {
+//            glTexCoord2d(358.0/500, 331.0/375);
+                        glTexCoord2d(1076.0/2480, 1070.0/3508);
         } else if(i%5 == 3) {
             glTexCoord2d(135.0/500, 349.0/375);
         } else if(i%5 == 4) {
@@ -186,7 +189,16 @@ void G::displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ra
             }
         }
     }
-    glColor3f(0, 0, (1));
+    glColor3f(1, 1, (1));
+    glDisable(GL_DEPTH_TEST);
+    renderPrimitive( GL_LINES, []() {
+        glVertex2d(-5.0/(width/2.0), 0);
+        glVertex2d(5.0/(width/2.0), 0);
+        glVertex2d(0, -5.0/(height/2.0));
+        glVertex2d(0, 5.0/(height/2.0));
+    });
+    glEnable(GL_DEPTH_TEST);
+
     //    -- clear [ColorBuffer, DepthBuffer]
     glWindowPos2f ( 0, 0);
     //    lighting           $= Disabled
@@ -214,8 +226,17 @@ void G::displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ra
     //    --                                          "vect " <> showt ((inv44 tran) !$ origin),
     //    --                                          "insanity " <> showt (H.insanity tran),
     //    --                                          mareix tran]))
+    if(is == 3) {
+        is = 0;
+        std::cerr <<  "\nbefore " << clock();
+//        glReadPixels(0, 0, width, height, GL_RGBA, GL_BYTE, framee);
+        std::cerr <<  "\nmiddle " << clock();
+         std::cerr <<  "\nafter " << clock();
+//        std::cerr << width << height;
+    }
 
     SDL_GL_SwapWindow(window);
+
     //  -- return ()
     //          applyNormal (a:b:c:_) = normal $ Normal3 (coerce x :: GLdouble) (coerce y) (coerce z)
     //            where
@@ -400,7 +421,7 @@ G::MutableMesh G::toMesh(const std::vector<Source> &s, const std::vector<Receive
         if(std::find(indices.begin(), indices.end(), ind) < indices.end()) {
             recvs.push_back({{1, 1, 0, 1}, {Polygon, r[ind]}});
         } else {
-            recvs.push_back({{0, 1, 0, 1}, {Polygon, r[ind]}});
+            recvs.push_back({{0.2, 0.2, 0, 1}, {Polygon, r[ind]}});
         }
     }
     std::vector<Mesh> items;

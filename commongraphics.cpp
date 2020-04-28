@@ -33,14 +33,16 @@ void initialiseGraphics(int sg, char **hr) {
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    auto cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
-    SDL_SetCursor(cursor);
+//    auto cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
+//    auto cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_NO);
+//    SDL_SetCursor(cursor);
+    SDL_ShowCursor(SDL_FALSE);
     SDL_ShowWindow(window);
 
 
     std::vector<unsigned char> image;
     unsigned width, height;
-    unsigned error = lodepng::decode(image, width, height, "/home/n/Hyperbolic/penyt.png");
+    unsigned error = lodepng::decode(image, width, height, "/home/n/Hyperbolic/zv2mh98hluu31.png");
     if(error != 0) {
         printf("error %d: %s\n", error, lodepng_error_text(error));
         exit(1);
@@ -95,7 +97,24 @@ const Mesh G::deviator() {// -- aaa-aba aba-abb abb-aab aab-aaa
         {{0.0, 0.0, 1.0, 1}, {Polygon, {aba, abb, bbb, bba}}}};
     //  where
 }
-
+const Mesh G::sourceMesh() {// -- aaa-aba aba-abb abb-aab aab-aaa
+    double r = 0.002;
+    Point aaa {r, r, r, 1};
+    Point aab {r, r, -r, 1};
+    Point aba {r, -r, r, 1};
+    Point baa {-r, r, r, 1};
+    Point abb {r, -r, -r, 1};
+    Point bab {-r, r, -r, 1};
+    Point bba {-r, -r, r, 1};
+    Point bbb {-r, -r, -r, 1};
+    return Mesh {{{0.9, 0.0, 1.0, 1}, {Polygon, {aaa, aab, abb, aba}}},
+        {{1.0, 0.0, 0.9, 1}, {Polygon, {baa, bba, bbb, bab}}},
+        {{0.9, 0.0, 1.0, 1}, {Polygon, {aaa, aba, bba, baa}}},
+        {{0.9, 0.0, 1.0, 1}, {Polygon, {aab, bab, bbb, abb}}},
+        {{0.9, 0.0, 1.0, 1}, {Polygon, {aab, aaa, baa, bab}}},
+        {{0.9, 0.0, 1.0, 1}, {Polygon, {aba, abb, bbb, bba}}}};
+    //  where
+}
 void G::lightenABit(Mesh *d) {
     //    Mesh res(d.size());
     for(int i = 0; i < d->size(); i++) {
