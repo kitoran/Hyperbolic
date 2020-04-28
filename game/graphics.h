@@ -9,6 +9,7 @@
 #include "commongraphics.h"
 
 namespace G {
+inline u_char * framee;
 extern bool frame;
 extern bool wheCons;
 //displayGame :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)

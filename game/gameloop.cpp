@@ -360,7 +360,13 @@ AvatarPosition applyGravity(double gravity, AvatarPosition state) {
 int filter(void *, SDL_Event *event) {
     return event->type == SDL_QUIT || event->type == SDL_WINDOWEVENT;
 }
+void encodeOneStep(const char* filename, const std::vector<unsigned char>& image, unsigned width, unsigned height) {
+  //Encode the image
+  unsigned error = lodepng::encode(filename, image, width, height);
 
+  //if there's an error, display it
+  if(error) std::cout << "encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;
+}
 void gameLoop() {
     TTF_Init();
     SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1", SDL_HINT_OVERRIDE);
@@ -382,6 +388,17 @@ void gameLoop() {
     //                           SDL_FALSE);
     glEnable(GL_DEPTH);
     glEnable(GL_TEXTURE_2D);
+
+    levelMesh = level().mesh;
+    for(const Source& s : level().sources) {
+
+        Mesh sm = G::sourceMesh();
+
+        sm = moveRightTo(s.p) * sm;
+
+
+        levelMesh.insert(levelMesh.end(), sm.begin(), sm.end());
+    }
 
     uint a = SDL_GetTicks();
     int cycles = 0;
@@ -431,4 +448,7 @@ void gameLoop() {
             SDL_GL_SwapWindow(window);
         }
     }
+    using G::framee;
+    encodeOneStep("aframe", std::vector<u_char>(framee, framee + sizeof(framee)),
+                  width, height);
 }
