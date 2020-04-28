@@ -44,9 +44,9 @@ void processLine() {
     if(console == "getde") {
         ::state.inventory = De;
     }
-    if(console == "editor") {
-        editorLoop();
-    }
+//    if(console == "editor") {
+//        editorLoop();
+//    }
     if(console == "noclip") {
         p_history.push_back("noclip toggled");
         noclip = !noclip;

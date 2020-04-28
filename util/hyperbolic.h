@@ -34,6 +34,12 @@ union Point {
         return {{x+o.x, y+o.y, z+o.z, t+o.t}};
 
     }
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int /*version*/)
+    {
+        ar & data;
+    }
 /// for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map
 ///  is not nearly injective, that's sad. However, sometimes i use improper points
 };
@@ -203,6 +209,14 @@ struct Absolute {
     Absolute move(const Matrix44& m) const {
         auto iii = m*toNonPhysicalPoint(*this);
         return {iii.x, iii.y, iii.z};
+    }
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int /*version*/)
+    {
+        ar & x;
+        ar & y;
+        ar & z;
     }
 }; /* {- ^ point on celestial sphere or "absolute point". t^2 = x^2 + y^2 + z^2
 x^2+y^2+z^2 > 0-} */

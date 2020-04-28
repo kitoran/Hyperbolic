@@ -23,7 +23,7 @@ int main(int argc, char ** argv) {
     auto eaergaerg =  distance3( origin3, {sinh(1), 0, cosh(1)});
     auto fwehtrf = moveRightTo3({sinh(1), 0, cosh(1)});
 ////    using namespace H;
-    printf("%s", getenv("PWD"));
+    printf("%s", get_current_dir_name());
 //    return 0;
 //    double a1 = rand();
 //    double b1 = rand();
@@ -42,9 +42,15 @@ int main(int argc, char ** argv) {
             printf("%d\n", d);
 
             printf("%s\n", "beforeEverything");
-//            gameLoosp( );
-    editorLoop();
+            printf("%ld %lld\n", sizeof(size_t), 1366*768*4 * 60 * 15ll);
+
+//            G::framee = (u_char*)malloc(1366*768*4 * 60 * 15ll);
+            perror("malloc:");
+            fprintf(stderr,
+                    "%p\n", G::framee);
+            gameLoop( );
+            return 0;
+//    editorLoop();
 
             //            G::deinitializeGraphics();
-            return 0;
 }

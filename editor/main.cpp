@@ -4,7 +4,7 @@
 #include <iostream>
 #include <QApplication>
 int main(int argc, char ** argv) {
-    printf("%s", getenv("PWD"));
+    printf("%s", get_current_dir_name());
     QApplication app(argc,argv);
 
 //    G::initialiseGraphics(argc, argv);

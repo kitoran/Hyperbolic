@@ -5,6 +5,8 @@
 #include <numeric>
 #include "hyperbolic.h"
 #include <boost/optional.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
 
 //module Physics where
 
@@ -26,6 +28,13 @@
 struct Source {
     H::Point p;
     H::Absolute a;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int /*version*/)
+    {
+        ar & p;
+        ar & a;
+    }
 };
 inline Source operator *(const H::Matrix44& m, const Source& d) {
     return {m*d.p, m*d.a};
@@ -63,10 +72,14 @@ enum HyperEntityType { Polygon, Segment, HPoint};
 struct HyperEntity {
     HyperEntityType type;
     std::vector<H::Point> p; //-- как всегда, для нормального отображения многоугольник должен быть выпуклым, и точки должны идти в порядке
-//    struct {
-//        H::Point a;
-//        H::Point b;
-//    };
+
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int /*version*/)
+    {
+        ar & type;
+        ar & p;
+    }
 };
 using namespace H;
 inline HyperEntity operator *(H::Matrix44 m, HyperEntity a) {
@@ -82,6 +95,12 @@ inline HyperEntity operator *(H::Matrix44 m, HyperEntity a) {
     return {a.type, e};
 }
 union  Color {
+    friend class boost::serialization::access;
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int /*version*/)
+    {
+        ar & m;
+    }
     struct {
         float r;
         float g;
@@ -91,6 +110,13 @@ union  Color {
     float m[4];
 };
 struct ColoredEntity {
+    friend class boost::serialization::access;
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int /*version*/)
+    {
+        ar & color;
+        ar & e;
+    }
     Color color;
     HyperEntity e;
 };
