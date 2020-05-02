@@ -16,7 +16,7 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
-     <widget class="QOpenGLWidget" name="openGLWidget"/>
+     <widget class="TheFuckingThing" name="openGLWidget"/>
     </item>
    </layout>
   </widget>
@@ -34,6 +34,7 @@
      <string>File</string>
     </property>
     <addaction name="actionsave"/>
+    <addaction name="actionload"/>
    </widget>
    <addaction name="menuFile"/>
   </widget>
@@ -94,7 +95,22 @@
     <string>Ctrl+S</string>
    </property>
   </action>
+  <action name="actionload">
+   <property name="text">
+    <string>load</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
+  </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>TheFuckingThing</class>
+   <extends>QOpenGLWidget</extends>
+   <header>thefuckingthing.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>
