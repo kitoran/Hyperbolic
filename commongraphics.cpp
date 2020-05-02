@@ -7,8 +7,8 @@ namespace G {
 bool frame = true;
 bool wheCons = false;
 
-void initialiseGraphics(int sg, char **hr) {
-    glutInit(&sg, hr);
+void initialiseGraphics(int /*sg*/, char **/*hr*/) {
+//    glutInit(&sg, hr);
     SDL_Init(SDL_INIT_VIDEO);
 
     SDL_DisplayMode display;

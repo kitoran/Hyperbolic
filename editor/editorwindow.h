@@ -18,6 +18,8 @@ public:
 private slots:
     void on_actionsave_triggered();
 
+    void on_actionload_triggered();
+
 private:
     Ui::EditorWindow *ui;
 };
