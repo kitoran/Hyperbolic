@@ -4,9 +4,8 @@
 #include <algorithm>
 #include <numeric>
 #include "hyperbolic.h"
+#include "serialize.h"
 #include <boost/optional.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
 
 //module Physics where
 
@@ -28,16 +27,17 @@
 struct Source {
     H::Point p;
     H::Absolute a;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int /*version*/)
-    {
-        ar & p;
-        ar & a;
-    }
 };
 inline Source operator *(const H::Matrix44& m, const Source& d) {
     return {m*d.p, m*d.a};
+}
+inline void serialize(FILE* stream, const Source& o) {
+    serialize(stream, o.p);
+    serialize(stream, o.a);
+}
+inline void deserialize(FILE* stream, Source* o) {
+    deserialize(stream, &o->p);
+    deserialize(stream, &o->a);
 }
 using Receiver = std::vector<H::Point>;
 //type instance Element Receiver = H.Point Double
@@ -72,15 +72,15 @@ enum HyperEntityType { Polygon, Segment, HPoint};
 struct HyperEntity {
     HyperEntityType type;
     std::vector<H::Point> p; //-- как всегда, для нормального отображения многоугольник должен быть выпуклым, и точки должны идти в порядке
-
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int /*version*/)
-    {
-        ar & type;
-        ar & p;
-    }
 };
+inline void serialize(FILE* stream, const HyperEntity& o) {
+    serialize(stream, o.type);
+    serialize(stream, o.p);
+}
+inline void deserialize(FILE* stream, HyperEntity* o) {
+    deserialize(stream, &o->type);
+    deserialize(stream, &o->p);
+}
 using namespace H;
 inline HyperEntity operator *(H::Matrix44 m, HyperEntity a) {
     std::vector<H::Point> e;
@@ -95,12 +95,6 @@ inline HyperEntity operator *(H::Matrix44 m, HyperEntity a) {
     return {a.type, e};
 }
 union  Color {
-    friend class boost::serialization::access;
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int /*version*/)
-    {
-        ar & m;
-    }
     struct {
         float r;
         float g;
@@ -109,17 +103,26 @@ union  Color {
     };
     float m[4];
 };
-struct ColoredEntity {
-    friend class boost::serialization::access;
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int /*version*/)
-    {
-        ar & color;
-        ar & e;
+inline void serialize(FILE* stream, const Color& o) {
+    fwrite(o.m, sizeof(o.m[0]), 4, stream);
+}
+inline void deserialize(FILE* stream, Color* o) {
+    if(fread(o->m, sizeof(o->m[0]), 4, stream) != 4) {
+        throw DeserializeException();
     }
+}
+struct ColoredEntity {
     Color color;
     HyperEntity e;
 };
+inline void serialize(FILE* stream, const ColoredEntity& o) {
+    serialize(stream, o.color);
+    serialize(stream, o.e);
+}
+inline void deserialize(FILE* stream, ColoredEntity* o) {
+    deserialize(stream, &o->color);
+    deserialize(stream, &o->e);
+}
 using Mesh = std::vector<ColoredEntity>;// [((Double, Double, Double, Double), HyperEntity)] deriving ( Show, Read, Monoid, MonoFunctor, Ord, Eq)
 
 inline Mesh operator *(H::Matrix44 m, Mesh a) {

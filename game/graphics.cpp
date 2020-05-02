@@ -1,6 +1,8 @@
 #include "console.h"
 #include "graphics.h"
 #include "gameloop.h"
+#include <fmt/format.h>
+
 using namespace G;
 void G::renderConsole() {
     glDisable(GL_DEPTH_TEST);
@@ -40,10 +42,9 @@ void G::renderConsole() {
 void renderStats() {
     glDisable(GL_DEPTH_TEST);
     renderLine(std::to_string(insanity3(globals::state.avatarPosition.pos)), 0, false);
-    renderLine("line, number 1", 1, false);
-    renderLine("line, number 2", 2, false);
-    renderLine("line, number 3", 3, false);
-    renderLine("line, number 4", 4, false);
+    Vector3 p = globals::state.avatarPosition.pos * origin3;
+    renderLine(fmt::format("x/t = {:.4}, y/t = {:.4}, t = {:.4}a", p.x/p.t, p.y/p.t, p.t), 1, false);
+    renderLine(fmt::format("h = {:.4}", globals::state.avatarPosition.height), 2, false);
     glEnable(GL_DEPTH_TEST);
 }
 void G::renderLine(const std::string &line, int lineNumber, bool bottom) {
@@ -215,8 +216,8 @@ void G::displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ra
     //        [aaa, bbb, ccc] = map transform2 $ tri
     if(wheCons) {
         renderConsole();
-        renderStats();
     };
+    renderStats();
     //    -- (when  (not whecons)
     //    --        (renderText $ T.intercalate "\n" [showt (_pos state !* origin3),
     //    --                                          (showt $ _height state),

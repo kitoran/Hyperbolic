@@ -3,6 +3,7 @@
 #include <initializer_list>
 #include "util/linear.h"
 #include <functional>
+#include "serialize.h"
 #include "math.h"
 #define FOR4(name) for(int name : {0, 1, 2, 3})
 #define FOR3(name) for(int name : {0, 1, 2})
@@ -35,11 +36,6 @@ union Point {
 
     }
 
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int /*version*/)
-    {
-        ar & data;
-    }
 /// for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map
 ///  is not nearly injective, that's sad. However, sometimes i use improper points
 };
@@ -47,6 +43,15 @@ inline Point operator*(Component a, const Point p) { // этот операто�
     // в том смысле что он не уважает эквивалентность
     return {{p.x*a, p.y*a, p.z*a, p.t*a}};
 }
+inline void serialize(FILE* stream, const Point& o) {
+    fwrite(o.data, sizeof(o.data[0]), 4, stream);
+}
+inline void deserialize(FILE* stream, Point* o) {
+    if(fread(o->data, sizeof(o->data[0]), 4, stream) != 4) {
+        throw DeserializeException();
+    }
+}
+
 union Vector3 {
     struct {
         Component x;
@@ -210,18 +215,20 @@ struct Absolute {
         auto iii = m*toNonPhysicalPoint(*this);
         return {iii.x, iii.y, iii.z};
     }
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int /*version*/)
-    {
-        ar & x;
-        ar & y;
-        ar & z;
-    }
 }; /* {- ^ point on celestial sphere or "absolute point". t^2 = x^2 + y^2 + z^2
 x^2+y^2+z^2 > 0-} */
 inline Absolute operator *(const Matrix44& m, const Absolute &a) {
     return a.move(m);
+}
+inline void serialize(FILE* stream, const Absolute& o) {
+    serialize(stream, o.x);
+    serialize(stream, o.y);
+    serialize(stream, o.z);
+}
+inline void deserialize(FILE* stream, Absolute* o) {
+    deserialize(stream, &o->x);
+    deserialize(stream, &o->y);
+    deserialize(stream, &o->z);
 }
 Point toNonPhysicalPoint (Absolute a );
 

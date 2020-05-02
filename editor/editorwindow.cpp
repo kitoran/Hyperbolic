@@ -69,7 +69,24 @@ EditorWindow::EditorWindow(QWidget *parent) :
     ui(new Ui::EditorWindow)
 {
     ui->setupUi(this);
-    level.mesh = levelPentagon().mesh;
+//    level.mesh = levelPentagon().mesh;
+
+    std::vector<GLfloat> r = {0, 1, 0, //0,0,1,
+                   -1, 0, 0, //0,0,1,
+                              0.75, -0.75, 0,//0,0,1
+                              0.75, -0.75, 0,//0,0,1
+                              0.75, -1, 0,//0,0,1
+                              1, 0.75, 0,//0,0,1
+
+                  };
+    for(int i = 0; i < r.size(); i+=9) {
+        level.mesh.push_back(
+        {{1,0,0,1},{Polygon, {{r[i], r[i+1], r[i+2], 0},
+                            {r[i+3], r[i+4], r[i+5], 0},
+                            {r[i+6], r[i+7], r[i+8], 0}}}}
+                    );
+    }
+
 }
 
 EditorWindow::~EditorWindow()
@@ -79,8 +96,23 @@ EditorWindow::~EditorWindow()
 
 void EditorWindow::on_actionsave_triggered()
 {
-    std::ofstream ofs(filename);
-    boost::archive::text_oarchive oa(ofs);
-    oa << level;
+    FILE* f = fopen(filename.c_str(), "w");
+    serialize(f, level);
+    fclose(f);
+}
 
+void EditorWindow::on_actionload_triggered()
+{
+    qDebug() << "fwfwe" << level.mesh.size();
+    qDebug() << level.mesh[1].e.p.size();
+    qDebug() << level.mesh[1].e.p[2].y;
+    FILE* f = fopen(filename.c_str(), "r");
+    if(!f) {
+        qDebug() << "couldnt" << filename.c_str();
+    }
+    deserialize(f, &level);
+    fclose(f);
+
+    qDebug() << "af" << level.mesh.size();
+    qDebug() << level.mesh[1].e.p[2].y;
 }
