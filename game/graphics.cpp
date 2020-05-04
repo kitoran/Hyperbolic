@@ -41,16 +41,21 @@ void G::renderConsole() {
 //char frame[
 void renderStats() {
     glDisable(GL_DEPTH_TEST);
-    renderLine(std::to_string(insanity3(globals::state.avatarPosition.pos)), 0, false);
-    Vector3 p = globals::state.avatarPosition.pos * origin3;
+    H::Matrix33 pos = globals::state.avatarPosition.pos;
+    renderLine(std::to_string(insanity3(pos)), 0, false);
+    Vector3 p = pos * origin3;
     renderLine(fmt::format("x/t = {:.4}, y/t = {:.4}, t = {:.4}a", p.x/p.t, p.y/p.t, p.t), 1, false);
     renderLine(fmt::format("h = {:.4}", globals::state.avatarPosition.height), 2, false);
+    renderLine(fmt::format("dir = {}", pos * Vector3{1,0,1}), 3, false);
+    renderLine(fmt::format("pos = {:.4} {:.4} {:.4}", pos[0], pos[1], pos[2]), 4, false);
+    renderLine(fmt::format("      {:.4} {:.4} {:.4}", pos[3], pos[4], pos[5]), 5, false);
+    renderLine(fmt::format("      {:.4} {:.4} {:.4}", pos[6], pos[7], pos[8]), 6, false);
     glEnable(GL_DEPTH_TEST);
 }
 void G::renderLine(const std::string &line, int lineNumber, bool bottom) {
-    if(!sans) sans = TTF_OpenFont("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 20);
+    if(!mono) mono= TTF_OpenFont("/usr/share/fonts/truetype/freefont/FreeMono.ttf", 20);
     if(line.empty()) return;
-    SDL_Surface * sFont = TTF_RenderText_Blended(sans, line.data(), {255,255,255,255});
+    SDL_Surface * sFont = TTF_RenderText_Blended(mono, line.data(), {255,255,255,255});
     GLuint texture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -229,11 +234,6 @@ void G::displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ra
     //    --                                          mareix tran]))
     if(is == 3) {
         is = 0;
-        std::cerr <<  "\nbefore " << clock();
-//        glReadPixels(0, 0, width, height, GL_RGBA, GL_BYTE, framee);
-        std::cerr <<  "\nmiddle " << clock();
-         std::cerr <<  "\nafter " << clock();
-//        std::cerr << width << height;
     }
 
     SDL_GL_SwapWindow(window);
@@ -376,11 +376,19 @@ G::UnfoldRayResult G::unfoldRay(const std::vector<Deviator> &listd, const std::v
     return r;
 }
 
-Matrix44 G::thatTransformation(const Deviator &de) {
+Matrix44 G::transformationForDeviator(const Deviator &de) {
+    fmt::print(stderr, "making deviator: {}", toNonPhysicalPoint(de.dir));
     Matrix44 move = moveRightTo (de.pos);
-    Point dirFromStart = (toNonPhysicalPoint (transposeMink (move) * de.dir));
-    Matrix44 turn = andThen(getPointToOxyAroundOy, getPointToOxzAroundOz)( dirFromStart);
-    return move * transposeMink(turn) * rotateAroundX(de.nod);
+    Point dirFromStart = ( (transposeMink (move) * toNonPhysicalPoint(de.dir)));
+    Matrix44 toOxy = getPointToOxyAroundOy(dirFromStart);
+    Point onOxy = toOxy * dirFromStart;
+    Matrix44 toOx =  getPointToOxzAroundOz(onOxy);
+    Point onOx = toOx * onOxy;
+    Matrix44 res = move * transposeMink(toOxy) *
+            transposeMink(toOx) /** rotateAroundX(de.nod)*/;
+    Point pos = res*origin;
+    Point dir = res*Point{1,0,0,1};
+    return res;
 }
 
 G::MutableMesh G::toMesh(const std::vector<Source> &s, const std::vector<Receiver> &r, const LevelState &ls)
@@ -427,7 +435,7 @@ G::MutableMesh G::toMesh(const std::vector<Source> &s, const std::vector<Receive
     }
     std::vector<Mesh> items;
     for(const auto& dede: ls.worldState.devis) {
-        items.push_back(thatTransformation(dede) * deviator());
+        items.push_back(transformationForDeviator(dede) * deviator());
     }
     return {Mesh{lines}, items, Mesh{recvs}};
 }

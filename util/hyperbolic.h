@@ -4,6 +4,7 @@
 #include "util/linear.h"
 #include <functional>
 #include "serialize.h"
+#include <fmt/format.h>
 #include "math.h"
 #define FOR4(name) for(int name : {0, 1, 2, 3})
 #define FOR3(name) for(int name : {0, 1, 2})
@@ -39,6 +40,19 @@ union Point {
 /// for proper point x^2 + y^2 + z^2 - t^2 < 0 so this map
 ///  is not nearly injective, that's sad. However, sometimes i use improper points
 };
+}
+template <>
+struct fmt::formatter<H::Point> {
+  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const H::Point& d, FormatContext& ctx) {
+    return format_to(ctx.out(),
+        "{{{:.4}, {:.4}, {:.4}, {:.4}}}",
+                     d.x, d.y, d.z, d.t);
+  }
+};
+namespace H {
 inline Point operator*(Component a, const Point p) { // этот оператор - зло
     // в том смысле что он не уважает эквивалентность
     return {{p.x*a, p.y*a, p.z*a, p.t*a}};
@@ -71,6 +85,19 @@ union Vector3 {
 inline Vector3 vector3(double x, double y, double z) {
     return {{x, y, z}};
 }
+}
+template <>
+struct fmt::formatter<H::Vector3> {
+  constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+  template <typename FormatContext>
+  auto format(const H::Vector3& d, FormatContext& ctx) {
+    return format_to(ctx.out(),
+        "{{{:.4}, {:.4}, {:.4}}}",
+                     d.x, d.y, d.t);
+  }
+};
+namespace H {
 Vector3 cross(Vector3 p, Vector3 r);
 template <typename F>
 Vector3 fmap(F f, Vector3 t) {
@@ -125,6 +152,9 @@ struct Matrix33 {
     Component m[9];
     Component& operator()(int i, int j);
     Component operator()(int i, int j) const;
+    Component operator[](int i) const {
+        return m[i];
+    }
 };
 Component det44(H::Matrix44 a);
 Matrix44 transpose(Matrix44 a);
@@ -244,6 +274,9 @@ Matrix44 moveAlongX ( double d);
 Matrix44 rotateAroundZ(double a);
 Matrix44 rotateAroundY(double a);
 Matrix44 rotateAroundX(double a);
+
+Point movePerpendicularlyToOxy(double dis, const Point& p);
+
 Matrix33 moveAlongX3(double  d);
 Matrix33 moveAlongY3(double  d);
 Matrix33 rotate3(double  a);
@@ -456,15 +489,9 @@ inline Matrix44 m33_to_m44M (Matrix33 e ) {
 
 //getPointToOrigin, getPointToOxzAroundOz, getPointToOxyAroundOx, getPointOnOxToOrigin :: forall a. RealFloat a => Point a -> L.M44 a
 //getPointToOrigin = transposeMink . moveRightTo
-inline Matrix44 getPointToOxzAroundOz (const Point& p) {
-    return rotateAroundZ ( -(atan2 (p.y/p.t, p.x/p.t)));
-}////  брать синус и косинус арктангенса очень весело, конечно
-inline Matrix44 getPointToOxyAroundOx  (const Point& p) {
-    return rotateAroundX ( -(atan2 (p.z/p.t, p.y/p.t)));
-}//// от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
-inline Matrix44 getPointToOxyAroundOy (const Point &p) {
-    return rotateAroundY (-(atan2 (p.z/p.t, p.x/p.t)));
-}//// FIXME FIXME тут угол я посчитал из предположения, что Y  направлена вправо, а может быть на самом деле она направлена влево и всё надо менять
+Matrix44 getPointToOxzAroundOz (const Point& p);////  брать синус и косинус арктангенса очень весело, конечно
+Matrix44 getPointToOxyAroundOx  (const Point& p);//// от t нам нужен только знак, конечно, но я подозреваю, что лишний флоп лучше, чем лишнее ветвление
+Matrix44 getPointToOxyAroundOy (const Point &p);
 inline Matrix44 getPointOnOxToOrigin (const Point& p) {
    return moveAlongX ( asinh ( (  - p.x/ sqrt (( (p.t*p.t-p.x*p.x))) * sign(p.t)) )); //// брать гиперболические синус и косинус аркчосинуса очень весело, конечно
 }
