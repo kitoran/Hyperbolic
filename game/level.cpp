@@ -102,29 +102,76 @@ Environment levelPentagon() {
 //        red = (1.0, 0.0, 0.0, 1)
 }
 
+Obstacle meshTriangleToObstacle(HyperEntity h) {
+    Obstacle o;
+    o.type = Triangle;
+    o.a = h.p[0];
+    o.b = h.p[1];
+    o.c = h.p[2];
+    o.thickness = 0.01;
+    return o;
+}
+
+Environment levelCorridor() {
+    Environment res;
+    Point lastFar = movePerpendicularlyToOxy(-0.11, Point{sinh(0.842482+0.9), 0,0,cosh(0.842482+0.9)});
+    Point lastNear = movePerpendicularlyToOxy(-0.11, Point{sinh(0.842482-0.20), 0,0,cosh(0.842482-0.2)});
+    auto addTriangle = [&res](HyperEntity h) {
+        res.mesh.push_back({white, h});
+        res.obstacles.push_back(meshTriangleToObstacle(h));
+    };
+    auto up = [&res](Point p) {
+        Matrix44 rt = moveRightTo(p);
+        return rt * Point{0, 0, sinh(0.5), cosh(0.5)};
+    };
+    for(int i = 1; i <= 5; i++) {
+        Point far = rotateAroundZ((tau/5)) * lastFar;
+        Point near = rotateAroundZ((tau/5)) * lastNear;
+        addTriangle({Polygon, {far, near, lastFar}});
+        addTriangle({Polygon, {lastNear, near, lastFar}});
+        fprintf(stderr, "%lf %lf %lf %lf\n", far.x, far.y, far.z, far.t);
+        addTriangle({Polygon, {near, lastNear, up(near)}});
+        addTriangle({Polygon, {up(lastNear), lastNear, up(near)}});
+
+        addTriangle({Polygon, {far, lastFar, up(far)}});
+        addTriangle({Polygon, {up(lastFar), lastFar, up(far)}});
+
+        lastFar = far;
+        lastNear = near;
+    }
+    fprintf(stderr, "%ld", res.mesh.size());
+    res = inv44(moveRightTo(Point{0.1417,
+                             0.627,
+                             0,
+                             1}))*res;
+    res.deviators.push_back(
+    Deviator{{0.20772526696369414, 0.2974917510234292, 0.0, 1.0694858627394699},
+             {1,0,0},
+                0});
+    res.sources.push_back(
+    Source{{0.3502363157176379, 0.07359641546437636, 0.0, 1.0678158976874874},
+            {0.6736414716207426, -0.9418777769235139, 0.0}});
+
+
+    return res;
+    //        red = (1.0, 0.0, 0.0, 1)
+}
+
 Environment level() {
-    return levelTriangle();
+    return levelCorridor();
 }
 
 LevelState startState() {
     LevelState r;
     AvatarPosition ap;
     ap.pos = identity33;
+    fmt::print(stderr, "startStateDir: {}", ap.pos * Vector3{1,0,1});
     ap.height = 0.1;
     ap.nod = 0;
     ap.speed = Vector3{ 0.0, 0, 0};
     r.avatarPosition = ap;
     r.inventory = Empty;
-    r.worldState = { {  Deviator{ {0,
-                                   0,
-                                   0,
-                                   1},
-                                  {1,
-                                   0,
-                                   0},
-                                  0},
-                        /* moveAlongY (-0.1::Double) !$ Devi (Point 0 0 0 1) (Abs 0 1 0) (0) */
-                     },
+    r.worldState = { level().deviators,
                      {}
                    };
     r.selected  = boost::none;

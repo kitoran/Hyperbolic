@@ -72,7 +72,7 @@ const Mesh G::transparentDeviator() {// -- aaa-aba aba-abb abb-aab aab-aaa
     Point bbb {-r, -r, -r, 1};
     return Mesh {{{0.0, 0.0, 1.0, 0.5}, {Polygon, {aaa, aab, abb, aba}}},
         {{1.0, 0.7, 0.0, 0.5}, {Polygon, {baa, bba, bbb, bab}}},
-        {{0.0, 0.0, 1.0, 0.5}, {Polygon, {aaa, aba, bba, baa}}},
+        {{0.0, 1.0, 0.0, 0.5}, {Polygon, {aaa, aba, bba, baa}}},
         {{0.0, 0.0, 1.0, 0.5}, {Polygon, {aab, bab, bbb, abb}}},
         {{0.0, 1.0, 1.0, 0.5}, {Polygon, {aab, aaa, baa, bab}}},
         {{0.0, 0.0, 1.0, 0.5}, {Polygon, {aba, abb, bbb, bba}}}};
@@ -91,7 +91,7 @@ const Mesh G::deviator() {// -- aaa-aba aba-abb abb-aab aab-aaa
     Point bbb {-r, -r, -r, 1};
     return Mesh {{{0.0, 0.0, 1.0, 1}, {Polygon, {aaa, aab, abb, aba}}},
         {{1.0, 0.7, 0.0, 1}, {Polygon, {baa, bba, bbb, bab}}},
-        {{0.0, 0.0, 1.0, 1}, {Polygon, {aaa, aba, bba, baa}}},
+        {{0.0, 1.0, 0.0, 1}, {Polygon, {aaa, aba, bba, baa}}},
         {{0.0, 0.0, 1.0, 1}, {Polygon, {aab, bab, bbb, abb}}},
         {{0.0, 1.0, 1.0, 1}, {Polygon, {aab, aaa, baa, bab}}},
         {{0.0, 0.0, 1.0, 1}, {Polygon, {aba, abb, bbb, bba}}}};

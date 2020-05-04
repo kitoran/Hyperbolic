@@ -9,13 +9,12 @@
 #include "commongraphics.h"
 
 namespace G {
-inline u_char * framee;
 extern bool frame;
 extern bool wheCons;
 //displayGame :: {- forall a c. (Floating a, Ord a, Real a, Coercible Double c, Coercible Double a, Show a)
 //                                         => -}
 //                 Console -> Bool -> Mesh -> Bool -> M44 Double -> AvatarPosition -> IO ()
-inline TTF_Font* sans = 0;
+inline TTF_Font* mono = 0;
 
 void renderLine(const std::string & line, int lineNumber, bool bottom = true);
 
@@ -79,7 +78,7 @@ UnfoldRayResult unfoldRay(const std::vector<Deviator>& listd, const std::vector<
 //                           Infinity -> ([], Left dir)
 //                           Receiver (p, i) -> ([p], Right i)
 //                           Deviator (p, newd) -> case go p newd of (ps, re) -> (p:ps, re)  -- (deleteNth i list)
-Matrix44 thatTransformation(const Deviator& de);
+Matrix44 transformationForDeviator(const Deviator& de);
 //thatTransformation (P.Devi pos dir d) = let move = moveRightTo pos -- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
 //                                            dirFromStart = (toNonPhysicalPoint $ transposeMink move !$ dir)
 //                                            turn = (H.getPointToOxyAroundOy `andThen`  getPointToOxzAroundOz) dirFromStart
