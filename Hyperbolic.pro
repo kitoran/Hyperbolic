@@ -6,8 +6,8 @@ CONFIG += console
 QMAKE_CXXFLAGS -= -Wall   -isystem /usr/include
 #-std=gnu++1z
 QMAKE_DEFAULT_INCDIRS =
-QMAKE_CXXFLAGS += -std=gnu++2a -I/usr/include/freetype2 -I/usr/include/libpng16  -Werror -Wno-misleading-indentation -Wno-comment -Wno-sign-compare -Wno-unused-variable -Wno-unused-but-set-variable -O0 # -Wno-missing-braces -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers -Wno-comment#-I/usr/include
-LIBS+= -I/usr/include/freetype2 -I/usr/include/libpng16 -lGL -lSDL2 -lglut -lfreetype -lSDL2_ttf
+QMAKE_CXXFLAGS += -std=gnu++2a -I/usr/include/freetype2 -I/usr/include/libpng16  -Werror -Wno-misleading-indentation -Wno-comment -Wno-sign-compare -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -O0 # -Wno-missing-braces -Wno-unused-variable -Wno-sign-compare -Wno-missing-field-initializers -Wno-comment#-I/usr/include
+LIBS+= -I/usr/include/freetype2 -I/usr/include/libpng16 -lGL -lSDL2 -lfreetype -lSDL2_ttf -lpthread -lxcb
 #LIBS+= -lSDL
 #QMAKE_CXX = g++-5
 QMAKE_CFLAGS += -Wno-unused-variable -Wno-unused-but-set-variable -Wno-sign-compare -Wno-missing-field-initializers -Wno-misleading-indentation  -I/usr/include/freetype2 -I/usr/include/libpng16
@@ -15,7 +15,7 @@ QMAKE_CFLAGS += -Wno-unused-variable -Wno-unused-but-set-variable -Wno-sign-comp
 CONFIG -= app_bundle
 CONFIG -= qt
 #LIBS += -lstdc++ -L/usr/lib/gcc/i686-linux-gnu/8/
-INCLUDEPATH += /usr/include fmt/include
+INCLUDEPATH += /usr/include fmt/include clip/
 SOURCES += main.cpp \
     commongraphics.cpp \
     util/hyperbolic.cpp \
@@ -27,7 +27,10 @@ SOURCES += main.cpp \
     util/physics.cpp \
     game/console.cpp \
     fmt/src/format.cc \
-    fmt/src/os.cc
+    fmt/src/os.cc \
+    clip/clip.cpp \
+    clip/clip_x11.cpp \
+    clip/image.cpp
 
 HEADERS += \
     util/hyperbolic.h \

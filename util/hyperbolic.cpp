@@ -229,7 +229,7 @@ H::Vector3 H::operator*(H::Matrix33 m, H::Vector3 v) {
 }
 
 H::Point H::toNonPhysicalPoint(H::Absolute a) {
-    return {a.x, a.y, a.z, ((a.x*a.x)+(a.y*a.y)+(a.z*a.z))};
+    return {a.x, a.y, a.z, sqrt((a.x*a.x)+(a.y*a.y)+(a.z*a.z))};
 }
 
 H::Matrix44 H::reflectAboutOrigin = {{-1.0, 0, 0, 0,
@@ -334,4 +334,26 @@ H::Matrix33 H::isometryByOriginAndOx3(const H::Vector3 &origin, const H::Vector3
     Vector3 fullpreimage = transposeMink3(res) * ox;
     assert(fabs(fullpreimage.y) < 0.01);
     return res;
+}
+
+H::Point H::movePerpendicularlyToOxy(double dis, const H::Point &p)
+{
+    Point onOxy{p.x, p.y, 0, p.t};
+    auto m = moveRightTo(onOxy);
+    double fewfef = signedDistanceFromOxy(p)+dis;
+    return m * Point{0,0,
+                    sinh(fewfef),
+                    cosh(fewfef)};
+}
+
+H::Matrix44 H::getPointToOxyAroundOy(const H::Point &p) {
+    return rotateAroundY (-(atan2 (p.z/p.t, p.x/p.t)));
+}
+
+H::Matrix44 H::getPointToOxyAroundOx(const H::Point &p) {
+    return rotateAroundX ( -(atan2 (p.z/p.t, p.y/p.t)));
+}
+
+H::Matrix44 H::getPointToOxzAroundOz(const H::Point &p) {
+    return rotateAroundZ ( -(atan2 (p.y/p.t, p.x/p.t)));
 }

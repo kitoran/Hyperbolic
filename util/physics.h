@@ -103,6 +103,7 @@ union  Color {
     };
     float m[4];
 };
+const Color white{.m = {1,1,1,1}};
 inline void serialize(FILE* stream, const Color& o) {
     fwrite(o.m, sizeof(o.m[0]), 4, stream);
 }
@@ -146,22 +147,6 @@ inline std::vector<T> operator *(const H::Matrix44& m, const std::vector<T>& d) 
     return r;
 }
 //type instance Element Mesh = ((Double, Double, Double, Double), HyperEntity)
-struct Environment {
-    Mesh mesh;
-    Obstacles obstacles;
-    std::vector<Source> sources;
-    std::vector<Receiver> receivers;
-    Environment& operator +=(const Environment& d) {
-        mesh.insert(mesh.end(), d.mesh.begin(), d.mesh.end());
-        obstacles.insert(obstacles.end(), d.obstacles.begin(), d.obstacles.end());
-        sources.insert(sources.end(), d.sources.begin(), d.sources.end());
-        receivers.insert(receivers.end(), d.receivers.begin(), d.receivers.end());
-        return *this;
-    }
-};
-inline Environment operator *(const H::Matrix44& m, const Environment& d) {
-    return {m*d.mesh, m*d.obstacles, m*d.sources, m*d.receivers};
-}
 //$(Lens.makeLenses ''Environment)
 struct AvatarPosition  {
     Matrix33 pos; // проекция на плоскость z=0
@@ -185,6 +170,23 @@ struct Divider {
     Absolute dir;
     double nod;
 };
+struct Environment {
+    Mesh mesh;
+    Obstacles obstacles;
+    std::vector<Source> sources;
+    std::vector<Deviator> deviators;
+    std::vector<Receiver> receivers;
+    Environment& operator +=(const Environment& d) {
+        mesh.insert(mesh.end(), d.mesh.begin(), d.mesh.end());
+        obstacles.insert(obstacles.end(), d.obstacles.begin(), d.obstacles.end());
+        sources.insert(sources.end(), d.sources.begin(), d.sources.end());
+        receivers.insert(receivers.end(), d.receivers.begin(), d.receivers.end());
+        return *this;
+    }
+};
+inline Environment operator *(const H::Matrix44& m, const Environment& d) {
+    return {m*d.mesh, m*d.obstacles, m*d.sources, m*d.deviators, m*d.receivers};
+}
 struct WorldState {
     std::vector<Deviator> devis;
     std::vector<Divider> divis;

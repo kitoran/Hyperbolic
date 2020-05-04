@@ -44,10 +44,6 @@ int main(int argc, char ** argv) {
             printf("%s\n", "beforeEverything");
             printf("%ld %lld\n", sizeof(size_t), 1366*768*4 * 60 * 15ll);
 
-//            G::framee = (u_char*)malloc(1366*768*4 * 60 * 15ll);
-            perror("malloc:");
-            fprintf(stderr,
-                    "%p\n", G::framee);
             gameLoop( );
             return 0;
 //    editorLoop();

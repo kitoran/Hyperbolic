@@ -1,5 +1,7 @@
 #include "gameloop.h"
 #include "console.h"
+#include "clip.h"
+#include "fmt/format.h"
 OptionalDouble intersectRay( const Deviator & d, const Matrix44 &transs) {
     Matrix44 move = moveRightTo(d.pos);
     Point dirFromStart = toNonPhysicalPoint (transposeMink (move) * d.dir);
@@ -119,19 +121,28 @@ Matrix44 preShow(const Mesh &rays, const Matrix44 &vp) {
         //        ((_, ratio), index) = minimumBy (compare `on` (fst.fst)) $ zip (map (\(_::(Double, Double, Double, Double), s) -> ) $ coerce rays) [0..]
     }
     //    (_::(Double, Double, Double, Double), P.Segment pos dir) = (coerce rays :: [((Double, Double, Double, Double), HyperEntity)]) !! index
-    Matrix44 rayToOx;// = let move = //-- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
+    Matrix44 rayToOx = identity;// = let move = //-- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
     const Point& pos = rays[index].e.p[0];
     const Point& dir= rays[index].e.p[1];
     {
-        auto move =moveRightTo (pos);
+        auto move = moveRightTo (pos);
         auto dirFromStart = (transposeMink (move) * dir);
-        auto turn = andThen(getPointToOxyAroundOy,  getPointToOxzAroundOz)( dirFromStart);
-        rayToOx = (move * transposeMink( turn));
+        auto toOxy = getPointToOxyAroundOy(dirFromStart);
+        Point onOxy = toOxy*dirFromStart;
+        auto toOx = getPointToOxzAroundOz(onOxy);
+        auto turn = toOx * toOxy;
+        fmt::print(stderr, "{}, {}, {}\n", onOxy, toOx*onOxy, turn * dirFromStart);
+
+        rayToOx = ( move * transposeMink( turn) );
     }
+//    fmt::print(stderr, "{}, {}, {}, {}\n", rayToOx*pos,
+//               rayToOx*dir, transposeMink(rayToOx)*pos,
+//               transposeMink(rayToOx)*dir);
     //    Point dx dy dz dt = dir
     //    Point px py pz pt = pos
     Point p = (1-ratio)*normalizeKlein (vp * pos) + ratio*normalizeKlein (vp * dir);
-    auto trans = /*Debug.Trace.trace ("qqqq "++show x1) $*/ ( rayToOx) * (moveAlongX (   (H::distance ( vp * pos, p))));
+    auto trans = /*Debug.Trace.trace ("qqqq "++show x1) $*/
+            ( rayToOx) * (moveAlongX (   (H::distance ( vp * pos, p))));
     //    Point h1 = vp * p;
     //    double x1 = (-h1.y)/h1.x;
     if(rays.empty()) {
@@ -161,14 +172,33 @@ void keyboardProcess() {
         continueCycle = false;
     }
     //    SDL_Scancode c = a.keysym.scancode;
-    static int conInhibited = 0;
-    if(!conInhibited && state[SDL_SCANCODE_TAB] && state[SDL_SCANCODE_LCTRL]) {
-        G::wheCons = !G::wheCons;
-        conInhibited = 10;
+    static int comInhibited = 0;
+    if(!comInhibited && state[SDL_SCANCODE_LCTRL]) {
+        comInhibited = 10;
+        if(state[SDL_SCANCODE_TAB]) {
+            G::wheCons = !G::wheCons;
+        }
+        if(state[SDL_SCANCODE_C]) {
+            Vector3 ph = globals::state.avatarPosition.pos * origin3;
+            Point p4h{ph.x, ph.y, 0, ph.t};
+            Point p = moveRightTo(p4h)*Point{0, 0, sinh(globals::state.avatarPosition.height),
+                                                   cosh(globals::state.avatarPosition.height)};
+            clip::set_text(fmt::format("{{{}, {}, {}, {}}}", p.x, p.y, p.z, p.t));
+        }
+        if(state[SDL_SCANCODE_D]) {
+            Vector3 ph = globals::state.avatarPosition.pos * Vector3{1,0,1};
+            Point p{ph.x, ph.y, 0, ph.t};
+//            Point p = moveRightTo(p4h)*Point{0, 0, sinh(globals::state.avatarPosition.height),
+//                                                   cosh(globals::state.avatarPosition.height)};
+            clip::set_text(fmt::format("{{{}, {}, {}, {}}}", p.x, p.y, p.z, p.t));
+        }
+        if(state[SDL_SCANCODE_E]) {
+            noclip = !noclip;
+        }
     }
-    if (conInhibited>0) conInhibited--;
+    if (comInhibited>0) comInhibited--;
     if(G::wheCons) {
-        if(!conInhibited ) {
+        if(!comInhibited ) {
             bool keystroke = false;
             if(state[SDL_SCANCODE_UP]) {
                 int d = history.size();
@@ -214,7 +244,7 @@ void keyboardProcess() {
                     console += char(SDL_GetKeyFromScancode(s));
                 }
             }
-            if(keystroke) conInhibited = 10;
+            if(keystroke) comInhibited = 10;
         }
     } else {
         processKeyboard(state);
@@ -311,8 +341,10 @@ void gameDisplay() {
     //                            sources <- readIORef sourceRef
     //                            wheCons <- readIORef wheConsoleRef
     auto ap = state.avatarPosition;
+    Matrix44 ps = preShow(mutableMesh.rays, G::viewPort(ap));
     auto inv = state.inventory == Empty ? Mesh{} :
-                                          state.inventory == De ? preShow(mutableMesh.rays, G::viewPort(ap))*G::transparentDeviator() : (abort(), Mesh{});
+                                          state.inventory == De ? ps*G::transparentDeviator() : (abort(), Mesh{});
+    fmt::print(stderr, "preshow for show {}", ps*Point{1,0,0,1});
     auto items =  mutableMesh.items;
     if(state.selected.is_initialized()) {
         G::lightenABit(&items[boost::get(state.selected)]);
@@ -337,6 +369,8 @@ AvatarPosition processMouse(int x, int y, const AvatarPosition &ap) {
 void mouseCCase() {
     Matrix44 trans = preShow(mutableMesh.rays, (G::viewPort(state.avatarPosition)));
     //    auto oldState = state;
+
+    fmt::print(stderr, "preshow for place {}", trans*Point{1,0,0,1});
     state = processInventory( trans, state);
     mutableMesh = toMesh(source, receivers, state);
 }
@@ -360,13 +394,7 @@ AvatarPosition applyGravity(double gravity, AvatarPosition state) {
 int filter(void *, SDL_Event *event) {
     return event->type == SDL_QUIT || event->type == SDL_WINDOWEVENT;
 }
-void encodeOneStep(const char* filename, const std::vector<unsigned char>& image, unsigned width, unsigned height) {
-  //Encode the image
-  unsigned error = lodepng::encode(filename, image, width, height);
 
-  //if there's an error, display it
-  if(error) std::cout << "encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;
-}
 void gameLoop() {
     TTF_Init();
     SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1", SDL_HINT_OVERRIDE);
@@ -448,7 +476,5 @@ void gameLoop() {
             SDL_GL_SwapWindow(window);
         }
     }
-    using G::framee;
-    encodeOneStep("aframe", std::vector<u_char>(framee, framee + sizeof(framee)),
-                  width, height);
+
 }
