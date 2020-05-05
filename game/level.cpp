@@ -201,6 +201,7 @@ double aByAbC(double A, double b, double C) {
     assert(bool(isfinite(r)));
     return r;
 }
+
 Level levelMoreThanNeededRev2() {
     Level res;
     auto addTriangle = [&](const Point&a,
@@ -376,6 +377,10 @@ Level levelMoreThanNeededRev1() {
 
 Level level() {
     return levelMoreThanNeededRev1();
+=======
+Level level() {
+    return levelMoreThanNeeded();
+>>>>>>> f63556f42eb411243297590018764c82f11751e4
 }
 
 LevelState startState() {
