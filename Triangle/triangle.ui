@@ -7,72 +7,116 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>300</height>
+    <height>306</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Triangle</string>
   </property>
   <widget class="QWidget" name="centralWidget">
-   <layout class="QGridLayout" name="gridLayout">
-    <item row="8" column="1">
-     <widget class="PersistentLineEdit" name="lineEditb"/>
-    </item>
-    <item row="3" column="1">
-     <widget class="PersistentLineEdit" name="lineEditB"/>
-    </item>
-    <item row="3" column="0">
-     <widget class="QLabel" name="label_5">
-      <property name="text">
-       <string>B</string>
-      </property>
-     </widget>
-    </item>
-    <item row="11" column="0">
-     <widget class="QLabel" name="label_6">
-      <property name="text">
-       <string>c</string>
-      </property>
-     </widget>
-    </item>
-    <item row="6" column="1">
-     <widget class="PersistentLineEdit" name="lineEdita"/>
-    </item>
+   <property name="currentIndex" stdset="0">
+    <number>1</number>
+   </property>
+   <layout class="QGridLayout" name="gridLayout_2">
     <item row="0" column="0">
-     <widget class="QLabel" name="label">
-      <property name="text">
-       <string>A</string>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>1</number>
       </property>
-     </widget>
-    </item>
-    <item row="6" column="0">
-     <widget class="QLabel" name="label_4">
-      <property name="text">
-       <string>a</string>
-      </property>
-     </widget>
-    </item>
-    <item row="11" column="1">
-     <widget class="PersistentLineEdit" name="lineEditc"/>
-    </item>
-    <item row="5" column="1">
-     <widget class="PersistentLineEdit" name="lineEditC"/>
-    </item>
-    <item row="0" column="1">
-     <widget class="PersistentLineEdit" name="lineEditA"/>
-    </item>
-    <item row="5" column="0">
-     <widget class="QLabel" name="label_3">
-      <property name="text">
-       <string>C</string>
-      </property>
-     </widget>
-    </item>
-    <item row="8" column="0">
-     <widget class="QLabel" name="label_2">
-      <property name="text">
-       <string>b</string>
-      </property>
+      <widget class="QWidget" name="tab_3">
+       <attribute name="title">
+        <string>Tab 1</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="label">
+          <property name="text">
+           <string>A</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="PersistentLineEdit" name="lineEditA"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="label_5">
+          <property name="text">
+           <string>B</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="PersistentLineEdit" name="lineEditB"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="label_3">
+          <property name="text">
+           <string>C</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="PersistentLineEdit" name="lineEditC"/>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="label_4">
+          <property name="text">
+           <string>a</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="PersistentLineEdit" name="lineEdita"/>
+        </item>
+        <item row="4" column="0">
+         <widget class="QLabel" name="label_2">
+          <property name="text">
+           <string>b</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="PersistentLineEdit" name="lineEditb"/>
+        </item>
+        <item row="5" column="0">
+         <widget class="QLabel" name="label_6">
+          <property name="text">
+           <string>c</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="1">
+         <widget class="PersistentLineEdit" name="lineEditc"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_4">
+       <attribute name="title">
+        <string>Tab 2</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout">
+        <item>
+         <widget class="QLabel" name="label_7">
+          <property name="text">
+           <string>cosh c = (cos C+xos A cos B)/sin A sin B</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="verticalSpacer">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
    </layout>
