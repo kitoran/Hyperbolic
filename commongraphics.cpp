@@ -117,23 +117,41 @@ const Mesh G::transparentDeviator() {// -- aaa-aba aba-abb abb-aab aab-aaa
     //  where
 }
 
-const Mesh G::deviator() {// -- aaa-aba aba-abb abb-aab aab-aaa
+const Mesh G::deviator(double size) {// -- aaa-aba aba-abb abb-aab aab-aaa
+    static Mesh res;
+    static bool init = false;
+    if(init) {
+        return res;
+    }
+    init = true;
+
     double r = 0.005;
-    Point aaa {r, r, r, 1};
-    Point aab {r, r, -r, 1};
-    Point aba {r, -r, r, 1};
-    Point baa {-r, r, r, 1};
-    Point abb {r, -r, -r, 1};
-    Point bab {-r, r, -r, 1};
-    Point bba {-r, -r, r, 1};
-    Point bbb {-r, -r, -r, 1};
-    return Mesh {{{0.0, 0.0, 1.0, 1}, {Polygon, {aaa, aab, abb, aba}}},
-        {{1.0, 0.7, 0.0, 1}, {Polygon, {baa, bba, bbb, bab}}},
-        {{0.0, 1.0, 0.0, 1}, {Polygon, {aaa, aba, bba, baa}}},
-        {{0.0, 0.0, 1.0, 1}, {Polygon, {aab, bab, bbb, abb}}},
-        {{0.0, 1.0, 1.0, 1}, {Polygon, {aab, aaa, baa, bab}}},
-        {{0.0, 0.0, 1.0, 1}, {Polygon, {aba, abb, bbb, bba}}}};
-    //  where
+    Point leftInp = moveAlongX(-size)*moveAlongY(r)*origin;
+    Point rightInp = moveAlongX(-size)*moveAlongY(-r)*origin;
+    Point innerCorner = moveAlongX(-r)*moveAlongY(-r)*origin;
+    Point rightOutp = moveAlongX(-r)*moveAlongY(-size)*origin;
+    Point leftOutp = moveAlongX(r)*moveAlongY(-size)*origin;
+    Point outerCorner = moveAlongX(r)*moveAlongY(r)*origin;
+    Point lastPoint = outerCorner;
+    std::vector<Point> upperFace;
+    std::vector<Point> lowerFace;
+    for(const Point& newPoint : {leftInp,
+                          rightInp,
+                            innerCorner,
+                            rightOutp,
+                            leftOutp,
+                            outerCorner}) {
+        Point unp = movePerpendicularlyToOxy(r, newPoint);
+        Point lnp = movePerpendicularlyToOxy(-r, newPoint);
+        upperFace.push_back(unp);
+        lowerFace.push_back(lnp);
+        Point ulp = movePerpendicularlyToOxy(r, lastPoint);
+        Point llp = movePerpendicularlyToOxy(-r, lastPoint);
+        res.push_back({{0.0, 0.0, 1.0, 1}, {Polygon, {unp, ulp, llp, lnp}}});
+    }
+    res.push_back({{0.0, 0.0, 1.0, 1}, {Polygon, upperFace}});
+    res.push_back({{0.0, 0.0, 1.0, 1}, {Polygon, lowerFace}});
+    return res;
 }
 const Mesh G::sourceMesh() {// -- aaa-aba aba-abb abb-aab aab-aaa
     double r = 0.002;

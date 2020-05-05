@@ -60,7 +60,7 @@ extern int width , height ;
 void  initialiseGraphics(int sg, char** hr);
 const Mesh transparentDeviator();
 
-const Mesh deviator();
+const Mesh deviator(double size);
 const Mesh sourceMesh();
 inline double clamp(double a) {
     return a > 1?1:a<0?0:a;

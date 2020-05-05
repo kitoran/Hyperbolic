@@ -7,7 +7,7 @@ OptionalDouble intersectRay( const Deviator & d, const Matrix44 &transs) {
     Point dirFromStart = toNonPhysicalPoint (transposeMink (move) * d.dir);
     Matrix44 turn = andThen(getPointToOxyAroundOx,  getPointToOxzAroundOz)( dirFromStart);
     Matrix44 trans = (move * turn) ;
-    Mesh list = /*{-transposeMink-}*/ trans * G::deviator();
+    Mesh list = /*{-transposeMink-}*/ trans * G::deviator(d.size);
     bool any = false;
     for(int i = 0; i < list.size(); i++) {
         std::vector<Vector2> r;
@@ -58,17 +58,18 @@ OptionalInt findSelected(WorldState ws, AvatarPosition ap) {
 }
 
 LevelState processInventory(const Matrix44 &trans, LevelState ap) {
-    if(ap.inventory == De) {
+    if(ap.inventory.type == Item::De) {
         //        Matrix44 nmat = m33_to_m44M(ap.avatarPosition.pos);
-        ap.inventory = Empty;
-        ap.worldState.devis.push_back({trans*Point{0, 0, 0, 1}, trans*Absolute{1,0,0}, 0});
+        ap.inventory.type = Item::Empty;
+        ap.worldState.devis.push_back({trans*Point{0, 0, 0, 1}, trans*Absolute{1,0,0}, 0, ap.inventory.size});
         ap.selected = boost::none;;
         return ap;
-    } else if(ap.inventory == Empty) {
+    } else if(ap.inventory.type == Item::Empty) {
         if(!ap.selected.is_initialized()) {
             return ap;
         } else {
-            ap.inventory = De;
+            ap.inventory.type = Item::De;
+            ap.inventory.size = ap.worldState.devis[boost::get(ap.selected)].size;
             ap.worldState.devis.erase(ap.worldState.devis.begin()+boost::get(ap.selected));
             ap.selected = boost::none;
             return ap;
@@ -345,8 +346,8 @@ void gameDisplay() {
     //                            wheCons <- readIORef wheConsoleRef
     auto ap = state.avatarPosition;
     Matrix44 ps = preShow(mutableMesh.rays, G::viewPort(ap));
-    auto inv = state.inventory == Empty ? Mesh{} :
-                                          state.inventory == De ? ps*G::transparentDeviator() : (abort(), Mesh{});
+    auto inv = state.inventory.type == Item::Empty ? Mesh{} :
+                                          state.inventory.type == Item::De ? ps*G::transparentDeviator() : (abort(), Mesh{});
     fmt::print(stderr, "preshow for show {}", ps*Point{1,0,0,1});
     auto items =  mutableMesh.items;
     if(state.selected.is_initialized()) {
@@ -453,7 +454,7 @@ void gameLoop() {
             uint res = SDL_GetMouseState(&x, &y);
             if(x != width/2 || y != height/2) {
                 state.avatarPosition = processMouse( x-width/2, y-height/2, state.avatarPosition);
-                state.selected = state.inventory == Empty ? findSelected(state.worldState, state.avatarPosition) : boost::none;
+                state.selected = state.inventory.type == Item::Empty ? findSelected(state.worldState, state.avatarPosition) : boost::none;
                 SDL_WarpMouseInWindow(window, width/2, height/2);
             }
             if(res &  SDL_BUTTON(SDL_BUTTON_LEFT) && !mouseInhibited) {
