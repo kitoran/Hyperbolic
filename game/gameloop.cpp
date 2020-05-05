@@ -80,8 +80,8 @@ LevelState processInventory(const Matrix44 &trans, LevelState ap) {
 SqDistanceFromProjRes sqDistanceFromProj(const HyperEntity &he, const Matrix44 &trans) {
     Point h1 = trans * he.p[0];
     Point h2 = trans * he.p[1];
-    Vector2 v1 = {((-h1.y)/h1.x), (h1.z/h1.x)};
-    Vector2 v2 = {((-h2.y)/h2.x), (h2.z/h2.x)};
+    Vector2 v1 = {((h1.y)/h1.x), (h1.z/h1.x)};
+    Vector2 v2 = {((h2.y)/h2.x), (h2.z/h2.x)};
     auto numeratorRoot = (v2.x)*v1.y - v2.y*(v1.x);
     auto denominator = (v2.y-v1.y)*(v2.y-v1.y) + (( v2.x)-( v1.x))*(v2.x-v1.x);
     auto dis = numeratorRoot*numeratorRoot / denominator;
@@ -120,6 +120,8 @@ Matrix44 preShow(const Mesh &rays, const Matrix44 &vp) {
         }
         //        ((_, ratio), index) = minimumBy (compare `on` (fst.fst)) $ zip (map (\(_::(Double, Double, Double, Double), s) -> ) $ coerce rays) [0..]
     }
+
+//    fmt::print(stderr, "\nsqdis: {} {}\n", dis, ratio);
     //    (_::(Double, Double, Double, Double), P.Segment pos dir) = (coerce rays :: [((Double, Double, Double, Double), HyperEntity)]) !! index
     Matrix44 rayToOx = identity;// = let move = //-- если сделать, чтобы одна функция возвращала moveRightTo и moveRightFrom, то меньше вычислений
     const Point& pos = rays[index].e.p[0];
@@ -128,10 +130,11 @@ Matrix44 preShow(const Mesh &rays, const Matrix44 &vp) {
         auto move = moveRightTo (pos);
         auto dirFromStart = (transposeMink (move) * dir);
         auto toOxy = getPointToOxyAroundOy(dirFromStart);
+        fmt::print(stderr, "toOxy*Oz = {}\n", toOxy * Point{0,0,1,1});
         Point onOxy = toOxy*dirFromStart;
         auto toOx = getPointToOxzAroundOz(onOxy);
+        fmt::print(stderr, "toOx*Oz = {}\n", toOx * Point{0,0,1,1});
         auto turn = toOx * toOxy;
-        fmt::print(stderr, "{}, {}, {}\n", onOxy, toOx*onOxy, turn * dirFromStart);
 
         rayToOx = ( move * transposeMink( turn) );
     }

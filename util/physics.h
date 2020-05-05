@@ -170,13 +170,14 @@ struct Divider {
     Absolute dir;
     double nod;
 };
-struct Environment {
+struct Level {
     Mesh mesh;
     Obstacles obstacles;
     std::vector<Source> sources;
     std::vector<Deviator> deviators;
     std::vector<Receiver> receivers;
-    Environment& operator +=(const Environment& d) {
+    Matrix44 initialPos;
+    Level& operator +=(const Level& d) {
         mesh.insert(mesh.end(), d.mesh.begin(), d.mesh.end());
         obstacles.insert(obstacles.end(), d.obstacles.begin(), d.obstacles.end());
         sources.insert(sources.end(), d.sources.begin(), d.sources.end());
@@ -184,8 +185,8 @@ struct Environment {
         return *this;
     }
 };
-inline Environment operator *(const H::Matrix44& m, const Environment& d) {
-    return {m*d.mesh, m*d.obstacles, m*d.sources, m*d.deviators, m*d.receivers};
+inline Level operator *(const H::Matrix44& m, const Level& d) {
+    return {m*d.mesh, m*d.obstacles, m*d.sources, m*d.deviators, m*d.receivers, m*d.initialPos};
 }
 struct WorldState {
     std::vector<Deviator> devis;
