@@ -1,4 +1,5 @@
 #include "level.h"
+#include <iostream>
 
 Level levelTriangle() {
     Point p0p = Point{ (sinh (1)), 0.0, 0.0, (cosh (1))};
@@ -159,12 +160,62 @@ Level levelCorridor() {
     //        red = (1.0, 0.0, 0.0, 1)
 }
 
+double aByABC(double A, double B, double C) {
+    std::cerr << "aByABC:\n";
+    std::cerr << cos(A) << "\n";
+    std::cerr << cos(C)*cos(B) << "\n";
+    std::cerr << (cos(A) + cos(C)*cos(B)) << "\n";
+    std::cerr << sin(C) << "\n";
+    std::cerr << sin(B) << "\n";
+    std::cerr << (sin(C)*sin(B)) << "\n";
+    std::cerr << (cos(A) + cos(C)*cos(B))/(sin(C)*sin(B)) << "\n";
+    std::cerr << acosh((cos(A) + cos(C)*cos(B))/(sin(C)*sin(B))) << "\n";
+    double r = acosh((cos(A) + cos(C)*cos(B))/(sin(C)*sin(B)));
+    std::cerr << isfinite(r) << "\n";
+    std::cerr << bool(isfinite(r)) << "\n";
+    assert(bool(isfinite(r)));
+    return r;
+}
+double AByaBC(double a, double B, double C) {
+    std::cerr << "AByaBC:\n";
+    std::cerr << acos(-cos(B)*cos(C)+sin(C)*sin(B)*cosh(a)) << "\n";
+    double r = acos(-cos(B)*cos(C)+sin(C)*sin(B)*cosh(a));
+    std::cerr << r << "\n";
+    std::cerr << bool(isfinite(r)) << "\n";
+    assert(bool(isfinite(r)));
+    return r;
+}
+double acoth(double a) {
+    std::cerr << "acoth:" << a << (a+1)/(a-1) << std::endl;
+    return log((a+1)/(a-1))/2;
+}
+double cot(double a) {
+    return cos(a)/sin(a);
+}
+double aByAbC(double A, double b, double C) {
+    std::cerr << "aByAbC:\n";
+    double r = acoth((cos(C)*cosh(b)+sin(C)*cot(A))/sinh(b));
+    std::cerr << r << "\n";
+    std::cerr << bool(isfinite(r)) << "\n";
+    assert(bool(isfinite(r)));
+    return r;
+}
 Level levelMoreThanNeeded() {
     Level res;
-    auto addTriangle = [&res](Point&a ,Point&b,Point&c) {
+    auto addTriangle = [&](const Point&a,
+            const Point&b,
+            const Point&c) {
         res.mesh.push_back({white, {Polygon, {a,b,c}}});
         res.obstacles.push_back(
                     meshTriangleToObstacle({Polygon, {a,b,c}}));
+    };
+    auto addFloorTriangle = [&](
+            const Point&a ,
+            const Point&b,
+            const Point&c) {
+        addTriangle(movePerpendicularlyToOxy(-0.11, a),
+                    movePerpendicularlyToOxy(-0.11, b),
+                    movePerpendicularlyToOxy(-0.11, c));
     };
     auto addWall = [&](const Point&a, const Point&b) {
         Point ad = H::movePerpendicularlyToOxy(-0.11, a);
@@ -175,51 +226,66 @@ Level levelMoreThanNeeded() {
         addTriangle(ad, au, bu);
     };
 
-    Point b = rotateAroundZ(tau/8)*moveAlongY(0.25)*moveAlongZ(-0.11)*origin;
-    Point b2;
-    Point b3;
-{
-    Point a = moveAlongX(-0.7)*b;
-    addWall(a,b);
+    double a = 0.2;
+    double innerRadiusOfSmallPentagon = aByABC(tau/8, tau/10, tau/4);
+    double outerRadiusOfSmallPentagon = aByABC(tau/4, tau/10, tau/8);
+    double outerRadiusOfLargePentagon = aByAbC(tau/4,
+                            innerRadiusOfSmallPentagon+a,
+                                               tau/10);
+    double halfOfLargePentagonAngle = AByaBC(
+                 innerRadiusOfSmallPentagon+a, tau/10, tau/4);
+    double segmentOfSmallPentagon =
+            aByAbC(halfOfLargePentagonAngle/2, // да, мы делим половину езё раз пополам
+                   outerRadiusOfLargePentagon - outerRadiusOfSmallPentagon,
+                   tau/2-tau/8);
 
-    Point arx {a.x,-a.y,a.z,a.t};
-    Point brx {b.x,-b.y,b.z,b.t};
-    b2 = moveFromTo(b, brx, 1) * b;
-    addWall(arx,brx);
-    addWall(a,arx);
-    addTriangle(a, arx, brx);
-    addTriangle(a, b, brx);
-    }{
-        Point a = moveAlongY(0.7)*b;
-        addWall(a,b);
+    Point smallPentagonVertex = moveAlongX(outerRadiusOfSmallPentagon)
+                                    * origin;
+    Point smallPentagonSideMiddle = rotateAroundZ(-tau/10)*
+            moveAlongX(innerRadiusOfSmallPentagon)*
+                                     origin;
 
-        Point arx {-a.x,a.y,a.z,a.t};
-        Point brx {-b.x,b.y,b.z,b.t};
-        b3 = moveFromTo(b, brx, 1) * b;
-    addWall(arx,brx);
-    addWall(a,arx);
-    addTriangle(a, arx, brx);
-    addTriangle(a, b, brx);
+    Source s = moveFromTo(smallPentagonVertex,
+                          smallPentagonSideMiddle,
+                          segmentOfSmallPentagon)
+            *moveAlongX(outerRadiusOfSmallPentagon)
+            *rotateAroundZ(-tau/2+tau/8)
+            *Source{origin, {1,0,0}};
+    res.sources.push_back(s);
+
+    Point lastVertex = moveAlongX(outerRadiusOfLargePentagon)*origin;
+    for(int i = 1; i <= 5; i++) {
+        Point newVertex = rotateAroundZ(tau/5)*lastVertex;
+        addFloorTriangle(origin, lastVertex, newVertex);
+        addWall(lastVertex, newVertex);
+        lastVertex = newVertex;
     }
-    addTriangle(b, b2, b3);
+    addWall(moveAlongX(innerRadiusOfSmallPentagon/2)*origin,
+            moveAlongX(outerRadiusOfLargePentagon)*origin);
     for(int i = 0; i < 4; i++) {
         res.deviators.push_back(
         Deviator{{0.10772526696369414 + i*0.1, 0.2974917510234292, 0.0, 1.0694858627394699},
                  {1,0,0},
                     0});
     }
-    res.sources.push_back(
-    moveAlongX(-0.65) * Source{origin,
-            {1, 0, 0.0}});
+
+    Receiver rin;
     {
-        Point rr = moveAlongY(0.65) *
-                rotateAroundY(tau/8)*moveAlongX(0.05)*origin;
-        Point rr1 = rotateAroundY(tau/4)*rr;
-        Point rr2 = rotateAroundY(tau/4*2)*rr;
-        Point rr3 = rotateAroundY(tau/4*3)*rr;
-        res.receivers.push_back({rr,rr1,rr2,rr3});
+        Point rr = rotateAroundX(tau/8)*moveAlongY(0.05)*origin;
+        Point rr1 = rotateAroundX(tau/4)*rr;
+        Point rr2 = rotateAroundX(tau/4*2)*rr;
+        Point rr3 = rotateAroundX(tau/4*3)*rr;
+        rin = Receiver{rr,rr1,rr2,rr3};
     }
-    res.initialPos = moveRightTo(moveAlongX(-0.7)*moveAlongY(0)*moveAlongZ(-0.11)*origin);
+    Point smallPentagonOtherSideMiddle = rotateAroundZ(tau/10)*
+            moveAlongX(innerRadiusOfSmallPentagon)*origin;
+    Receiver r = moveFromTo(smallPentagonVertex,
+                              smallPentagonOtherSideMiddle,
+                              segmentOfSmallPentagon)
+                *moveAlongX(outerRadiusOfSmallPentagon)
+                *rotateAroundZ(tau/2-tau/8)*rin;
+    res.receivers.push_back(r);
+    res.initialPos = identity;//moveRightTo(moveAlongX(-0.7)*moveAlongY(0)*moveAlongZ(-0.11)*origin);
     return res;
     //        red = (1.0, 0.0, 0.0, 1)
 }
