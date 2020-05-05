@@ -1,4 +1,10 @@
 #include "commongraphics.h"
+#include <chrono>
+#include <iostream>
+#include <fcntl.h>
+#include <libexplain/fwrite.h>
+#include <libexplain/fopen.h>
+#include <libexplain/fread.h>
 
 SDL_Window* window = 0;
 SDL_GLContext context;
@@ -9,10 +15,16 @@ bool wheCons = false;
 
 void initialiseGraphics(int /*sg*/, char **/*hr*/) {
 //    glutInit(&sg, hr);
+    using namespace std::chrono;
+    auto start = high_resolution_clock::now();
     SDL_Init(SDL_INIT_VIDEO);
+    std::cerr << duration_cast<milliseconds>(high_resolution_clock::now() - start).count() << " ms 1\n" ;
+    start = high_resolution_clock::now();
 
     SDL_DisplayMode display;
     SDL_GetCurrentDisplayMode(0, &display);
+    std::cerr << duration_cast<milliseconds>(high_resolution_clock::now() - start).count() << " ms 2\n" ;
+    start = high_resolution_clock::now();
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     width = display.w; height = display.h;
@@ -21,6 +33,8 @@ void initialiseGraphics(int /*sg*/, char **/*hr*/) {
     context = SDL_GL_CreateContext(window);
 
     glDepthFunc( GL_LESS );
+    std::cerr << duration_cast<milliseconds>(high_resolution_clock::now() - start).count() << " ms 3\n" ;
+    start = high_resolution_clock::now();
 
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_DEPTH_CLAMP);
@@ -31,22 +45,43 @@ void initialiseGraphics(int /*sg*/, char **/*hr*/) {
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(-0.2, 1);
 
+    std::cerr << duration_cast<milliseconds>(high_resolution_clock::now() - start).count() << " ms 4\n" ;
+    start = high_resolution_clock::now();
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 //    auto cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
 //    auto cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_NO);
 //    SDL_SetCursor(cursor);
     SDL_ShowCursor(SDL_FALSE);
+    std::cerr << duration_cast<milliseconds>(high_resolution_clock::now() - start).count() << " ms 5\n" ;
+    start = high_resolution_clock::now();
     SDL_ShowWindow(window);
+    std::cerr << duration_cast<milliseconds>(high_resolution_clock::now() - start).count() << " ms 6\n" ;
+    start = high_resolution_clock::now();
 
 
     std::vector<unsigned char> image;
-    unsigned width, height;
-    unsigned error = lodepng::decode(image, width, height, "/home/n/Hyperbolic/zv2mh98hluu31.png");
-    if(error != 0) {
-        printf("error %d: %s\n", error, lodepng_error_text(error));
-        exit(1);
-    }
+    uint32_t width, height;
+    FILE* dwdq = explain_fopen_or_die("/home/n/Hyperbolic/zv2mh98hluu31.bmp", "r");
+    explain_fread_or_die(&width, 4, 1, dwdq);
+    explain_fread_or_die(&height, 4, 1, dwdq);
+    image.resize(width*height*4);
+    explain_fread_or_die(image.data(), 1, image.size(), dwdq);
+
+//    unsigned error = lodepng::decode(image, width, height, "/home/n/Hyperbolic/zv2mh98hluu31.png");
+//    FILE* dwdq = explain_fopen_or_die("/home/n/Hyperbolic/zv2mh98hluu31.bmp", "w");
+//    explain_fwrite_or_die(&width, 4, 1, dwdq);
+//    explain_fwrite_or_die(&height, 4, 1, dwdq);
+//    explain_fwrite_or_die(image.data(), 1, image.size(), dwdq);
+//    exit(0);
+
+    std::cerr << duration_cast<milliseconds>(high_resolution_clock::now() - start).count() << " ms 7\n" ;
+    start = high_resolution_clock::now();
+
+//    if(error != 0) {
+//        printf("error %d: %s\n", error, lodepng_error_text(error));
+//        exit(1);
+//    }
     glEnable(GL_TEXTURE_2D);
       glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //GL_NEAREST = no smoothing
       glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -56,6 +91,9 @@ void initialiseGraphics(int /*sg*/, char **/*hr*/) {
                  0,
                  GL_RGBA,
                  GL_UNSIGNED_BYTE, &image[0]);
+    std::cerr << duration_cast<milliseconds>(high_resolution_clock::now() - start).count() << " ms 8\n" ;
+    start = high_resolution_clock::now();
+
 
 }
 

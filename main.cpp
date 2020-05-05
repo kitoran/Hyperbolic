@@ -4,6 +4,7 @@
 #include "editor/editor.h"
 #include "game/console.h"
 #include <iostream>
+#include <chrono>
 inline int global = 6;
 int main(int argc, char ** argv) {
 //    if (argc < 2) {
@@ -41,8 +42,6 @@ int main(int argc, char ** argv) {
             auto d = SDL_GetWindowPixelFormat( window );
             printf("%d\n", d);
 
-            printf("%s\n", "beforeEverything");
-            printf("%ld %lld\n", sizeof(size_t), 1366*768*4 * 60 * 15ll);
 
             gameLoop( );
             return 0;

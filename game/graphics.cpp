@@ -267,7 +267,7 @@ boost::optional<G::FunctionDeResult> G::functionDe(Point pos, Absolute dir, Devi
     Matrix44 turn = andThen(getPointToOxyAroundOy, getPointToOxzAroundOz)(dirFromStart);
     Matrix44 trans = turn * inv44(move);
     Point res = trans * de.pos;
-    Absolute newDir = inv44( trans) * (rotateAroundX (-de.nod)) * (moveAlongX (distance (origin, res))) * (Absolute{ 0, 1, 0}) ;
+    Absolute newDir = inv44( trans) * (rotateAroundX (-de.nod)) * (moveAlongX (distance (origin, res))) * (Absolute{ 0, -1, 0}) ;
     bool cond = fabs(res. y) < 0.001 && fabs(res.z) < 0.001 && fabs(res.x*res.t) > 0.00001; // и ещё условие что девиатор правильно повёрнут
     if (cond) {
         return {{res.x/res.t, newDir}};

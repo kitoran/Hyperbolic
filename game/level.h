@@ -2,7 +2,7 @@
 #define LEVEL_H
 #include "util/physics.h"
 
-Environment level();
+Level level();
 
 
 LevelState startState();

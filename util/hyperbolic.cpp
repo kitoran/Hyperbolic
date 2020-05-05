@@ -347,6 +347,9 @@ H::Point H::movePerpendicularlyToOxy(double dis, const H::Point &p)
 }
 
 H::Matrix44 H::getPointToOxyAroundOy(const H::Point &p) {
+    if(p.x/p.t < 0) {
+        return rotateAroundY (-(atan2 (-p.z/p.t, -p.x/p.t)));
+    }
     return rotateAroundY (-(atan2 (p.z/p.t, p.x/p.t)));
 }
 

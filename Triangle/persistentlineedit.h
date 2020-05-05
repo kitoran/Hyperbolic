@@ -6,7 +6,7 @@
 
 class PersistentLineEdit : public QLineEdit {
 public:
-    PersistentLineEdit(QWidget* w) : QLineEdit(w) {
+    PersistentLineEdit(QWidget* w=nullptr) : QLineEdit(w) {
         connect(this, &PersistentLineEdit::objectNameChanged,
                 this, [this](QString f){
             setText(QSettings().value(f).toString());
