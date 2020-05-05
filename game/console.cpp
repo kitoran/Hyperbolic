@@ -42,7 +42,8 @@ void loadHistory()
 
 void processLine() {
     if(console == "getde") {
-        ::state.inventory = De;
+        ::state.inventory.type = Item::De;
+        ::state.inventory.size = 0.005;
     }
 //    if(console == "editor") {
 //        editorLoop();

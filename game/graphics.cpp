@@ -435,7 +435,7 @@ G::MutableMesh G::toMesh(const std::vector<Source> &s, const std::vector<Receive
     }
     std::vector<Mesh> items;
     for(const auto& dede: ls.worldState.devis) {
-        items.push_back(transformationForDeviator(dede) * deviator());
+        items.push_back(transformationForDeviator(dede) * deviator(dede.size));
     }
     return {Mesh{lines}, items, Mesh{recvs}};
 }

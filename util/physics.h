@@ -156,14 +156,18 @@ struct AvatarPosition  {
 };
 AvatarPosition toAvatarPosition(const Matrix44& st);
 Matrix44 fromAvatarPosition(const AvatarPosition &ap);
-enum Item { Empty, De, Di};
+struct Item {
+    enum {Empty, De, Di} type;
+    double size;
+};
 struct Deviator {
     H::Point pos;
     Absolute dir;
     double nod;
+    double size;
 }; // отклоняет поток на 90 градусов
 inline Deviator operator *(const H::Matrix44& m, const Deviator& d) {
-    return {m*d.pos, d.dir.move(m), d.nod}; // третий аргумет переводится неправильно, но что поделать
+    return {m*d.pos, d.dir.move(m), d.nod, d.size}; // третий аргумет переводится неправильно, но что поделать
 }
 struct Divider {
     H::Point pos;

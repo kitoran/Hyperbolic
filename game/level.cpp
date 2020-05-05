@@ -149,7 +149,8 @@ Level levelCorridor() {
         res.deviators.push_back(
         Deviator{{0.10772526696369414 + i*0.1, 0.2974917510234292, 0.0, 1.0694858627394699},
                  {1,0,0},
-                    0});
+                    0,
+                    0.005});
     }
     res.sources.push_back(
     Source{{0.3502363157176379, 0.07359641546437636, 0.0, 1.0678158976874874},
@@ -266,7 +267,8 @@ Level levelMoreThanNeeded() {
         res.deviators.push_back(
         Deviator{{0.10772526696369414 + i*0.1, 0.2974917510234292, 0.0, 1.0694858627394699},
                  {1,0,0},
-                    0});
+                    0,
+                    0.05});
     }
 
     Receiver rin;
@@ -302,7 +304,7 @@ LevelState startState() {
 //    ap.nod = 0;
 //    ap.speed = Vector3{ 0.0, 0, 0};
     r.avatarPosition = toAvatarPosition(level().initialPos);
-    r.inventory = Empty;
+    r.inventory = {Item::Empty, -1};
     r.worldState = { level().deviators,
                      {}
                    };
