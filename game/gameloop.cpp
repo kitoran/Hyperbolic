@@ -187,7 +187,7 @@ void keyboardProcess() {
             Point p4h{ph.x, ph.y, 0, ph.t};
             Point p = moveRightTo(p4h)*Point{0, 0, sinh(globals::state.avatarPosition.height),
                                                    cosh(globals::state.avatarPosition.height)};
-            clip::set_text(fmt::format("{{{}, {}, {}, {}}}", p.x, p.y, p.z, p.t));
+            clip::set_text(fmt::format("{{{:.4}, {:.4}, {:.4}, {:.4}}}", p.x, p.y, p.z, p.t));
         }
         if(state[SDL_SCANCODE_D]) {
             Vector3 ph = globals::state.avatarPosition.pos * Vector3{1,0,1};

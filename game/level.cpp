@@ -201,7 +201,7 @@ double aByAbC(double A, double b, double C) {
     assert(bool(isfinite(r)));
     return r;
 }
-Level levelMoreThanNeeded() {
+Level levelMoreThanNeededRev2() {
     Level res;
     auto addTriangle = [&](const Point&a,
             const Point&b,
@@ -291,8 +291,91 @@ Level levelMoreThanNeeded() {
     return res;
     //        red = (1.0, 0.0, 0.0, 1)
 }
+
+Level levelMoreThanNeededRev1() {
+    Level res;
+    auto addTriangle = [&res](Point&a ,Point&b,Point&c) {
+        res.mesh.push_back({white, {Polygon, {a,b,c}}});
+        res.obstacles.push_back(
+                    meshTriangleToObstacle({Polygon, {a,b,c}}));
+    };
+    auto addWall = [&](const Point&a, const Point&b) {
+        Point ad = H::movePerpendicularlyToOxy(-0.11, a);
+        Point bd = H::movePerpendicularlyToOxy(-0.11, b);
+        Point au = H::movePerpendicularlyToOxy(0.5, a);
+        Point bu = H::movePerpendicularlyToOxy(0.5, b);
+        addTriangle(ad, bd, bu);
+        addTriangle(ad, au, bu);
+    };
+
+    Point b = rotateAroundZ(tau/8)*moveAlongY(0.25)*moveAlongZ(-0.11)*origin;
+    Point b2;
+    Point b3;
+{
+    Point a = moveAlongX(-0.7)*b;
+    addWall(a,b);
+
+    Point arx {a.x,-a.y,a.z,a.t};
+    Point brx {b.x,-b.y,b.z,b.t};
+    b2 = moveFromTo(b, brx, 1) * b;
+    addWall(arx,brx);
+    addWall(a,arx);
+    addTriangle(a, arx, brx);
+    addTriangle(a, b, brx);
+    }{
+        Point b = rotateAroundZ(tau/8)*moveAlongY(0.05)*moveAlongZ(-0.11)*origin;
+        Point a = moveAlongY(0.7)*b;
+        addWall(a,b);
+
+        Point arx {-a.x,a.y,a.z,a.t};
+        Point brx {-b.x,b.y,b.z,b.t};
+        b3 = moveFromTo(b, brx, 1) * b;
+    addWall(arx,brx);
+    addWall(a,arx);
+    addTriangle(a, arx, brx);
+    addTriangle(a, b, brx);
+    }
+    addTriangle(b, b2, b3);
+
+    {
+
+        Point p1 = {0.050524935009176014, -0.0465960281660581, -0.006665438528317308, 1.0023813580515692};
+        Point p2 = {0.38966730918179043, -0.06900141343093888, -0.015670573025449584, 1.075568395667793};
+        Point p3 = {0.2078120616743473, -0.5541992438222422, -0.01481164101083042, 1.1621282371321684};
+        Point o = {0.24226807025741678, -0.25495218225656485, 0.20561392228316158, 1.079801610547189};
+        addTriangle(p1, p2, o);
+        addTriangle(p3, p2, o);
+        addTriangle(p1, p3, o);
+        addTriangle(p1, p2, p3);
+
+    }
+
+    for(int i = 0; i < 4; i++) {
+        res.deviators.push_back(
+        Deviator{{0.10772526696369414 + i*0.1, 0.2974917510234292, 0.0, 1.0694858627394699},
+                 {1,0,0},
+                    0,
+                    0.05});
+    }
+    res.sources.push_back(
+    moveAlongX(-0.65) * Source{origin,
+            {1, 0, 0.0}});
+    {
+        Point rr = moveAlongY(0.65) *
+                rotateAroundY(tau/8)*moveAlongX(0.05)*origin;
+        Point rr1 = rotateAroundY(tau/4)*rr;
+        Point rr2 = rotateAroundY(tau/4*2)*rr;
+        Point rr3 = rotateAroundY(tau/4*3)*rr;
+        res.receivers.push_back({rr,rr1,rr2,rr3});
+    }
+
+    res.initialPos = moveRightTo(moveAlongX(-0.7)*moveAlongY(0)*moveAlongZ(-0.11)*origin);
+    return res;
+    //        red = (1.0, 0.0, 0.0, 1)
+}
+
 Level level() {
-    return levelMoreThanNeeded();
+    return levelMoreThanNeededRev1();
 }
 
 LevelState startState() {
