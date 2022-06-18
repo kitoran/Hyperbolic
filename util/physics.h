@@ -174,6 +174,10 @@ struct Divider {
     Absolute dir;
     double nod;
 };
+struct PushingCube {
+    double faceCenterDist;
+    H::Matrix44 pos;
+};
 struct Level {
     Mesh mesh;
     Obstacles obstacles;
@@ -195,6 +199,7 @@ inline Level operator *(const H::Matrix44& m, const Level& d) {
 struct WorldState {
     std::vector<Deviator> devis;
     std::vector<Divider> divis;
+    std::vector<PushingCube> cubes;
 };
 using OptionalInt = boost::optional<int>;
 using OptionalDouble = boost::optional<double>;
@@ -491,10 +496,11 @@ inline AvatarPosition pushOutSphereO(Point m, double r, const AvatarPosition&s) 
 //                                  then decompose (H.moveFromTo (notm !$ projOfNewO) (notm !$ newO) (r + ourSize) !$ (notm !$ projOfNewO)) s
 //                                  else s
 //                                  }
+Matrix44 sqrtPushOutRectangle(const Matrix44& m, double width, double height,
+                            const Point& p);
+
 inline auto pushOutTriangleO(const Matrix44& m, double x1, double x2, double y2, double r, const AvatarPosition& s) -> AvatarPosition {
-//                            -- newb = getTriangleToOxy a b c !$ b
     auto newO = m * currentPosition( s);
-//                                -- newc = getTriangleToOxy a b c !$ c
     auto projOfNewO = newO; projOfNewO.z = 0;
     auto diff = r - H::distance(newO, projOfNewO);
     auto notm = H::transposeMink(m);

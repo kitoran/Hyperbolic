@@ -1,4 +1,4 @@
-#include "hyperbolic.h"
+﻿#include "hyperbolic.h"
 #include <assert.h>
 
 H::Component &H::Point::operator[](int a) {
@@ -44,9 +44,9 @@ H::Component H::Matrix33::operator()(int i, int j) const {
 
 H::Matrix44 H::transpose(H::Matrix44 a) {
     return {{a(0,0), a(1,0), a(2,0), a(3,0),
-                    a(0,1), a(1,1), a(2,1), a(3,1),
-                    a(0,2), a(1,2), a(2,2), a(3,2),
-                    a(0,3), a(1,3), a(2,3), a(3,3)
+            a(0,1), a(1,1), a(2,1), a(3,1),
+            a(0,2), a(1,2), a(2,2), a(3,2),
+            a(0,3), a(1,3), a(2,3), a(3,3)
         }};
 }
 
@@ -245,7 +245,7 @@ H::Matrix44 H::moveAlongZ(double d) {
 }
 
 H::Matrix44 H::moveAlongX(double d) {
-    return {{cosh (d), 0, 0, sinh( d),
+    return {{cosh (d), 0.0, 0, sinh( d),
                     0, 1, 0, 0,
                     0, 0, 1, 0,
              sinh (d), 0, 0, cosh (d)}};
@@ -253,7 +253,7 @@ H::Matrix44 H::moveAlongX(double d) {
 
 H::Matrix44 H::moveAlongY(double d) {
     return {{1, 0, 0, 0,
-            0, cosh (d), 0, sinh(d),
+            0.0, cosh (d), 0, sinh(d),
                     0, 0, 1, 0,
                     0, sinh(d), 0, cosh (d)}};
 }

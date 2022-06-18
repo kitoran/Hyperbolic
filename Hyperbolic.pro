@@ -1,7 +1,7 @@
 TEMPLATE = app
 CONFIG += console
 #CONFIG +=  c++17
-
+include(/home/n/library/stb/stb_image_write.pri)
 #CONFIG += c++14
 QMAKE_CXXFLAGS -= -Wall   -isystem /usr/include
 #-std=gnu++1z
@@ -30,7 +30,8 @@ SOURCES += main.cpp \
     fmt/src/os.cc \
     clip/clip.cpp \
     clip/clip_x11.cpp \
-    clip/image.cpp
+    clip/image.cpp \
+    game/editor.cpp
 
 HEADERS += \
     util/hyperbolic.h \
@@ -54,4 +55,5 @@ HEADERS += \
     fmt/include/fmt/ostream.h \
     fmt/include/fmt/posix.h \
     fmt/include/fmt/printf.h \
-    fmt/include/fmt/ranges.h
+    fmt/include/fmt/ranges.h \
+    game/editor.h

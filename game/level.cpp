@@ -1,4 +1,4 @@
-#include "level.h"
+﻿#include "level.h"
 #include <iostream>
 
 Level levelTriangle() {
@@ -376,11 +376,9 @@ Level levelMoreThanNeededRev1() {
 }
 
 Level level() {
-    return levelMoreThanNeededRev1();
-=======
-Level level() {
-    return levelMoreThanNeeded();
->>>>>>> f63556f42eb411243297590018764c82f11751e4
+
+    return levelMoreThanNeededRev2();
+//    return moveAlongZ(-0.11)*levelPentagon();
 }
 
 LevelState startState() {
@@ -394,7 +392,8 @@ LevelState startState() {
     r.avatarPosition = toAvatarPosition(level().initialPos);
     r.inventory = {Item::Empty, -1};
     r.worldState = { level().deviators,
-                     {}
+                     {},
+                     {PushingCube{0.11, moveAlongX(0.3)}}
                    };
     r.selected  = boost::none;
     return r;

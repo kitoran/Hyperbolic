@@ -1,18 +1,32 @@
-#ifndef COMMONGRAPHICS_H
+﻿#ifndef COMMONGRAPHICS_H
 #define COMMONGRAPHICS_H
 #include "SDL2/SDL_video.h"
 #include "SDL2/SDL.h"
 #include "util/hyperbolic.h"
 //#include "/usr/include/old-array.h"
 #include <array>
-#include "GL/freeglut.h"
+#include "GL/gl.h"
 #include "util/physics.h"
 #include "util/lodepng.h"
 extern SDL_Window* window;
 extern SDL_GLContext context;
+inline Vector2 A = {-1.0/2, 0};
+inline Vector2 B = {0, 0};
+inline Vector2 C = {0, -1};
+extern "C" {
+GLAPI void APIENTRY glGenBuffers(	GLsizei 	n, GLuint * 	buffers);
+GLAPI void APIENTRY glGenFramebuffers (GLsizei n, GLuint *framebuffers);
+GLAPI void APIENTRY glWindowPos2f (GLfloat x, GLfloat y);
+GLAPI void APIENTRY glFramebufferTexture2D (GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+GLAPI void APIENTRY glBindFramebuffer (GLenum target, GLuint framebuffer);
+GLAPI void APIENTRY glFramebufferTexture2D (GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+GLAPI GLenum APIENTRY glCheckFramebufferStatus (GLenum target);
+GLAPI void APIENTRY glDebugMessageCallback (GLDEBUGPROC callback, const void *userParam);
+}
 
-extern "C" GLAPI void APIENTRY glWindowPos2f (GLfloat x, GLfloat y);
-
+inline GLuint selectionFramebuffer;
+inline GLuint selectionTexture;
+inline GLuint selectionDepth;
 namespace G {
 inline H::Matrix44 perspective(double fovy, double aspect, double near, double far) {
     double tanHalfFovy = tan( fovy / 2);
@@ -61,17 +75,18 @@ void  initialiseGraphics(int sg, char** hr);
 const Mesh transparentDeviator();
 
 const Mesh deviator(double size);
+const Mesh cube(double size);
 const Mesh sourceMesh();
 inline double clamp(double a) {
     return a > 1?1:a<0?0:a;
 }
 void lightenABit(Mesh *d);
-template <typename F>
-void renderPrimitive(GLenum p, F f) {
-    glBegin(p);
-    f();
-    glEnd();
-}
+//template <typename F>
+//void renderPrimitive(GLenum p, F f) {
+//    glBegin(p);
+//    f();
+//    glEnd();
+//}
 } // namespace G
 #endif // COMMONGRAPHICS_H
 

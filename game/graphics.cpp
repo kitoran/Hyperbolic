@@ -1,4 +1,4 @@
-#include "console.h"
+﻿#include "console.h"
 #include "graphics.h"
 #include "gameloop.h"
 #include <fmt/format.h>
@@ -88,93 +88,168 @@ void G::renderLine(const std::string &line, int lineNumber, bool bottom) {
     SDL_FreeSurface(sFont);
 }
 
-void G::displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ray, const Mesh &re, const Mesh &inv, const Matrix44 &tran) {
-    static int is = 0;
-    is++;
+void G::predisplay() {
+    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+void G::display(const std::vector<Mesh> &mesh, const Matrix44 &tran, bool AlternativeBuffer) {
+    if(AlternativeBuffer) {
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, selectionFramebuffer);
+//        glDisable(GL_TEXTURE_2D);
+
+        glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
     int i = 0;
     auto transform = [&](Point p) {
         Point a = G::persViewMatrix * ( tran * p);
-        if(i%3 == 0) {
-//            glTexCoord2d(231.0/500, 39.0/375);
-            glTexCoord2d(2281.0/2480, 1070.0/3508);
-        } else if(i%3 == 1) {
-//            glTexCoord2d(402.0/500, 137.0/375);
-            glTexCoord2d(1678.0/2480, 25.0/3508);
-        } else if(i%3 == 2) {
-//            glTexCoord2d(358.0/500, 331.0/375);
-                        glTexCoord2d(1076.0/2480, 1070.0/3508);
-        } else if(i%5 == 3) {
-            glTexCoord2d(135.0/500, 349.0/375);
-        } else if(i%5 == 4) {
-            glTexCoord2d(64.0/500, 164.0/375);
-        }
-        i++;
+//        if(!AlternativeBuffer) {
+            if(i%3 == 0) {
+    //            glTexCoord2d(231.0/500, 39.0/375);
+                glTexCoord2d(2281.0/2480, 1070.0/3508);
+            } else if(i%3 == 1) {
+    //            glTexCoord2d(402.0/500, 137.0/375);
+                glTexCoord2d(1678.0/2480, 25.0/3508);
+            } else if(i%3 == 2) {
+    //            glTexCoord2d(358.0/500, 331.0/375);
+                            glTexCoord2d(1076.0/2480, 1070.0/3508);
+            } else if(i%5 == 3) {
+                glTexCoord2d(135.0/500, 349.0/375);
+            } else if(i%5 == 4) {
+                glTexCoord2d(64.0/500, 164.0/375);
+            }
+            i++;
+//        }
         glVertex4dv(G::saneVertex4(a).data);
     };
-    auto toRaw = [&transform](const ColoredEntity& ce) {
-        //        if(ce.e.type == Polygon) {
-        renderPrimitive(ce.e.type == Polygon ? GL_POLYGON :
-                                               ce.e.type == Segment ? GL_LINES: GL_POINTS, [&transform, &ce](){
+    auto toRaw = [&](const ColoredEntity& ce) {
 
-            glColor4fv((float*)(&(ce.color)));
-            //                applyNormal(ce.e.p);
-
-            for(auto x:ce.e.p) {
-                transform(x);
+        glBegin(ce.e.type == Polygon ? GL_POLYGON :
+                                       ce.e.type == Segment ? GL_LINES: GL_POINTS);
+        glColor4fv((float*)(&(ce.color)));
+        bool front = true;
+        bool back = true;
+        Point last = G::persViewMatrix * ( tran * ce.e.p.back());
+        for(auto x:ce.e.p) {
+            Point a1 = G::persViewMatrix * ( tran * x);
+                if(i%3 == 0) {
+                    glTexCoord2d(2281.0/2480, 1070.0/3508);
+                } else if(i%3 == 1) {
+                    glTexCoord2d(1678.0/2480, 25.0/3508);
+                } else if(i%3 == 2) {
+                    glTexCoord2d(1076.0/2480, 1070.0/3508);
+                } else if(i%5 == 3) {
+                    glTexCoord2d(135.0/500, 349.0/375);
+                } else if(i%5 == 4) {
+                    glTexCoord2d(64.0/500, 164.0/375);
+                }
+                i++;
+    //        }
+            glVertex4dv(G::saneVertex4(a1).data);
+            Point a = normalizeKlein(a1);
+            if(a.x*last.y-last.x*a.y<0) {
+                front = false;
             }
-
-
-        });
-        //            glDisable(GL_DEPTH_TEST);
-        //            renderPrimitive(GL_POINTS, [&transform, &applyNormal, bb, qwq, &ce](){
-        //                glColor4f(1, 1, 1, 1);
-        //                for(auto x:ce.e.p) {
-        //                    transform(x);
-        //                }
-        //            });
-        //            glEnable(GL_DEPTH_TEST);
-
-        //        } else if(ce.e.type == Segment) {
-        //            renderPrimitive(GL_LINES, [&](){
-        //                glColor4fv((float*)(&(ce.color)));
-        //                transform(ce.e.a);
-        //                transform(ce.e.b);
-        //            });
-        //        } else {
-        //            renderPrimitive(GL_POINTS, [&](){
-        //                glColor4dv((double*)(&(ce.color)));
-        //                transform(ce.e.a);
-        //            });
-        //        }
+            if(a.x*last.y-last.x*a.y>0) {
+                back = false;
+            }
+            last = a;
+        }
+        Point v1 = normalizeKlein(G::persViewMatrix * ( tran *ce.e.p[0]));
+        Point v2 = normalizeKlein(G::persViewMatrix * ( tran *ce.e.p[1]));
+        Point v3 = normalizeKlein(G::persViewMatrix * ( tran *ce.e.p[2]));
+        double denom = (v2.y-v3.y)*(v1.x-v3.x)+(v3.x-v2.x)*(v1.y-v3.y);
+        double w1 = ((v1.y-v3.y)*(-v3.x)+(v3.x-v2.x)*(-v3.y))/denom;
+        double w2 = ((v3.y-v1.y)*(-v3.x)+(v1.x-v2.x)*(-v3.y))/denom;
+        double w3 = 1-w1-w2;
+        double depth = v1.z*w1+v2.z*w2+v3.z*w3;
+        glEnd();
+        if((front || back) && (depth >= -1 && depth <= 1)) {
+            fprintf(stderr, "intersecting face %p"
+                            " front %s back %s at depth %lf"
+                            "\n", &ce, front?"true":"false",
+                    back?"true":"false", depth);
+        }
     };
     //  matrixMode $= Projection
     //  -- print cons
-    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     //        -- putStrLn $ "What displayGame sees:" <> show tranw
     //    glEnabke(GL_LIGHTING);//lighting           $= Enabled
     //  preservingMatrix $ do
     //    -- matrixx <- (newMatrix RowMajor $ m44toList tran :: IO (GLmatrix GLdouble))
     //    -- multMatrix matrixx
     //    position (Light 0) $= lpos; //-- saneVertex4 0.3 0.1 0.15 (1::GLfloat)
-    for(auto& e : st) {
-        toRaw(e);
-    }
-    for(auto& e : its) {
+
+    for(auto& e : mesh) {
+//        if(AlternativeBuffer) {
+
+//            const void* add = (&e);
+//            GLbyte* theColor = (GLbyte*)&add;
+//            theColor[3]=theColor[2]=theColor[1]=theColor[0]=0;
+//            glColor4bv(theColor);
+//        }
         for(auto& y : e) {
             toRaw(y);
         }
     }
-    for(auto& e : ray) {
-        toRaw(e);
+    if(frame) {
+        glColor3f(0, 0, (0));
+        for(auto&y:mesh) {
+            for(auto& r : y) {
+                if(r.e.type == Polygon) {
+                    glBegin(GL_LINE_LOOP);
+                    for(auto &q : r.e.p){
+                        transform(q);
+                    }
+                    glEnd();
+                }
+            }
+        }
     }
-    for(auto& e : re) {
-        toRaw(e);
+
+    //    glDisable(GL_DEPTH_TEST);
+        glDisable(GL_TEXTURE);
+        glEnable(GL_TEXTURE_2D);
+    glBegin(GL_TRIANGLES);
+    glColor3ub(255,127,0);
+    for(Vector2* pp : {&A, &B, &C}) {
+        Vector2& p = *pp;
+        constexpr int n = 10;
+        constexpr double w = 10;
+        double windx = ((p.x+1)*width)/2;
+        double windy = (p.y+1)*height/2;
+        double lx = p.x, ly = p.y;
+        for(int i = 0; i < n+1; i++) {
+            double wxc = windx+w*cos(tau/n*i);
+            double wyc = windy+w*sin(tau/n*i);
+            double x = wxc*2/width-1;
+            double y = wyc*2/height-1;
+
+
+            glColor3ub(255-255.0/(n+1)*i,127,255.0/(n+1)*i);
+            glVertex3d(p.x, p.y, 0);
+            glVertex3d(x, y, 0);
+            glVertex3d(lx, ly, 0);
+            lx = x; ly = y;
+            if(pp == &B) fprintf(stderr, "lx = %lf, ly = %lf", lx, ly);
+        }
     }
-    for(auto& e : inv) {
-        toRaw(e);
+        glColor3b(0,127,0);
+        glVertex3d(A.x, A.y, 0);
+        glVertex3d(B.x, B.y, 0);
+        glVertex3d(C.x, C.y, 0);
+    glEnd();
+//    glEnable(GL_DEPTH_TEST);
+
+
+    if(AlternativeBuffer) {
+
+        glEnable(GL_TEXTURE_2D);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     }
+}
+void G::postdisplay() {
     glColor4f(1, 1, 1, 0.1);
-    renderPrimitive( GL_TRIANGLES, []() {
+    glBegin(GL_TRIANGLES);
         double x = 0.5, y = 0, z = 0, t = 1;
         glVertex4dv(saneVertex4({x-0.01, y, z, t}).data);
 
@@ -182,27 +257,16 @@ void G::displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ra
 
 
         glVertex4dv(saneVertex4({x, y, (z-0.01), t}).data);
-    });
-    if(frame) {
-        glColor3f(0, 0, (0));
-        for(auto&r:st) {
-            if(r.e.type == Polygon) {
-                renderPrimitive(GL_LINE_LOOP, [&](){
-                    for(auto &q : r.e.p){
-                        transform(q);
-                    }
-                });
-            }
-        }
-    }
+    glEnd();
+
     glColor3f(1, 1, (1));
     glDisable(GL_DEPTH_TEST);
-    renderPrimitive( GL_LINES, []() {
+    glBegin(GL_LINES);
         glVertex2d(-5.0/(width/2.0), 0);
         glVertex2d(5.0/(width/2.0), 0);
         glVertex2d(0, -5.0/(height/2.0));
         glVertex2d(0, 5.0/(height/2.0));
-    });
+    glEnd();
     glEnable(GL_DEPTH_TEST);
 
     //    -- clear [ColorBuffer, DepthBuffer]
@@ -232,9 +296,6 @@ void G::displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ra
     //    --                                          "vect " <> showt ((inv44 tran) !$ origin),
     //    --                                          "insanity " <> showt (H.insanity tran),
     //    --                                          mareix tran]))
-    if(is == 3) {
-        is = 0;
-    }
 
     SDL_GL_SwapWindow(window);
 
@@ -252,12 +313,19 @@ Matrix44 G::viewPort(const AvatarPosition &ap) {
 
 bool G::containsZero(const std::vector<Vector2> &v) {
     int s = v.size();
+    bool front = true;
     for(int i = 0; i< s; i++) {
         if(v[i].x*v[(i+1)%s].y-v[(i+1)%s].x*v[i].y<0) {
-            return false;
+            front = false;
         }
     }
-    return true;
+    bool back = true;
+    for(int i = 0; i< s; i++) {
+        if(v[i].x*v[(i+1)%s].y-v[(i+1)%s].x*v[i].y>0) {
+            back = false;
+        }
+    }
+    return front || back;
 }
 
 boost::optional<G::FunctionDeResult> G::functionDe(Point pos, Absolute dir, Deviator de) {
@@ -298,7 +366,6 @@ boost::optional<Point> G::functionRcv(Point pos, Absolute dir, Receiver re) {
         return boost::none;
     }
 }
-
 G::FoldMaybesResult G::foldMaybes(const std::vector<Deviator> &listd, const std::vector<Receiver> &lists, const Point &pos, const Absolute &dir) {
     /*foldMaybes listd lists pos dir = */
     struct DDe {
@@ -437,5 +504,9 @@ G::MutableMesh G::toMesh(const std::vector<Source> &s, const std::vector<Receive
     for(const auto& dede: ls.worldState.devis) {
         items.push_back(transformationForDeviator(dede) * deviator(dede.size));
     }
-    return {Mesh{lines}, items, Mesh{recvs}};
+    std::vector<Mesh> cubes;
+    for(const auto& cubebe: ls.worldState.cubes) {
+        cubes.push_back(cubebe.pos * cube(cubebe.faceCenterDist));
+    }
+    return {Mesh{lines}, items, Mesh{recvs}, cubes};
 }

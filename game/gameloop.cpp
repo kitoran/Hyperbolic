@@ -1,7 +1,15 @@
-#include "gameloop.h"
+﻿#include "gameloop.h"
 #include "console.h"
 #include "clip.h"
 #include "fmt/format.h"
+#include "stb_image_write.h"
+
+
+
+#include "commongraphics.h"
+#include "graphics.h"
+
+bool wrap = true;
 OptionalDouble intersectRay( const Deviator & d, const Matrix44 &transs) {
     Matrix44 move = moveRightTo(d.pos);
     Point dirFromStart = toNonPhysicalPoint (transposeMink (move) * d.dir);
@@ -131,10 +139,10 @@ Matrix44 preShow(const Mesh &rays, const Matrix44 &vp) {
         auto move = moveRightTo (pos);
         auto dirFromStart = (transposeMink (move) * dir);
         auto toOxy = getPointToOxyAroundOy(dirFromStart);
-        fmt::print(stderr, "toOxy*Oz = {}\n", toOxy * Point{0,0,1,1});
+//        fmt::print(stderr, "toOxy*Oz = {}\n", toOxy * Point{0,0,1,1});
         Point onOxy = toOxy*dirFromStart;
         auto toOx = getPointToOxzAroundOz(onOxy);
-        fmt::print(stderr, "toOx*Oz = {}\n", toOx * Point{0,0,1,1});
+//        fmt::print(stderr, "toOx*Oz = {}\n", toOx * Point{0,0,1,1});
         auto turn = toOx * toOxy;
 
         rayToOx = ( move * transposeMink( turn) );
@@ -159,9 +167,47 @@ Matrix44 preShow(const Mesh &rays, const Matrix44 &vp) {
 
 }
 
+struct Face {
+    Matrix44 m;
+    double w;
+};
+
+std::array<Face, 6> faces(PushingCube a) {
+    std::array<Face, 6> res ;
+    Matrix44 m = a.pos;
+    res[0] = {moveAlongX(a.faceCenterDist)*m, a.faceCenterDist};
+    res[1] = {moveAlongX(-a.faceCenterDist)*m, a.faceCenterDist};
+    res[2] = {moveAlongY(a.faceCenterDist)*m, a.faceCenterDist};
+    res[3] = {moveAlongY(-a.faceCenterDist)*m, a.faceCenterDist};
+    res[4] = {moveAlongZ(a.faceCenterDist)*m, a.faceCenterDist};
+    res[5] = {moveAlongZ(-a.faceCenterDist)*m, a.faceCenterDist};
+
+    return res;
+}
+
+bool pushCubes(AvatarPosition* s) {
+    bool res = false;
+    for(auto &wfew: state.worldState.cubes) {
+        for(auto fef: faces(wfew)) {
+            Matrix44 fefsef = sqrtPushOutRectangle(fef.m, fef.w, fef.w, currentPosition(*s));
+            if(fefsef != identity) {
+                res = true;
+                wfew.pos = transposeMink(fefsef) * wfew.pos;
+                *s = decompose(fefsef*currentPosition (*s), *s);
+            }
+        }
+    }
+    return res;
+}
+
 AvatarPosition tick(double gravity, const std::vector<RuntimeObstacle> &level, AvatarPosition s) {
     s = applySpeed(s);
     s = applyGravity(gravity, s);
+    if(pushCubes(&s)) {
+        mutableMesh = toMesh(source,
+                             receivers,
+                             state);
+    }
     s = pushOut (level, s);
     if( s.height > 8) {
         s.height = 7.99;
@@ -170,6 +216,7 @@ AvatarPosition tick(double gravity, const std::vector<RuntimeObstacle> &level, A
     return s;
 }
 bool continueCycle = true;
+unsigned char pixels[1049088*4] = {0};
 void keyboardProcess() {
     const Uint8 *state = SDL_GetKeyboardState(nullptr);
     if(state[SDL_SCANCODE_ESCAPE] || (state[SDL_SCANCODE_F4] && (state[SDL_SCANCODE_LALT] || state[SDL_SCANCODE_RALT]))) {
@@ -196,9 +243,69 @@ void keyboardProcess() {
 //                                                   cosh(globals::state.avatarPosition.height)};
             clip::set_text(fmt::format("{{{}, {}, {}, {}}}", p.x, p.y, p.z, p.t));
         }
-        if(state[SDL_SCANCODE_E]) {
+        if(state[SDL_SCANCODE_N]) {
             noclip = !noclip;
         }
+        if(state[SDL_SCANCODE_E]) {
+
+            SDL_SetWindowFullscreen(window, SDL_WINDOW_RESIZABLE);
+            SDL_SetWindowSize(window, width/2, height/2);
+            SDL_SetWindowResizable(window, SDL_TRUE);
+            SDL_SetWindowBordered(window, SDL_TRUE);
+            SDL_ShowCursor(SDL_TRUE);
+            wrap = false;
+//            glBindFramebuffer(GL_FRAMEBUFFER, selectionFramebuffer);
+//            auto ap = globals::state.avatarPosition;
+
+//            Matrix44 ps = preShow(mutableMesh.rays, G::viewPort(ap));
+//            auto inv = globals::state.inventory.type == Item::Empty ? Mesh{} :
+//                                                  globals::state.inventory.type == Item::De ? ps*G::transparentDeviator() : (abort(), Mesh{});
+//        //    fmt::print(stderr, "preshow for show {}", ps*Point{1,0,0,1});
+//            auto items =  mutableMesh.items;
+//            G::display({levelMesh}, G::viewPort( ap), true);
+//            G::display(items, G::viewPort( ap), true);
+//            G::display({mutableMesh.rays}, G::viewPort( ap), true);
+//            G::display({mutableMesh.recvs}, G::viewPort( ap), true);
+//            G::display({inv}, G::viewPort( ap), true);
+//            G::display(mutableMesh.cubes, G::viewPort( ap), true);
+//            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+//            glBindFramebuffer(GL_FRAMEBUFFER, selectionFramebuffer);
+
+
+
+//            fprintf(stderr, "w %d h %d ", width, height);
+//            glReadPixels(0,0,width, height, GL_RGB_INTEGER, GL_UNSIGNED_INT, pixels);
+//            fprintf(stderr, "color is %d %d %d %d", pixels[0],
+//                                         pixels[1]
+//                                        , pixels[2]
+//                                        , pixels[3]);
+////                    pixels[(height/2*width + width/2)*4],
+////                     pixels[(height/2*width + width/2)*4+1]
+////                    , pixels[(height/2*width + width/2)*4+2]
+////                    , pixels[(height/2*width + width/2)*4+3]);
+//            int runStart = -1;
+//            int runLength = 0;
+//            for(uint i = 0; i < sizeof(pixels)/sizeof(pixels[0]); i+=4) {
+//                unsigned char* array = (pixels+i);
+////                char tmp = array[0];
+////                array[0] = array[3];
+////                array[3] = tmp;
+////                array[i] = UINT_MAX;
+////                array[0] = 255;
+////                array[1] = 255;
+////                array[2] = 255;
+//                array[3] = i;
+//            }
+
+//            int res = stbi_write_bmp("retrievedImage.bmp", width, height, 4, pixels);//, width*4);
+//            fprintf(stderr, "runStart is %d, res is %d\n", runStart, res);
+////            editorLoop();
+////            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+//            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
+
+
     }
     if (comInhibited>0) comInhibited--;
     if(G::wheCons) {
@@ -210,8 +317,10 @@ void keyboardProcess() {
                 if(positionInHistory == history.rend()) {
                     savedConsole = console;
                 }
-                positionInHistory--;
-                console = *positionInHistory;
+                if(positionInHistory != history.rbegin()) {
+                    positionInHistory--;
+                    console = *positionInHistory;
+                }
                 keystroke = true;
             } else if(state[SDL_SCANCODE_DOWN]) {
                 //                               when (keysymKeycode a == KeycodeUp) (modifyIORef consoleRef consoleUp)
@@ -324,6 +433,8 @@ void processKeyboard(const Uint8 *c) {
     }
     if(c[SDL_SCANCODE_R]) {
         state = startState();
+
+        mutableMesh = toMesh(source, receivers, state);
         //                    KeycodeR -> reset
     }
     if(c[SDL_SCANCODE_SPACE]) {
@@ -348,12 +459,20 @@ void gameDisplay() {
     Matrix44 ps = preShow(mutableMesh.rays, G::viewPort(ap));
     auto inv = state.inventory.type == Item::Empty ? Mesh{} :
                                           state.inventory.type == Item::De ? ps*G::transparentDeviator() : (abort(), Mesh{});
-    fmt::print(stderr, "preshow for show {}", ps*Point{1,0,0,1});
+//    fmt::print(stderr, "preshow for show {}", ps*Point{1,0,0,1});
     auto items =  mutableMesh.items;
     if(state.selected.is_initialized()) {
         G::lightenABit(&items[boost::get(state.selected)]);
     }
-    G::displayGame(levelMesh, items, mutableMesh.rays, mutableMesh.recvs, inv, G::viewPort( ap));
+    G::predisplay();
+    G::display({levelMesh}, G::viewPort( ap));
+    G::display(items, G::viewPort( ap));
+    G::display({mutableMesh.rays}, G::viewPort( ap));
+    G::display({mutableMesh.recvs}, G::viewPort( ap));
+    G::display({inv}, G::viewPort( ap));
+    G::display(mutableMesh.cubes, G::viewPort( ap));
+
+    G::postdisplay();
 }
 
 AvatarPosition processTurnUp(double angle, const AvatarPosition &ap) {
@@ -413,7 +532,8 @@ void gameLoop() {
     //                f,
     //                NULL);
     //(void)tty;
-    SDL_WarpMouseInWindow(window, width/2, height/2);
+    SDL_WarpMouseGlobal(/*window, */width/2, height/2);
+
     //    SDL_GL_SetSwapInterval(0);
     //    SDL_SetWindowGrab(window, SDL_TRUE);
     //    SDL
@@ -449,13 +569,12 @@ void gameLoop() {
         //        uint32_t flags = SDL_GetWindowFlags(window);
         //        std::cout << focus << std::endl<< std::endl;
         if(focus) {
-
             int x ,y;
             uint res = SDL_GetMouseState(&x, &y);
-            if(x != width/2 || y != height/2) {
+            if((x != width/2 || y != height/2) && wrap) {
                 state.avatarPosition = processMouse( x-width/2, y-height/2, state.avatarPosition);
                 state.selected = state.inventory.type == Item::Empty ? findSelected(state.worldState, state.avatarPosition) : boost::none;
-                SDL_WarpMouseInWindow(window, width/2, height/2);
+                SDL_WarpMouseGlobal(/*window, */width/2, height/2);
             }
             if(res &  SDL_BUTTON(SDL_BUTTON_LEFT) && !mouseInhibited) {
                 mouseCCase();

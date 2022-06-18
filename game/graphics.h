@@ -1,4 +1,4 @@
-#ifndef GRAPHICS
+﻿#ifndef GRAPHICS
 #define GRAPHICS
 #include <iostream>
 #include <SDL2/SDL_ttf.h>
@@ -19,14 +19,17 @@ inline TTF_Font* mono = 0;
 void renderLine(const std::string & line, int lineNumber, bool bottom = true);
 
 void renderConsole();
+void predisplay( );
+void postdisplay( );
 
-void displayGame(const Mesh &st, const std::vector<Mesh> &its, const Mesh &ray, const Mesh &re, const Mesh &inv, const Matrix44 &tran);
+void display(const std::vector<Mesh> &mesh, const Matrix44 &tran, bool AlternativeBuffer = false);
 Matrix44 viewPort(const AvatarPosition& ap);
 bool containsZero (const std::vector<Vector2>& v);
 struct MutableMesh {
     Mesh rays;
     std::vector<Mesh> items;
     Mesh recvs;
+    std::vector<Mesh> cubes;
 };
 enum RayEndType {infinity, someReceiver};
 struct UnfoldRayResult {

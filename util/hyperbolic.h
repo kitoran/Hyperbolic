@@ -146,6 +146,22 @@ struct Matrix44 {
         }
         return r;
     }
+    bool operator !=(Matrix44 a) {
+        FOR16(i) {
+            if(m[i] != a.m[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+    bool operator ==(Matrix44 a) {
+        FOR16(i) {
+            if(m[i] != a.m[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
 };
 Matrix44 inv44(Matrix44 a);
 struct Matrix33 {
